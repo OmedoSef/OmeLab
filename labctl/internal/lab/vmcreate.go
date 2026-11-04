@@ -24,7 +24,7 @@ func (l *Lab) DefaultVMSpec(name string) VMSpec {
 	return VMSpec{
 		Name:      name,
 		Image:     l.Setting("LABS_DEFAULT_IMAGE", "debian13"),
-		CPUs:      atoi("LABS_DEFAULT_CPUS", 2),
+		CPUs:      atoi("LABS_DEFAULT_CPUS", 1),
 		MemoryMiB: atoi("LABS_DEFAULT_MEMORY", 2048),
 		DiskGiB:   atoi("LABS_DEFAULT_DISK", 20),
 	}

@@ -16,8 +16,8 @@
   imposée par le moteur et le validateur, pas par chaque module).
 - Le module `core` reste intégré à labctl (c'est l'infrastructure commune), mais son contenu actuel par module
   (`core.conf` : alias, réservations, liens) **rejoint le `module.yaml`**.
-- **Tout est facultatif sauf l'essentiel**, avec des valeurs par défaut documentées : un module minimal tient en
-  quelques lignes (voir plus bas).
+- **Tout est facultatif sauf le nom du module**, avec des valeurs par défaut à plusieurs niveaux (voir
+  *Valeurs par défaut*) : un module minimal tient en quelques lignes.
 
 ## Le module pentest en YAML
 
@@ -118,7 +118,9 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 |---|---|---|
 | `module` | oui | nom (= nom du dossier) |
 | `description` | non | affichée par `labctl`, la GUI et la complétion |
-| `network.name` / `subnet` / `domain` | name, subnet | réseau isolé du module ; `subnet` en `/24` |
+| `network` | non | sans cette section : réseau `<module>-lab`, domaine `<module>-lab.<domaine des labs>`, sous-réseau `/24` libre choisi par labctl et **écrit dans le YAML** au premier `up` (stable ensuite) |
+| `network.name` / `subnet` / `domain` | non | pour les fixer soi-même ; `subnet` en `/24` |
+| `defaults` | non | valeurs communes aux VMs du module (`image`, `cpus`, `memory`, `disk`, `hardware`, `internet`, `snapshot`…) |
 | `pki.ca` | non | crée une CA dérivée limitée au domaine et au sous-réseau du module |
 | `dns.aliases` / `hosts` / `links` | non | ce que contient aujourd'hui `core.conf` |
 
@@ -133,7 +135,8 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `source.url` + `checksum` | — | téléchargement à empreinte figée (`sha256:`, `sha512:`, `md5:`) |
 | `source.sums` + `file` | — | empreinte lue dans le fichier publié ; `file` peut contenir `*` (dernière version) |
 | `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2 |
-| `cpus` / `memory` / `disk` | réglages par défaut | ressources (Mio, Gio) ; `disk` agrandit le disque des images cloud |
+| `cpus` / `memory` / `disk` | 1 vCPU, 2048 Mio, 20 Gio (voir *Valeurs par défaut*) | ressources (Mio, Gio) ; `disk` agrandit le disque des images cloud |
+| `image` (si ni `image` ni `source`) | `debian13` | image cloud par défaut |
 | `hardware` | q35, virtio, spice | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo` |
 | `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
@@ -199,16 +202,40 @@ modules/pentest/module.yaml
   en **préservant les commentaires** et la mise en forme.
 - *Nouveau module* : un squelette commenté à compléter.
 
+## Valeurs par défaut
+
+Chaque champ facultatif d'une VM est pris, dans l'ordre, du premier niveau qui le définit :
+
+| Priorité | Niveau | Exemple |
+|---|---|---|
+| 1 | la VM | `vms.kali.cpus: 4` |
+| 2 | `defaults:` du module | `defaults: {memory: 2048, image: ubuntu2404}` |
+| 3 | tes réglages (`scripts/config.local.env`, sinon `config.env`) | `LABS_DEFAULT_CPUS=1`, `LABS_DEFAULT_MEMORY`, `LABS_DEFAULT_DISK`, `LABS_DEFAULT_IMAGE` |
+| 4 | intégré à labctl | 1 vCPU, 2048 Mio, 20 Gio, `debian13`, q35/virtio/spice, `internet: off`, pas de snapshot |
+
+`labctl module <m> status` (et la GUI) affiche la valeur effective de chaque champ et son origine.
+
 ## Module minimal
 
 Tout ce qui n'est pas écrit prend sa valeur par défaut :
 
 ```yaml
 module: demo
-network: {name: demo-lab, subnet: 10.70.70.0/24}
 vms:
-  srv: {}          # image et ressources par défaut, IP dans la plage DHCP libre, srv.demo-lab.omedo.lab
+  srv: {}          # tout par défaut : debian13, 1 vCPU, 2 Gio, DHCP libre, srv.demo-lab.omedo.lab
   db: {ip: 20}     # IP fixe .20 : MAC générée et ajoutée au fichier à la création
+```
+
+Au premier `up`, labctl complète le fichier avec ce qu'il a choisi, pour que tout reste stable ensuite :
+
+```yaml
+module: demo
+network:                     # ajouté au premier up : sous-réseau libre choisi par labctl
+  name: demo-lab
+  subnet: 10.70.70.0/24
+vms:
+  srv: {}
+  db: {ip: 20, mac: 52:54:00:3a:91:c4}   # MAC ajoutée
 ```
 
 ## Décisions
@@ -217,8 +244,10 @@ vms:
    commandes `core dhcp|dns|link` écrivent dans le YAML en préservant commentaires et mise en forme ; les
    `core.conf` existants sont importés une fois puis retirés.
 2. **Sous-réseaux en `/24`** (convention .1 hôte, .2-.99 IP fixes, .100-.199 DHCP libre, .254 passerelle).
-3. **`ip` et `mac` facultatifs.** Sans `ip`, la VM est en DHCP libre (nom DNS par le bail). Avec `ip`, la MAC est
-   lue dans le YAML, ou générée et ajoutée au fichier. Tous les champs facultatifs ont une valeur par défaut.
+3. **Tout est facultatif sauf le nom du module.** `ip` et `mac` : sans `ip`, la VM est en DHCP libre (nom DNS
+   par le bail) ; avec `ip`, la MAC est lue dans le YAML, ou générée et ajoutée au fichier. `network` : sans
+   section, sous-réseau `/24` libre choisi puis écrit dans le YAML. Ressources : défauts à plusieurs niveaux
+   (VM, `defaults:` du module, réglages, intégré), **1 vCPU** par défaut.
 4. **Variables `${module.domain}`** : syntaxe simple, entièrement vérifiée par le validateur.
 5. **Stockage** : disques des nouvelles VMs de module dans le dossier des VMs (`~/Virtualisation/kvm/vms/`, sans
    sudo) ; les VMs existantes restent où elles sont.
