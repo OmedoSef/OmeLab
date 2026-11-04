@@ -37,10 +37,14 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 | Bloc | État | Remplace |
 |---|---|---|
 | PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
-| Génération de la config core (DHCP, DNS, pare-feu, liens) | à faire | fonctions `gen_*` de `modules/core/module.sh` |
+| Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core-config` (`internal/coreconf`) ; `core apply` l'appelle puis l'envoie | fonctions `gen_*` supprimées de `modules/core/module.sh` |
 | Outils VM (`vm-list`, `vm-ip`, `net-*`, `image-get`, snapshots) | à faire | `scripts/*.sh` |
 | Création / suppression de VMs (cloud-init) | à faire | `vm-create.sh`, `vm-destroy.sh` |
 | Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
+
+`labctl core-config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour
+contrôler l'effet d'un changement de `module.env` / `core.conf` avant `labctl core apply`. Au portage, la sortie Go
+a été comparée fichier par fichier à celle du bash déployée sur la passerelle : identique.
 
 La PKI Go est compatible avec les fichiers produits par l'ancien script (clés PKCS#8, mêmes chemins) ; un test
 vérifie l'interopérabilité avec openssl dans les deux sens.
@@ -99,6 +103,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
 | `internal/gui/` | serveur web local et page `static/index.html` (embarquée dans le binaire) |

@@ -94,141 +94,20 @@ attached_modules() {
   true
 }
 
-# ---------------------------------------------------------------- génération des configurations
-# Adresse fixe de la passerelle sur le réseau du module (systemd-networkd, carte reconnue par sa MAC)
-gen_networkd() {
-  load_module "$1"
-  cat <<EOF
-# Généré par ./lab.sh core apply : carte de la passerelle sur le module $M_MODULE
-[Match]
-MACAddress=$(gw_mac "$M_SUBNET")
-
-[Network]
-Address=$M_SUBNET.$GW_OCTET/24
-LinkLocalAddressing=no
-IPv6AcceptRA=no
-ConfigureWithoutCarrier=yes
-EOF
-}
-
-# DHCP de tous les modules branchés : une plage et des réservations par module, repérées par un tag
-gen_dhcp() {
-  local m vm
-  cat <<EOF
-# Généré par ./lab.sh core apply : DHCP des modules
-port=0
-bind-dynamic
-except-interface=eth0
-except-interface=lo
-dhcp-authoritative
-dhcp-leasefile=/var/lib/misc/gwdhcp.leases
-dhcp-script=/usr/local/sbin/gwdhcp-hook
-dhcp-scriptuser=root
-EOF
-  for m in "$@"; do
-    load_module "$m"
-    echo
-    echo "# module $m ($M_DOMAIN)"
-    echo "dhcp-range=set:$m,$M_SUBNET.$DHCP_RANGE_START,$M_SUBNET.$DHCP_RANGE_END,255.255.255.0,12h"
-    echo "dhcp-option=tag:$m,option:router,$M_SUBNET.$GW_OCTET"
-    echo "dhcp-option=tag:$m,option:dns-server,$M_SUBNET.$GW_OCTET"
-    echo "dhcp-option=tag:$m,option:domain-name,$M_DOMAIN"
-    echo "dhcp-option=tag:$m,option:domain-search,$M_DOMAIN"
-    for vm in $(printf '%s\n' "${!M_HOSTS[@]}" | sort); do
-      [[ -n ${M_MACS[$vm]:-} ]] && echo "dhcp-host=${M_MACS[$vm]},$(host_ip "$vm"),$vm"
-    done
-  done
-}
-
-# Enregistrements DNS fixes d'un module : VMs réservées + alias
-gen_records() {
-  local m=$1 vm name target
-  load_module "$m"
-  for vm in "${!M_HOSTS[@]}"; do echo "host-record=$vm.$M_DOMAIN,$(host_ip "$vm")"; done
-  while read -r name target; do
-    [[ -n $name ]] || continue
-    [[ $target == *.* ]] || target=$target.$M_DOMAIN
-    echo "cname=$name.$M_DOMAIN,$target"
-  done < <(conf_entries "$m" alias)
-}
-
-# Instance DNS d'un module : MODULE PORT open|closed "MODULES BRANCHÉS"
-# Le module résout ses noms et ceux des modules vers lesquels il a un lien.
-gen_dns() {
-  local m=$1 port=$2 mode=$3 attached=" $4 " other visible
-  visible=" $m $(conf_entries "$m" link | xargs) "
-  cat <<EOF
-# Généré par ./lab.sh core apply : DNS du module $m, instance $mode
-port=$port
-pid-file=/run/gwdns-$m-$mode.pid
-bind-dynamic
-except-interface=eth0
-no-resolv
-no-hosts
-domain-needed
-bogus-priv
-local-ttl=60
-# Domaine racine des labs : jamais relayé vers Internet
-local=/$LABS_PKI_DOMAIN/
-EOF
-  for other in $(module_list); do
-    load_module "$other"
-    # Un domaine de module est toujours local : inconnu = NXDOMAIN, jamais relayé
-    echo "local=/$M_DOMAIN/"
-    if [[ $visible == *" $other "* ]]; then
-      echo "# module $other ($M_DOMAIN) : visible"
-      gen_records "$other"
-      # noms obtenus par DHCP (tenus à jour par gwdhcp-hook)
-      [[ $attached == *" $other "* ]] && echo "hostsdir=/run/gwdns/leases/$other"
-    else
-      echo "# module $other ($M_DOMAIN) : masqué"
-    fi
-  done
-  if [[ $mode == open ]]; then
-    echo "# Relais Internet (VMs autorisées par la passerelle)"
-    echo "server=$(net_host_ip default)"
-  fi
-}
-
-# VMs NO_INTERNET des modules branchés : bloquées en permanence comme source (Internet et autres modules)
-gen_blocked() {
-  local m vm
-  for m in "$@"; do
-    load_module "$m"
-    for vm in $M_NO_INTERNET; do host_ip "$vm"; done
-  done
-}
-
-# Liens entre modules branchés, pour le pare-feu : SOUS-RESEAU_SOURCE SOUS-RESEAU_DESTINATION
-gen_links() {
-  local m other src
-  for m in "$@"; do
-    load_module "$m"; src="$M_SUBNET.0/24"
-    for other in $(conf_entries "$m" link); do
-      [[ " $* " == *" $other "* ]] || continue
-      load_module "$other"
-      echo "$src $M_SUBNET.0/24"
-    done
-  done
-}
-
+# ---------------------------------------------------------------- application de la configuration
+# La configuration (réseau .254, DHCP, DNS, liens, VMs bloquées) est générée par labctl core-config
+# (Go, labctl/internal/coreconf) depuis module.env et core.conf ; ce script l'envoie et recharge les services.
 core_apply() {
   require_gw
-  local tmp m t i=0 closed open instances=(dhcp) attached
-  attached=$(attached_modules | xargs)
-  tmp=$(mktemp -d); mkdir -p "$tmp/gwdns" "$tmp/networkd"
-  touch "$tmp/gwdns/modules"
-  for m in $attached; do
-    closed=$((5300 + 2 * i)); open=$((closed + 1)); i=$((i + 1))
-    load_module "$m"
-    echo "$M_SUBNET.0/24 $closed $open $m $M_DOMAIN" >>"$tmp/gwdns/modules"
-    gen_networkd "$m" >"$tmp/networkd/50-gw-$m.network"
-    gen_dns "$m" "$closed" closed "$attached" >"$tmp/gwdns/$m-closed.conf"
-    gen_dns "$m" "$open" open "$attached" >"$tmp/gwdns/$m-open.conf"
-    instances+=("$m-closed" "$m-open")
-  done
-  # shellcheck disable=SC2086  # liste de modules volontairement découpée
-  { gen_dhcp $attached >"$tmp/gwdns/dhcp.conf"; gen_links $attached >"$tmp/gwdns/links"; gen_blocked $attached >"$tmp/gwdns/blocked"; }
+  local tmp m t instances=(dhcp) attached=''
+  tmp=$(mktemp -d)
+  "$(labctl_bin)" core-config "$tmp" || { rm -rf "$tmp"; die "génération de la configuration impossible"; }
+  # Modules branchés et instances DNS : lus dans la configuration générée
+  while read -r _ _ _ m _; do
+    [[ -n $m ]] || continue
+    attached+="$m "; instances+=("$m-closed" "$m-open")
+  done <"$tmp/gwdns/modules"
+  attached=${attached% }
 
   tar -C "$tmp" -cf - . | core_gw_ssh "set -e
     t=\$(mktemp -d); tar -C \$t --no-same-owner -xf -

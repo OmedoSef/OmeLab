@@ -105,9 +105,10 @@ func (e *Env) VMs() []string {
 
 // CoreConf reprend core.conf : réservations en plus, alias DNS, liens.
 type CoreConf struct {
-	Hosts   map[string]int
-	Aliases map[string]string
-	Links   []string
+	Hosts    map[string]int    // réservations en plus : nom -> dernier octet
+	HostMACs map[string]string // réservations en plus : nom -> MAC
+	Aliases  map[string]string
+	Links    []string
 }
 
 // LibvirtName donne le nom libvirt d'une VM de module (convention <module>-<vm>).
@@ -254,7 +255,7 @@ func ParseEnv(path, pkiDomain string) (*Env, error) {
 
 // ParseCoreConf lit un core.conf ; un fichier absent donne une configuration vide.
 func ParseCoreConf(path string) (*CoreConf, error) {
-	c := &CoreConf{Hosts: map[string]int{}, Aliases: map[string]string{}}
+	c := &CoreConf{Hosts: map[string]int{}, HostMACs: map[string]string{}, Aliases: map[string]string{}}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -271,6 +272,9 @@ func ParseCoreConf(path string) (*CoreConf, error) {
 		case f[0] == "host" && len(f) >= 3:
 			if o, err := strconv.Atoi(f[2]); err == nil {
 				c.Hosts[f[1]] = o
+				if len(f) >= 4 {
+					c.HostMACs[f[1]] = strings.ToLower(f[3])
+				}
 			}
 		case f[0] == "alias" && len(f) >= 3:
 			c.Aliases[f[1]] = f[2]

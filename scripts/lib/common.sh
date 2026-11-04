@@ -76,6 +76,15 @@ wait_vm_ip() {
   echo "$ip"
 }
 
+# Chemin de labctl (outil Go du projet), compilé au besoin avec le Go du projet ou dans Docker
+labctl_bin() {
+  local bin="$SCRIPTS_DIR/../bin/labctl"
+  if [[ ! -x $bin ]]; then
+    "$SCRIPTS_DIR/../labctl/build.sh" build >&2 || "$SCRIPTS_DIR/../labctl/build.sh" docker >&2 || die "labctl introuvable et impossible à compiler"
+  fi
+  echo "$bin"
+}
+
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 
 # Libère sur la passerelle core les baux DHCP de ces MAC (VM supprimée) : son IP redevient libre et son

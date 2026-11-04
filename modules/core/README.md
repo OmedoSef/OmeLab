@@ -108,7 +108,8 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 | `gwdns@.service` | `/etc/systemd/system/` | instances dnsmasq : `dhcp`, et `<module>-open` / `<module>-closed` par module |
 | `90-gw.conf` | `/etc/sysctl.d/` | routage IPv4 activé, IPv6 désactivé |
 
-`./lab.sh core apply` génère sur l'hôte, depuis `module.env` et `core.conf` de chaque module branché :
+`./lab.sh core apply` génère sur l'hôte avec `labctl core-config` (Go), depuis `module.env` et `core.conf` de chaque
+module branché, puis envoie le tout sur la passerelle (`labctl core-config` seul affiche ce qui serait appliqué) :
 
 - l'adresse `.254` de la passerelle sur chaque réseau (`/etc/systemd/network/50-gw-<module>.network`) ;
 - le DHCP (`/etc/gwdns/dhcp.conf`) ;
