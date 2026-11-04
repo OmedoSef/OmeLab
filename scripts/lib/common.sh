@@ -47,25 +47,8 @@ lab_vms() {
   done < <(virsh list --all --name)
 }
 
-# Première IPv4 (hors loopback) : bail DHCP libvirt, agent invité, table ARP, puis baux de la passerelle core.
-vm_ip() {
-  local vm=$1 src ip
-  for src in lease agent arp; do
-    ip=$(virsh domifaddr "$vm" --source "$src" 2>/dev/null \
-      | awk '!f && $1!="lo" && $3=="ipv4" {split($4,a,"/"); if (a[1] !~ /^127\./) {print a[1]; f=1}}')
-    [[ -n "$ip" ]] && { echo "$ip"; return 0; }
-  done
-  # Réseaux des modules : le DHCP est sur la passerelle core-gw, on lit ses baux
-  if [[ $vm != core-gw && $(vm_state core-gw 2>/dev/null) == running ]]; then
-    local macs gw
-    macs=$(virsh domiflist "$vm" 2>/dev/null | awk 'NR>2 && NF {print tolower($5)}' | paste -sd'|')
-    gw=$(vm_ip core-gw) || return 1
-    ip=$(ssh "${SSH_OPTS[@]}" "$LABS_VM_USER@$gw" cat /var/lib/misc/gwdhcp.leases 2>/dev/null \
-      | awk -v m="^($macs)$" 'tolower($2) ~ m {print $3; exit}')
-    [[ -n "$ip" ]] && { echo "$ip"; return 0; }
-  fi
-  return 1
-}
+# Première IPv4 d'une VM (bail DHCP libvirt, agent invité, ARP, puis baux de la passerelle core) : labctl vm ip
+vm_ip() { "$(labctl_bin)" vm ip "$1" 2>/dev/null; }
 
 wait_vm_ip() {
   local vm=$1 timeout=${2:-180} ip t=0

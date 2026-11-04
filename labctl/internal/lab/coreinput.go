@@ -1,13 +1,9 @@
 package lab
 
 import (
-	"regexp"
-	"strings"
-
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/virt"
 )
-
-var reNetIP = regexp.MustCompile(`<ip address='([^']+)'`)
 
 // CoreInput rassemble ce qu'il faut pour générer la configuration de la passerelle : les modules
 // (module.env + core.conf), ceux sur lesquels la passerelle est branchée, et le DNS amont.
@@ -17,9 +13,11 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 	if err != nil {
 		return in, err
 	}
-	gwMACs := ""
-	if out, err := virsh("domiflist", GatewayVM); err == nil {
-		gwMACs = strings.ToLower(out)
+	gwMACs := map[string]bool{}
+	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
+		for _, i := range ifs {
+			gwMACs[i.MAC] = true
+		}
 	}
 	for _, m := range mods {
 		if m.Env == nil {
@@ -44,13 +42,16 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 			}
 		}
 		in.Modules = append(in.Modules, cm)
-		if strings.Contains(gwMACs, coreconf.GatewayMAC(m.Env.Subnet)) {
+		if gwMACs[coreconf.GatewayMAC(m.Env.Subnet)] {
 			in.Attached = append(in.Attached, m.Name)
 		}
 	}
-	if out, err := virsh("net-dumpxml", "default"); err == nil {
-		if mm := reNetIP.FindStringSubmatch(out); mm != nil {
-			in.Upstream = mm[1]
+	// DNS amont des instances open : l'hôte sur le réseau NAT libvirt « default »
+	if nets, err := virt.Shared().Networks(); err == nil {
+		for _, n := range nets {
+			if n.Name == "default" {
+				in.Upstream = n.HostIP
+			}
 		}
 	}
 	return in, nil

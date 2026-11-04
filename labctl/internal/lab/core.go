@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"labs/labctl/internal/virt"
 )
 
 // CoreState détaille la passerelle core-gw : cartes, services, baux DHCP, pare-feu.
@@ -48,21 +50,14 @@ func (l *Lab) Core() *CoreState {
 	if cs.State == "absente" {
 		return cs
 	}
-	if out, err := virsh("domiflist", GatewayVM); err == nil {
-		for _, line := range strings.Split(out, "\n")[2:] {
-			if f := strings.Fields(line); len(f) >= 3 && f[1] == "network" {
-				cs.Networks = append(cs.Networks, f[2])
+	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
+		for _, i := range ifs {
+			if i.Type == "network" {
+				cs.Networks = append(cs.Networks, i.Network)
 			}
 		}
 	}
-	if out, err := virsh("domifaddr", GatewayVM, "--source", "lease"); err == nil {
-		for _, line := range strings.Split(out, "\n") {
-			if f := strings.Fields(line); len(f) >= 4 && f[2] == "ipv4" {
-				cs.WAN = strings.SplitN(f[3], "/", 2)[0]
-				break
-			}
-		}
-	}
+	cs.WAN = virt.Shared().IPv4(GatewayVM)
 	if cs.State != "running" {
 		return cs
 	}

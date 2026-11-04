@@ -22,11 +22,11 @@ labctl pki init                      # (une fois) CA racine + intermédiaire du 
 | `image-get.sh` | Télécharge les images cloud (`--list` pour le catalogue) |
 | `vm-create.sh` | Crée une VM (CPU, RAM, disque, cartes réseau, IP fixes, lab, paquets) |
 | `vm-destroy.sh` | Supprime une VM et ses disques |
-| `vm-list.sh` | VMs avec état, lab et IP |
-| `vm-ip.sh` / `vm-ssh.sh` | IP d'une VM / SSH par nom |
-| `vm-snapshot.sh` | Snapshots create / list / revert / delete |
+| `vm-list.sh` | relais vers `labctl vm list` : VMs avec état, lab et IP |
+| `vm-ip.sh` / `vm-ssh.sh` | IP d'une VM (relais vers `labctl vm ip`) / SSH par nom |
+| `vm-snapshot.sh` | relais vers `labctl vm snapshot` : create / list / revert / delete |
 | `vm-keyboard.sh` | Règle le clavier de VMs existantes (par SSH, ou par l'agent invité QEMU) |
-| `net-create.sh` / `net-delete.sh` / `net-list.sh` | Réseaux virtuels (nat, isolated, route) |
+| `net-create.sh` / `net-delete.sh` / `net-list.sh` | relais vers `labctl net` : réseaux virtuels (nat, isolated, route) |
 | `lab.sh` | Actions groupées sur un lab : status, up, down, snapshot, revert, destroy |
 | `pki.sh` | relais vers `labctl pki` (PKI portée en Go) |
 

@@ -15,6 +15,8 @@ labctl core internet on pentest <TAB> # kali msf2 web
 labctl pki issue srv -C <TAB>         # pentest (CA dérivées)
 labctl gui                 # ouvre l'interface dans le navigateur
 labctl hostfw status       # pare-feu de l'hôte face aux VMs des modules (on/off : avec sudo)
+labctl vm list             # toutes les VMs : état, lab, IP ; labctl vm ip VM ; labctl vm snapshot ...
+labctl net list            # réseaux libvirt ; labctl net create|delete
 labctl -v pentest status   # -v : affiche la commande bash réellement lancée
 deactivate                 # retire labctl, Go, la complétion et (labs)
 ```
@@ -56,7 +58,8 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 |---|---|---|
 | PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
 | Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core-config` (`internal/coreconf`) ; `core apply` l'appelle puis l'envoie | fonctions `gen_*` supprimées de `modules/core/module.sh` |
-| Outils VM (`vm-list`, `vm-ip`, `net-*`, `image-get`, snapshots) | à faire | `scripts/*.sh` |
+| Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` → relais ; `vm_ip` des scripts passe par labctl |
+| Images cloud (`image-get`) | à faire (avec la création de VMs) | `scripts/image-get.sh` |
 | Création / suppression de VMs (cloud-init) | à faire | `vm-create.sh`, `vm-destroy.sh` |
 | Édition de `core.conf` (réservations, alias, liens) | ✅ en Go (`internal/lab/corefile.go`), utilisée par la GUI | les commandes bash `core dhcp/dns/link` restent, même format |
 | Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
@@ -130,6 +133,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique |
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |

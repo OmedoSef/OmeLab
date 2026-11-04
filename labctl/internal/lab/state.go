@@ -3,57 +3,25 @@ package lab
 import (
 	"bufio"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+
+	"labs/labctl/internal/virt"
 )
 
-const (
-	libvirtURI = "qemu:///system"
-	GatewayVM  = "core-gw"
-)
-
-// virsh lance une commande virsh en sortie non traduite et renvoie sa sortie (vide si erreur).
-func virsh(args ...string) (string, error) {
-	cmd := exec.Command("virsh", append([]string{"-c", libvirtURI}, args...)...)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
-}
+// GatewayVM est la passerelle du module core.
+const GatewayVM = "core-gw"
 
 // DomState renvoie l'état libvirt d'une VM : running, shut off... ou "absente".
-func DomState(name string) string {
-	s, err := virsh("domstate", name)
-	if err != nil {
-		return "absente"
-	}
-	return strings.SplitN(s, "\n", 2)[0]
-}
+func DomState(name string) string { return virt.Shared().State(name) }
 
-// Snapshots renvoie les snapshots d'une VM libvirt.
-func SnapshotsOf(name string) []string {
-	s, err := virsh("snapshot-list", "--name", name)
-	if err != nil || s == "" {
-		return nil
-	}
-	return strings.Fields(s)
-}
+// SnapshotsOf renvoie les noms des snapshots d'une VM libvirt.
+func SnapshotsOf(name string) []string { return virt.Shared().SnapshotNames(name) }
 
 // NetActive indique si un réseau libvirt est actif.
-func NetActive(name string) bool {
-	s, err := virsh("net-info", name)
-	if err != nil {
-		return false
-	}
-	for _, l := range strings.Split(s, "\n") {
-		if f := strings.Fields(l); len(f) == 2 && f[0] == "Active:" {
-			return f[1] == "yes"
-		}
-	}
-	return false
-}
+func NetActive(name string) bool { return virt.Shared().NetActive(name) }
 
 // --- Complétion
 

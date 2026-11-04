@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Affiche l'IP d'une VM.  vm-ip.sh VM [-w SECONDES]  (-w : attend qu'elle en ait une)
-# shellcheck source=lib/common.sh
-source "$(dirname "$0")/lib/common.sh"
-vm=${1:?usage : vm-ip.sh VM [-w SECONDES]}
-vm_exists "$vm" || die "VM inconnue : $vm"
-if [[ ${2:-} == -w ]]; then wait_vm_ip "$vm" "${3:-180}" || die "pas d'IP pour $vm"
-else vm_ip "$vm" || die "pas d'IP pour $vm (VM démarrée ? qemu-guest-agent installé ?)"; fi
+# Relais : IP d'une VM : VM [-w [SECONDES]]
+# Porté en Go : utiliser « labctl vm ip ». Ce script garde l'ancienne syntaxe le temps de migrer les appels.
+# shellcheck source=lib/relay.sh
+source "$(dirname "$0")/lib/relay.sh"
+# Ancienne syntaxe : « -w » seul attendait 180 s
+if [[ ${2:-} == -w && -z ${3:-} ]]; then set -- "$1" -w 180; fi
+relay vm ip "$@"
