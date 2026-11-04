@@ -210,7 +210,13 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	cmd := s.lab.Command(req.Args...)
 	if pki {
-		cmd = exec.Command(s.lab.PKIScript(), req.Args[1:]...)
+		// La PKI est en Go : on relance labctl lui-même, avec exactement l'analyse d'options de la CLI
+		self, err := os.Executable()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		cmd = exec.Command(self, req.Args...)
 		cmd.Dir = s.lab.Root
 	}
 	// La GUI demande déjà confirmation : pas de question interactive côté script

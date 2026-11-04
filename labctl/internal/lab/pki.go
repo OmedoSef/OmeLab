@@ -12,13 +12,8 @@ import (
 	"time"
 )
 
-// PKIDir renvoie le dossier de la PKI ($LABS_PKI_DIR, sinon <racine>/pki, comme scripts/config.env).
-func (l *Lab) PKIDir() string {
-	if d := os.Getenv("LABS_PKI_DIR"); d != "" {
-		return d
-	}
-	return filepath.Join(l.Root, "pki")
-}
+// PKIDir renvoie le dossier de la PKI (LABS_PKI_DIR, sinon <racine>/pki).
+func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l.Root, "pki")) }
 
 // PKIState décrit la PKI telle qu'elle est sur disque (lue directement dans les certificats).
 type PKIState struct {
@@ -192,9 +187,6 @@ func ipNet(n *net.IPNet) string {
 	return fmt.Sprintf("%s/%d", n.IP, ones)
 }
 
-// PKIScript renvoie le chemin de scripts/pki.sh.
-func (l *Lab) PKIScript() string { return filepath.Join(l.Root, "scripts", "pki.sh") }
-
 // AllVMNames liste les noms libvirt des VMs des modules, plus la passerelle (cibles de trust-vm / deploy).
 func (l *Lab) AllVMNames() []string {
 	out := []string{GatewayVM}
@@ -205,58 +197,4 @@ func (l *Lab) AllVMNames() []string {
 		}
 	}
 	return out
-}
-
-var pkiCommands = []string{"init", "sub-ca", "issue", "list", "show", "trust-vm", "deploy", "trust-host"}
-
-var pkiIssueFlags = []string{"-C", "-D", "-d", "-i", "--client", "--days", "--pfx"}
-
-// CompletePKI propose la suite de « labctl pki ... ».
-func (l *Lab) CompletePKI(typed []string, toComplete string) []string {
-	if len(typed) == 0 {
-		return filterPrefix(pkiCommands, toComplete)
-	}
-	prev := typed[len(typed)-1]
-	var out []string
-	switch typed[0] {
-	case "issue":
-		switch {
-		case prev == "-C" || prev == "--ca":
-			out = l.SubCANames()
-		case len(typed) > 1 && strings.HasPrefix(prev, "-") && prev != "--client" && prev != "--pfx":
-			return nil // valeur libre (domaine, DNS, IP, jours)
-		case len(typed) > 1:
-			for _, f := range pkiIssueFlags {
-				if !contains(typed, f) {
-					out = append(out, f)
-				}
-			}
-		}
-	case "sub-ca":
-		if len(typed) > 1 && !strings.HasPrefix(prev, "-") {
-			for _, f := range []string{"-D", "-s"} {
-				if !contains(typed, f) {
-					out = append(out, f)
-				}
-			}
-		}
-	case "show":
-		if len(typed) == 1 {
-			out = l.CertNames()
-		}
-	case "trust-vm":
-		for _, vm := range l.AllVMNames() {
-			if !contains(typed, vm) {
-				out = append(out, vm)
-			}
-		}
-	case "deploy":
-		switch len(typed) {
-		case 1:
-			out = l.AllVMNames()
-		case 2:
-			out = l.CertNames()
-		}
-	}
-	return filterPrefix(out, toComplete)
 }

@@ -169,7 +169,7 @@ async function run(args, confirmText) {
   running = true; render();
   const log = $("#log-out");
   $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer";
-  const shown = args[0] === "pki" ? `scripts/pki.sh ${args.slice(1).join(" ")}` : `./lab.sh ${args.join(" ")}`;
+  const shown = args[0] === "pki" ? `labctl ${args.join(" ")}` : `./lab.sh ${args.join(" ")}`;
   $("#log-status").innerHTML = `<span class="busy">en cours : ${esc(shown)}</span>`;
   log.textContent += `\n$ ${shown}\n`;
   try {
@@ -409,7 +409,7 @@ function renderPKI() {
   $("#view-pki").innerHTML = h;
 }
 
-// Formulaires PKI -> arguments de pki.sh
+// Formulaires PKI -> arguments de labctl pki
 document.addEventListener("submit", e => {
   const f = e.target.closest("form[data-form]");
   if (!f) return;

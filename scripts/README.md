@@ -8,7 +8,7 @@ utilisateur, clé SSH, IP, paquets et CA racine du lab sont posés au premier d�
 
 ```bash
 ./check-host.sh                      # vérifie KVM, libvirt, outils, droits
-./pki.sh init                        # (une fois) CA racine + intermédiaire du lab
+labctl pki init                      # (une fois) CA racine + intermédiaire du lab
 ./net-create.sh demo -s 10.10.0.0/24 # réseau dédié au lab
 ./vm-create.sh web1 -l demo -n default -n demo:10.10.0.11/24 -w
 ./vm-ssh.sh web1
@@ -27,7 +27,7 @@ utilisateur, clé SSH, IP, paquets et CA racine du lab sont posés au premier d�
 | `vm-snapshot.sh` | Snapshots create / list / revert / delete |
 | `net-create.sh` / `net-delete.sh` / `net-list.sh` | Réseaux virtuels (nat, isolated, route) |
 | `lab.sh` | Actions groupées sur un lab : status, up, down, snapshot, revert, destroy |
-| `pki.sh` | PKI du lab : CA racine → intermédiaire → certificats |
+| `pki.sh` | relais vers `labctl pki` (PKI portée en Go) |
 
 Chaque script affiche son aide avec `-h`.
 
@@ -51,26 +51,29 @@ Chaque script affiche son aide avec `-h`.
 
 ## PKI du lab
 
+> La PKI est désormais en Go : **`labctl pki`** (voir [labctl](../labctl/README.md)). `scripts/pki.sh` n'est plus
+> qu'un relais vers `labctl pki`, avec la même syntaxe, gardé le temps de migrer les appels existants.
+
 ```bash
-./pki.sh init                                   # CA racine (20 ans) + intermédiaire (10 ans), dans ../pki/
-./pki.sh issue web1 -D k8s.omedo.lab -i 10.10.0.11 # SAN : web1, web1.k8s.omedo.lab, IP
-./pki.sh issue db1.data.prod.omedo.lab             # nom déjà complet : pris tel quel
-./pki.sh issue ingress -D k8s.omedo.lab -d '*.apps.k8s.omedo.lab'   # wildcard (entre quotes)
-./pki.sh issue alice --client --pfx             # cert client + .p12
-./pki.sh deploy web1 web1                       # copie clé/cert/chaîne dans /etc/ssl/lab/ de la VM
-./pki.sh trust-vm vieille-vm                    # installe la CA racine dans une VM existante
-./pki.sh trust-host                             # fait confiance à la CA sur l'hôte
-./pki.sh list
+labctl pki init                                   # CA racine (20 ans) + intermédiaire (10 ans), dans ../pki/
+labctl pki issue web1 -D k8s.omedo.lab -i 10.10.0.11 # SAN : web1, web1.k8s.omedo.lab, IP
+labctl pki issue db1.data.prod.omedo.lab             # nom déjà complet : pris tel quel
+labctl pki issue ingress -D k8s.omedo.lab -d '*.apps.k8s.omedo.lab'   # wildcard (entre quotes)
+labctl pki issue alice --client --pfx             # cert client + .p12
+labctl pki deploy web1 web1                       # copie clé/cert/chaîne dans /etc/ssl/lab/ de la VM
+labctl pki trust-vm vieille-vm                    # installe la CA racine dans une VM existante
+labctl pki trust-host                             # fait confiance à la CA sur l'hôte
+labctl pki list
 ```
 
-Les VMs créées **après** `pki.sh init` font automatiquement confiance à la CA racine (module `ca_certs` de cloud-init).
+Les VMs créées **après** `labctl pki init` font automatiquement confiance à la CA racine (module `ca_certs` de cloud-init).
 Pour un serveur, utiliser `<nom>.fullchain.crt` (certificat + CA émettrice).
 
 **CA dérivées** : une CA par lab, signée par la racine et limitée à un domaine (+ un sous-réseau pour les IP) :
 
 ```bash
-./pki.sh sub-ca pentest -D pentest-lab.omedo.lab -s 10.66.66.0/24
-./pki.sh issue web -C pentest -i 10.66.66.30     # SAN : web.pentest-lab.omedo.lab, 10.66.66.30
+labctl pki sub-ca pentest -D pentest-lab.omedo.lab -s 10.66.66.0/24
+labctl pki issue web -C pentest -i 10.66.66.30     # SAN : web.pentest-lab.omedo.lab, 10.66.66.30
 ```
 
 Un certificat hors de ces limites est refusé à l'émission, et le serait aussi par les clients.

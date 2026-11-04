@@ -53,7 +53,7 @@ func newRoot() *cobra.Command {
 	for _, m := range mods {
 		root.AddCommand(moduleCmd(l, m, &verbose))
 	}
-	root.AddCommand(pkiCmd(l, &verbose), statusCmd(l), guiCmd(l, &verbose), completionCmd())
+	root.AddCommand(pkiCmd(l), statusCmd(l), guiCmd(l, &verbose), completionCmd())
 	return root
 }
 
@@ -75,27 +75,6 @@ func moduleCmd(l *lab.Lab, m *lab.Module, verbose *bool) *cobra.Command {
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return m.Commands.Complete(m.Name, args, toComplete, l), cobra.ShellCompDirectiveNoFileComp
-		},
-	}
-}
-
-// pkiCmd transmet à scripts/pki.sh (PKI Omedo Labs : CA racine, intermédiaire, CA dérivées, certificats).
-func pkiCmd(l *lab.Lab, verbose *bool) *cobra.Command {
-	return &cobra.Command{
-		Use:                "pki <commande> [arguments]",
-		Short:              "PKI des labs : CA dérivées, certificats, déploiement sur les VMs",
-		GroupID:            "outils",
-		DisableFlagParsing: true, // les options (-C, --pfx...) appartiennent à pki.sh
-		RunE: func(cmd *cobra.Command, args []string) error {
-			for len(args) > 0 && (args[0] == "-v" || args[0] == "--verbose") {
-				*verbose = true
-				args = args[1:]
-			}
-			l.Verbose = *verbose
-			return l.ExecScript(l.PKIScript(), args...)
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return l.CompletePKI(args, toComplete), cobra.ShellCompDirectiveNoFileComp
 		},
 	}
 }

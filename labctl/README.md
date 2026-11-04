@@ -29,6 +29,22 @@ avec sa ligne d'aide, suffit à la rendre complétable, sans toucher au Go. Noms
 | `NOM` juste après `VM` | les snapshots de cette VM |
 | `--option` | l'option elle-même |
 
+## Migration des scripts bash vers Go
+
+Chaque bloc porté en Go devient une commande de labctl, testée ; le script bash correspondant devient un
+relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle.
+
+| Bloc | État | Remplace |
+|---|---|---|
+| PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
+| Génération de la config core (DHCP, DNS, pare-feu, liens) | à faire | fonctions `gen_*` de `modules/core/module.sh` |
+| Outils VM (`vm-list`, `vm-ip`, `net-*`, `image-get`, snapshots) | à faire | `scripts/*.sh` |
+| Création / suppression de VMs (cloud-init) | à faire | `vm-create.sh`, `vm-destroy.sh` |
+| Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
+
+La PKI Go est compatible avec les fichiers produits par l'ancien script (clés PKCS#8, mêmes chemins) ; un test
+vérifie l'interopérabilité avec openssl dans les deux sens.
+
 ## GUI
 
 `labctl gui` sert l'interface sur **127.0.0.1:8077** uniquement (`-p` pour un autre port, `--no-browser` pour ne
@@ -83,6 +99,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
 | `internal/gui/` | serveur web local et page `static/index.html` (embarquée dans le binaire) |
 

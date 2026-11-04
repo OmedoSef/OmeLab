@@ -29,28 +29,3 @@ func TestPublicFileNeverServesKeys(t *testing.T) {
 		}
 	}
 }
-
-func TestCompletePKI(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("LABS_PKI_DIR", dir)
-	os.MkdirAll(filepath.Join(dir, "sub-ca", "pentest"), 0o755)
-	os.MkdirAll(filepath.Join(dir, "certs", "web"), 0o755)
-	l := &Lab{Root: t.TempDir()}
-	check := func(typed []string, cur string, want ...string) {
-		t.Helper()
-		got := l.CompletePKI(typed, cur)
-		if len(got) != len(want) {
-			t.Fatalf("CompletePKI(%v, %q) = %v, attendu %v", typed, cur, got, want)
-		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Fatalf("CompletePKI(%v, %q) = %v, attendu %v", typed, cur, got, want)
-			}
-		}
-	}
-	check(nil, "s", "show", "sub-ca")
-	check([]string{"issue", "srv", "-C"}, "", "pentest")
-	check([]string{"issue", "srv", "-d"}, "") // valeur libre
-	check([]string{"show"}, "", "web")
-	check([]string{"issue", "srv", "--pfx", "-C", "pentest"}, "--", "--client", "--days")
-}

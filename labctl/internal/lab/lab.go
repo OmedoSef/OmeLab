@@ -159,16 +159,8 @@ func (l *Lab) Module(name string) (*Module, error) {
 	return nil, fmt.Errorf("module inconnu : %s", name)
 }
 
-// pkiDomain lit le domaine racine par défaut dans scripts/config.env.
-func (l *Lab) pkiDomain() string {
-	re := regexp.MustCompile(`LABS_PKI_DOMAIN="\$\{LABS_PKI_DOMAIN:-([^}"]+)\}"`)
-	if b, err := os.ReadFile(filepath.Join(l.Root, "scripts", "config.env")); err == nil {
-		if m := re.FindSubmatch(b); m != nil {
-			return string(m[1])
-		}
-	}
-	return "omedo.lab"
-}
+// pkiDomain renvoie le domaine racine des labs (LABS_PKI_DOMAIN).
+func (l *Lab) pkiDomain() string { return l.Setting("LABS_PKI_DOMAIN", "omedo.lab") }
 
 type header struct {
 	description string
