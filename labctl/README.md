@@ -29,6 +29,23 @@ avec sa ligne d'aide, suffit à la rendre complétable, sans toucher au Go. Noms
 | `NOM` juste après `VM` | les snapshots de cette VM |
 | `--option` | l'option elle-même |
 
+## Renouveler la chaîne de certificats
+
+Rare, mais possible depuis la GUI (onglet PKI, *Maintenance de la chaîne*) ou en ligne de commande :
+
+| Commande | Effet | Après |
+|---|---|---|
+| `labctl pki renew intermediate` | nouvelle intermédiaire (même racine) ; ses certificats réémis | rien sur les VMs ; redéployer les certificats réémis |
+| `labctl pki renew sub-ca NOM` | nouvelle CA dérivée, mêmes limites ; ses certificats réémis | idem |
+| `labctl pki renew root [--trust-vms]` | toute la chaîne recréée, tous les certificats réémis | installer la nouvelle racine sur les VMs (`--trust-vms` le fait sur les VMs démarrées joignables en SSH) et redéployer les certificats |
+
+- Nouvelles clés partout ; les certificats réémis gardent leurs noms, leurs usages et leur durée de validité.
+- La PKI est **archivée avant chaque opération** dans `pki/archive/<date>/` (`labctl pki archives`) ; retour arrière :
+  recopier les fichiers de l'archive dans `pki/`.
+- La racine demande de taper `RACINE` (ou `--yes` en ligne de commande).
+- Les certificats installés par d'autres moyens que `labctl pki deploy` (ex. le HTTPS de la VM web du module pentest,
+  posé par cloud-init dans `/opt/targets/certs`) sont à remettre en place à la main après un renouvellement.
+
 ## Migration des scripts bash vers Go
 
 Chaque bloc porté en Go devient une commande de labctl, testée ; le script bash correspondant devient un
@@ -71,7 +88,8 @@ pas ouvrir le navigateur). Trois onglets :
 - **PKI** : CA racine, intermédiaire et CA dérivées avec leurs limites (domaine, sous-réseau) et leur expiration ;
   certificats émis avec leurs noms ; création d'une CA dérivée, émission d'un certificat, déploiement sur une
   VM, installation de la CA racine dans une VM ; téléchargement des **certificats publics** (jamais des clés
-  privées ni des `.p12`, qui restent dans `pki/`). `pki trust-host` (sudo) reste en ligne de commande.
+  privées ni des `.p12`, qui restent dans `pki/`) ; **maintenance de la chaîne** (renouveler l'intermédiaire, une
+  CA dérivée, ou toute la chaîne : voir ci-dessous). `pki trust-host` (sudo) reste en ligne de commande.
 
 La sortie des commandes s'affiche en direct dans le journal en bas de page.
 

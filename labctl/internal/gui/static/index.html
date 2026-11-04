@@ -119,6 +119,9 @@ nav.tabs .count { display: inline-block; min-width: 18px; padding: 0 5px; margin
 <script>
 "use strict";
 const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+// Nouvelle adresse (labctl gui relancé) collée dans un onglet déjà ouvert : seul le fragment change,
+// le navigateur ne recharge pas ; on recharge pour prendre le nouveau jeton
+addEventListener("hashchange", () => location.reload());
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 let state = null, running = false, core = null, pki = null, config = null, showDiff = false;
@@ -475,6 +478,23 @@ function renderPKI() {
     </form>
   </section>`;
 
+  h += `<section class="card"><div class="card-head"><h2>Maintenance de la chaîne</h2>
+      <span class="meta">nouvelles clés ; certificats concernés réémis à l'identique ; ancienne PKI archivée avant toute opération</span></div>
+    <table><tbody>
+      <tr><td><strong>CA intermédiaire</strong><div class="meta">même racine : rien à faire sur les VMs</div></td>
+        <td><button ${busy} data-run='["pki","renew","intermediate"]' data-confirm="Renouveler la CA intermédiaire et réémettre les certificats qu'elle a signés ?">Renouveler</button></td></tr>
+      ${subs.map(c => `<tr><td><strong>CA dérivée ${esc(c.name)}</strong><div class="meta">mêmes limites (${esc(c.domain || "")}) : rien à faire sur les VMs</div></td>
+        <td><button ${busy} data-run='${esc(JSON.stringify(["pki", "renew", "sub-ca", c.name]))}' data-confirm="Renouveler la CA dérivée ${esc(c.name)} et réémettre ses certificats ?">Renouveler</button></td></tr>`).join("")}
+      <tr><td><strong>Toute la chaîne (nouvelle racine)</strong>
+        <div class="meta">les VMs devront recevoir la nouvelle racine, et les certificats réémis être redéployés</div>
+        <label class="check meta" style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="rotate-trust" checked> installer ensuite la nouvelle racine sur les VMs démarrées</label></td>
+        <td><button class="danger" ${busy} data-rotate-root>Régénérer…</button></td></tr>
+    </tbody></table>
+    <div class="meta" style="padding:10px 16px;border-top:1px solid var(--line)">Archives : ${(p.archives || []).length
+      ? (p.archives || []).map(a => `<span class="pill mono">${esc(a)}</span>`).join(" ") + ` <span class="meta">dans pki/archive/ (retour arrière : recopier les fichiers)</span>`
+      : "aucune"}</div>
+  </section>`;
+
   h += `<section class="card"><div class="card-head"><h2>Confiance dans les VMs</h2></div>
     <form class="inline" data-form="trust">
       <label>VM<select name="vm" required><option value="">choisir…</option>${vmOpts}</select></label>
@@ -535,6 +555,13 @@ document.addEventListener("click", e => {
   else if (t.dataset.download) download(t.dataset.download);
   else if (t.dataset.cfg) { e.preventDefault(); editConfig(JSON.parse(t.dataset.cfg)); }
   else if (t.dataset.toggleDiff !== undefined) { showDiff = !showDiff; renderConfig(); }
+  else if (t.dataset.rotateRoot !== undefined) {
+    const word = prompt("Régénérer TOUTE la chaîne : nouvelle racine, toutes les CA, tous les certificats (nouvelles clés).\n" +
+      "Les VMs ne feront plus confiance aux certificats tant qu'elles n'auront pas la nouvelle racine.\n" +
+      "L'ancienne PKI est archivée.\n\nTaper RACINE pour confirmer :");
+    if (word === "RACINE") run(["pki", "renew", "root", "--yes", ...($("#rotate-trust")?.checked ? ["--trust-vms"] : [])]);
+    else if (word !== null) alert("Confirmation incorrecte : rien n'a été modifié.");
+  }
   else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm);
   else if (t.dataset.console) console_(t.dataset.console);
   else if (t.dataset.snapshot) {

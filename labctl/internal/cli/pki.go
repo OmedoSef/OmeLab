@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,6 +149,18 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 			return p.Deploy(remote(l), args[0], args[1], dest)
 		},
 	})
+	root.AddCommand(renewCmd(l, p))
+	root.AddCommand(&cobra.Command{
+		Use:   "archives",
+		Short: "Archives de la PKI créées avant chaque renouvellement",
+		Args:  cobra.NoArgs, ValidArgsFunction: noFiles,
+		RunE: func(*cobra.Command, []string) error {
+			for _, a := range p.Archives() {
+				fmt.Println(filepath.Join(p.Dir, "archive", a))
+			}
+			return nil
+		},
+	})
 	root.AddCommand(&cobra.Command{
 		Use:   "trust-host",
 		Short: "Installe la CA racine sur cet hôte (sudo)",
@@ -155,6 +168,92 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 		RunE: func(*cobra.Command, []string) error { return p.TrustHost() },
 	})
 	return root
+}
+
+// renewCmd : renouvellement de la chaîne (intermédiaire, CA dérivée ou racine).
+func renewCmd(l *lab.Lab, p *pki.PKI) *cobra.Command {
+	var yes, trustVMs bool
+	report := func(rep *pki.RenewReport, err error) error {
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "\nAncienne PKI archivée : %s\n", rep.Archive)
+		if len(rep.Reissued) > 0 {
+			fmt.Fprintf(os.Stderr, "Certificats réémis (nouvelles clés) : %s\n", strings.Join(rep.Reissued, ", "))
+			fmt.Fprintln(os.Stderr, "À redéployer là où ils sont utilisés : labctl pki deploy VM NOM [DOSSIER]")
+		}
+		return nil
+	}
+	c := &cobra.Command{
+		Use:   "renew intermediate|sub-ca NOM|root",
+		Short: "Renouvelle la CA intermédiaire, une CA dérivée ou toute la chaîne (racine)",
+		Long: `Renouvelle une partie de la chaîne avec de nouvelles clés et réémet à l'identique (mêmes noms, mêmes
+usages, même durée) les certificats concernés. La PKI est d'abord archivée dans ` + filepath.Join(p.Dir, "archive") + `.
+
+  intermediate   nouvelle intermédiaire, signée par la même racine : rien à faire sur les VMs
+  sub-ca NOM     nouvelle CA dérivée, mêmes limites : rien à faire sur les VMs
+  root           toute la chaîne recréée : les VMs doivent recevoir la nouvelle racine (--trust-vms ou
+                 labctl pki trust-vm) et les certificats réémis doivent être redéployés`,
+		Args: cobra.RangeArgs(1, 2),
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			switch {
+			case len(args) == 0:
+				return []string{"intermediate", "sub-ca", "root"}, cobra.ShellCompDirectiveNoFileComp
+			case len(args) == 1 && args[0] == "sub-ca":
+				return p.SubCANames(), cobra.ShellCompDirectiveNoFileComp
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			switch {
+			case args[0] == "intermediate" && len(args) == 1:
+				return report(p.RenewIntermediate())
+			case args[0] == "sub-ca" && len(args) == 2:
+				return report(p.RenewSubCA(args[1]))
+			case args[0] == "root" && len(args) == 1:
+				if !yes {
+					if !confirmWord("Régénérer TOUTE la chaîne : nouvelle racine, toutes les CA et tous les certificats.\n"+
+						"Les VMs ne feront plus confiance aux certificats tant qu'elles n'auront pas la nouvelle racine.", "RACINE") {
+						return errors.New("abandon : rien n'a été modifié")
+					}
+				}
+				if err := report(p.RotateRoot()); err != nil {
+					return err
+				}
+				if trustVMs {
+					var running []string
+					for _, vm := range l.AllVMNames() {
+						if lab.DomState(vm) == "running" {
+							running = append(running, vm)
+						}
+					}
+					fmt.Fprintf(os.Stderr, "\n==> installation de la nouvelle racine sur les VMs démarrées : %s\n", strings.Join(running, " "))
+					if err := p.TrustVM(remote(l), running...); err != nil {
+						fmt.Fprintln(os.Stderr, "attention:", err, "(VMs sans accès SSH par clé : installer la racine à la main)")
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, "Installer la nouvelle racine sur les VMs : labctl pki trust-vm VM...")
+				}
+				return nil
+			}
+			return errors.New("usage : labctl pki renew intermediate | sub-ca NOM | root")
+		},
+	}
+	c.Flags().BoolVarP(&yes, "yes", "y", false, "racine : ne pas demander de confirmation")
+	c.Flags().BoolVar(&trustVMs, "trust-vms", false, "racine : installer ensuite la nouvelle racine sur les VMs démarrées")
+	return c
+}
+
+// confirmWord demande de taper un mot exact pour confirmer (refus si l'entrée n'est pas un terminal).
+func confirmWord(msg, word string) bool {
+	if st, err := os.Stdin.Stat(); err != nil || st.Mode()&os.ModeCharDevice == 0 {
+		fmt.Fprintln(os.Stderr, msg+"\nConfirmation impossible sans terminal : ajouter --yes.")
+		return false
+	}
+	fmt.Fprintf(os.Stderr, "%s\nTaper %s pour confirmer : ", msg, word)
+	var answer string
+	fmt.Scanln(&answer)
+	return answer == word
 }
 
 func without(list, exclude []string) []string {

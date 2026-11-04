@@ -18,8 +18,9 @@ func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l
 // PKIState décrit la PKI telle qu'elle est sur disque (lue directement dans les certificats).
 type PKIState struct {
 	Initialized bool       `json:"initialized"`
-	CAs         []CertInfo `json:"cas"`   // racine, intermédiaire, CA dérivées
-	Certs       []CertInfo `json:"certs"` // certificats émis (certs/<nom>/<nom>.crt)
+	CAs         []CertInfo `json:"cas"`      // racine, intermédiaire, CA dérivées
+	Certs       []CertInfo `json:"certs"`    // certificats émis (certs/<nom>/<nom>.crt)
+	Archives    []string   `json:"archives"` // archives créées avant chaque renouvellement
 }
 
 // CertInfo résume un certificat.
@@ -68,6 +69,11 @@ func (l *Lab) PKI() (*PKIState, error) {
 		}
 	}
 
+	if arch, err := os.ReadDir(filepath.Join(dir, "archive")); err == nil {
+		for _, a := range arch {
+			st.Archives = append(st.Archives, a.Name())
+		}
+	}
 	certs, _ := os.ReadDir(filepath.Join(dir, "certs"))
 	for _, c := range certs {
 		name := c.Name()

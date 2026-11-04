@@ -253,3 +253,7 @@ func TestOpenSSLInterop(t *testing.T) {
 		t.Errorf("openssl verify (CA dérivée signée par Go avec une racine openssl) : %s", out)
 	}
 }
+
+func decodePFX(b []byte) (any, *x509.Certificate, []*x509.Certificate, error) {
+	return pkcs12.DecodeChain(b, "")
+}
