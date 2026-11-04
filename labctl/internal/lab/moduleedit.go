@@ -1,0 +1,156 @@
+package lab
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+
+	"labs/labctl/internal/module"
+)
+
+// Édition d'un module.yaml en texte (éditeur de la GUI) : le texte est validé tel quel, et seul un texte
+// sans erreur est enregistré. Un enregistrement refuse d'écraser un fichier modifié entre-temps.
+
+// ErrConflict : le fichier a changé depuis qu'il a été lu.
+var ErrConflict = errors.New("le fichier a été modifié entre-temps (ailleurs que dans cet éditeur) : recharger avant d'enregistrer")
+
+// ErrInvalid : le texte contient des erreurs.
+var ErrInvalid = errors.New("enregistrement refusé : le module contient des erreurs")
+
+var (
+	reModuleName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	reYAMLLine   = regexp.MustCompile(`ligne (\d+)`)
+)
+
+// TextHash est l'empreinte d'un contenu (détection des modifications concurrentes).
+func TextHash(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+func (l *Lab) moduleFile(name string) string {
+	return filepath.Join(l.Root, "modules", name, module.FileName)
+}
+
+// ModuleText renvoie le contenu du module.yaml d'un module et son empreinte.
+func (l *Lab) ModuleText(name string) (text, hash string, err error) {
+	if !reModuleName.MatchString(name) {
+		return "", "", fmt.Errorf("nom de module invalide : %q", name)
+	}
+	b, err := os.ReadFile(l.moduleFile(name))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", "", fmt.Errorf("le module %s n'a pas de %s", name, module.FileName)
+	}
+	if err != nil {
+		return "", "", err
+	}
+	return string(b), TextHash(b), nil
+}
+
+// CheckModuleText valide un texte de module.yaml sans l'enregistrer. Une erreur de lecture (syntaxe,
+// clé inconnue, type) devient un problème placé à sa ligne.
+func (l *Lab) CheckModuleText(name, text string) []module.Issue {
+	y, err := module.Parse([]byte(text), filepath.Join(l.Root, "modules", name))
+	if err != nil {
+		var issues []module.Issue
+		// Plusieurs erreurs de type sont séparées par « ; » : une par ligne concernée
+		for _, part := range strings.Split(err.Error(), " ; ") {
+			i := module.Issue{Error: true, Msg: part}
+			if m := reYAMLLine.FindStringSubmatch(part); m != nil {
+				i.Line, _ = strconv.Atoi(m[1])
+			}
+			issues = append(issues, i)
+		}
+		return issues
+	}
+	return y.Validate(l.ModuleContext(name))
+}
+
+// SaveModuleText enregistre un module.yaml après validation. base est l'empreinte du fichier lu (vide pour
+// créer un nouveau module : le dossier ne doit pas exister). Renvoie l'empreinte du fichier enregistré.
+func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []module.Issue, error) {
+	if !reModuleName.MatchString(name) {
+		return "", nil, fmt.Errorf("nom de module invalide : %q (minuscules, chiffres, tirets)", name)
+	}
+	path := l.moduleFile(name)
+	dir := filepath.Dir(path)
+	if create {
+		if len(name) > 9 || slices.Contains(module.ReservedNames, name) {
+			return "", nil, fmt.Errorf("nom %q : 9 caractères au plus, et pas un nom réservé (%s)", name, strings.Join(module.ReservedNames, ", "))
+		}
+		if _, err := os.Stat(dir); err == nil {
+			return "", nil, fmt.Errorf("le dossier modules/%s existe déjà", name)
+		}
+	} else {
+		cur, err := os.ReadFile(path)
+		if err != nil {
+			return "", nil, err
+		}
+		if TextHash(cur) != base {
+			return "", nil, ErrConflict
+		}
+	}
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	issues := l.CheckModuleText(name, text)
+	if module.Errors(issues) > 0 {
+		return "", issues, ErrInvalid
+	}
+	if create {
+		if err := os.MkdirAll(filepath.Join(dir, "files"), 0o755); err != nil {
+			return "", nil, err
+		}
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
+		return "", nil, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return "", nil, err
+	}
+	return TextHash([]byte(text)), issues, nil
+}
+
+// ModuleSkeleton renvoie un module.yaml commenté pour un nouveau module.
+func ModuleSkeleton(name string) string {
+	return strings.ReplaceAll(`# Module NAME. Voir docs/module-yaml.md pour toutes les clés.
+module: NAME
+description: À décrire
+
+# network:                    # facultatif : sans section, un /24 libre est choisi au premier « up »
+#   subnet: 10.70.70.0/24     # hôte .1, VMs à IP fixe .2-.99, DHCP libre .100-.199, passerelle core .254
+#   domain: NAME-lab.omedo.lab
+
+# pki:
+#   ca: NAME                  # CA dérivée, limitée au domaine et au sous-réseau du module
+
+# defaults:                   # valeurs communes aux VMs (sinon : réglages, puis 1 vCPU, 2048 Mio, 20 Gio, debian13)
+#   memory: 2048
+
+# dns:
+#   aliases:                  # <alias>.<domaine> -> VM du module
+#     www: srv
+#   links: [pentest]          # modules que celui-ci peut joindre et résoudre
+
+vms:
+  srv:                        # VM NAME-srv, nom DNS srv.<domaine>
+    ip: 10                    # IP fixe .10 (sans ip : DHCP libre) ; MAC ajoutée au premier « up »
+    # image: ubuntu2404       # debian12, debian13, ubuntu2404...
+    # cpus: 2
+    # internet: install       # off (défaut) | install (le temps de l'installation) | never
+    # packages: [nginx]
+    # files:
+    #   - {src: files/index.html, dest: /var/www/html/index.html, template: true}
+    # run:
+    #   - systemctl restart nginx
+    snapshot: clean
+`, "NAME", name)
+}

@@ -214,11 +214,14 @@ modules/pentest/module.yaml
 
 ## GUI
 
-- Onglet **Modules** : un éditeur YAML par module (coloration, validation à la volée avec les erreurs au bon
-  endroit), bouton *Valider*, *Enregistrer* (refusé si invalide), *Appliquer* (`up`).
-- Les formulaires actuels (onglet Configuration : alias, réservations, liens) écrivent dans le `module.yaml`
-  en **préservant les commentaires** et la mise en forme.
-- *Nouveau module* : un squelette commenté à compléter.
+- Onglet **module.yaml** (ou bouton *module.yaml* sur la carte d'un module) : éditeur avec coloration,
+  numéros de ligne, **validation à la volée** (erreurs et avertissements à leur ligne, cliquables).
+  - *Enregistrer* (Ctrl+S) : refusé tant qu'il reste une erreur, ou si le fichier a été modifié ailleurs
+    depuis son ouverture (*Recharger le fichier* pour repartir de la version sur le disque).
+  - *Appliquer (up)* : construit le module enregistré ; le fichier est relu ensuite (sous-réseau, MAC ajoutés).
+  - *Nouveau module…* : squelette commenté, valide tel quel ; *Créer le module* crée `modules/<nom>/` et `files/`.
+- Onglet Configuration : alias, réservations et liens écrits dans le `module.yaml` en **préservant les
+  commentaires** et la mise en forme.
 
 ## Valeurs par défaut
 
