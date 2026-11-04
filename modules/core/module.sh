@@ -18,6 +18,7 @@
 #   ./lab.sh core dhcp leases [MODULE]        baux en cours
 #   ./lab.sh core dhcp add MODULE NOM OCTET MAC   réserve SOUS-RESEAU.OCTET pour MAC, nommée NOM
 #   ./lab.sh core dhcp del MODULE NOM
+#   ./lab.sh core dhcp release MAC...         libère des baux (fait automatiquement à la suppression d'une VM)
 #
 #   ./lab.sh core dns list [MODULE]           noms et alias DNS
 #   ./lab.sh core dns alias add MODULE NOM CIBLE   NOM.<domaine> -> CIBLE (VM du module ou nom complet)
@@ -248,6 +249,7 @@ core_apply() {
   done
   core_gw_ssh "for u in \$(systemctl list-units --all --plain --no-legend 'gwdns@*' | awk '{print \$1}'); do
       i=\${u#gwdns@}; i=\${i%.service}; [ -f /etc/gwdns/\$i.conf ] || sudo systemctl disable -q --now \$u; done
+    sudo systemctl stop gwdns@dhcp 2>/dev/null; sudo gwctl prune-leases
     for i in ${instances[*]}; do sudo systemctl enable -q gwdns@\$i && sudo systemctl restart gwdns@\$i; done
     sudo gwctl apply"
   ok "passerelle à jour : ${attached:-aucun module branché} (DHCP + $((${#instances[@]} - 1)) instances DNS)"
@@ -269,7 +271,7 @@ cmd_gw() {
     local spec src dest mode files=()
     for spec in "${GW_FILES[@]}"; do IFS=: read -r src dest mode <<<"$spec"; files+=(-f "$HERE/files/$src:$dest:$mode"); done
     "$SCRIPTS_DIR/vm-create.sh" "$GW" -i debian13 -c 1 -m 512 -d 10 -n default -l core \
-      -p nftables,dnsmasq "${files[@]}" \
+      -p nftables,dnsmasq,dnsmasq-utils "${files[@]}" \
       -r "sysctl --system >/dev/null" \
       -r "systemctl disable --now dnsmasq" \
       -r "systemctl daemon-reload && systemctl enable --now gw.service" \
@@ -288,7 +290,7 @@ cmd_gw() {
 cmd_update() {
   require_gw
   local spec src dest mode
-  core_gw_ssh "dpkg -s dnsmasq >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -qq -y dnsmasq >/dev/null"
+  core_gw_ssh "dpkg -s dnsmasq dnsmasq-utils >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -qq -y dnsmasq dnsmasq-utils >/dev/null"
   for spec in "${GW_FILES[@]}"; do
     IFS=: read -r src dest mode <<<"$spec"
     core_gw_ssh "sudo install -m $mode /dev/stdin $dest" <"$HERE/files/$src"
@@ -457,6 +459,10 @@ cmd_dhcp() {
       conf_edit "$1" "host $name $octet ${mac,,}"
       ok "réservation $name : $M_SUBNET.$octet pour ${mac,,} (DNS : $name.$M_DOMAIN)"
       apply_if_running ;;
+    release)
+      (($#)) || usage 1
+      require_gw
+      core_gw_ssh sudo gwctl release "$@" ;;
     del)
       load_module "${1:-}"
       [[ -n $(conf_entries "$1" host | awk -v n="${2:-}" '$1==n') ]] || die "pas de réservation ${2:-} dans core.conf de $1 (celles de module.env se changent dans module.env)"

@@ -78,6 +78,17 @@ wait_vm_ip() {
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 
+# Libère sur la passerelle core les baux DHCP de ces MAC (VM supprimée) : son IP redevient libre et son
+# nom DNS disparaît tout de suite au lieu d'attendre l'expiration du bail. Sans passerelle : rien à faire.
+core_release_leases() {
+  (($#)) || return 0
+  [[ $(vm_state core-gw 2>/dev/null) == running ]] || return 0
+  local gw; gw=$(vm_ip core-gw) || return 0
+  # shellcheck disable=SC2029  # MAC validées par gwctl, développées côté hôte volontairement
+  ssh "${SSH_OPTS[@]}" "$LABS_VM_USER@$gw" sudo gwctl release "$@" >/dev/null 2>&1 \
+    || warn "baux DHCP non libérés sur core-gw ($*) : ./lab.sh core dhcp release $*"
+}
+
 random_mac() { printf '52:54:00:%02x:%02x:%02x\n' $((RANDOM % 256)) $((RANDOM % 256)) $((RANDOM % 256)); }
 
 # Adresse IP de l'hôte sur un réseau libvirt (= passerelle des VMs)

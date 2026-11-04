@@ -42,6 +42,7 @@ Services communs à tous les modules, centralisés sur une petite VM **`core-gw`
 ./lab.sh core dhcp leases [MODULE]             # baux en cours
 ./lab.sh core dhcp add pentest dc01 40 52:54:00:aa:bb:cc   # 10.66.66.40 + dc01.<domaine>
 ./lab.sh core dhcp del pentest dc01
+./lab.sh core dhcp release 52:54:00:aa:bb:cc   # libère un bail (automatique à la suppression d'une VM)
 
 ./lab.sh core dns list [MODULE]
 ./lab.sh core dns alias add pentest dvwa web   # dvwa.pentest-lab.omedo.lab -> web
@@ -81,6 +82,8 @@ Vérifiées par des tests depuis des VMs de deux modules :
 | VM `NO_INTERNET` | N'initie rien hors de son module, même vers un module lié (elle reste joignable) |
 | Lien ouvert | N'ouvre pas Internet |
 | Redémarrage de `core-gw` | Internet refermé partout ; DHCP, DNS et liens rechargés depuis la configuration |
+| Suppression d'une VM (`vm-destroy.sh`, `<module> destroy`) | Son bail est libéré : IP disponible, nom DNS retiré tout de suite |
+| `core apply` | Les baux des réseaux qui ne sont plus branchés sont purgés |
 
 Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est immédiat et non un délai d'attente.
 
@@ -99,7 +102,7 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 
 | Fichier (dans `files/`) | Installé sur la passerelle | Rôle |
 |---|---|---|
-| `gwctl` | `/usr/local/sbin/gwctl` | génère le pare-feu nftables : accès Internet, VMs bloquées, liens, redirections DNS |
+| `gwctl` | `/usr/local/sbin/gwctl` | génère le pare-feu nftables (accès Internet, VMs bloquées, liens, redirections DNS) ; libère et purge les baux DHCP |
 | `gwdhcp-hook` | `/usr/local/sbin/gwdhcp-hook` | à chaque bail DHCP, met à jour les noms dynamiques du module |
 | `gw.service` | `/etc/systemd/system/` | applique le pare-feu au démarrage (Internet fermé) |
 | `gwdns@.service` | `/etc/systemd/system/` | instances dnsmasq : `dhcp`, et `<module>-open` / `<module>-closed` par module |

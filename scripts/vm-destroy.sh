@@ -26,12 +26,14 @@ for vm in "${vms[@]}"; do
   fi
   confirm "Supprimer définitivement la VM $vm et ses disques ?" || continue
   mapfile -t files < <(virsh domblklist "$vm" --details | awk '$1=="file" && $4!="-" {print $4}')
+  mapfile -t macs < <(virsh domiflist "$vm" | awk 'NR>2 && NF {print $5}')
   [[ $(vm_state "$vm") == "shut off" ]] || virsh destroy "$vm" >/dev/null
   virsh undefine "$vm" --nvram --snapshots-metadata --managed-save >/dev/null 2>&1 \
     || virsh undefine "$vm" --snapshots-metadata >/dev/null
   for f in "${files[@]}"; do
     [[ $f == "$LABS_VM_DIR/"* ]] || warn "disque conservé (hors $LABS_VM_DIR) : $f"
   done
+  core_release_leases "${macs[@]}"
   [[ -d "$LABS_VM_DIR/$vm" ]] && rm -rf -- "${LABS_VM_DIR:?}/$vm"
   # virt-install crée un pool libvirt pour le dossier de la VM : on le retire aussi
   while read -r pool; do

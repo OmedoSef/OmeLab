@@ -7,6 +7,8 @@
 #   gwctl block CIDR      interdit une source, même si une autorisation la couvre (en plus de /etc/gwdns/blocked)
 #   gwctl unblock CIDR
 #   gwctl status          affiche l'état (allowed/blocked, une entrée par ligne)
+#   gwctl release MAC...  libère les baux DHCP de ces MAC (VM supprimée) : IP et nom DNS disparaissent
+#   gwctl prune-leases    retire les baux des réseaux qui ne sont plus branchés (avant redémarrage du DHCP)
 #   gwctl apply           régénère et recharge le pare-feu
 #
 # DHCP : une instance dnsmasq (gwdns@dhcp) sert tous les modules.
@@ -28,6 +30,57 @@ valid() { [[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]] || { echo "adr
 add() { valid "$2"; grep -qxF "$2" "$STATE/$1" || echo "$2" >>"$STATE/$1"; }
 del() { valid "$2"; grep -vxF "$2" "$STATE/$1" >"$STATE/$1.tmp" || true; mv "$STATE/$1.tmp" "$STATE/$1"; }
 # elements FICHIER... : contenu des fichiers en syntaxe d'ensemble nftables
+LEASES=/var/lib/misc/gwdhcp.leases
+HOSTSDIR=/run/gwdns/leases
+
+# Retire un nom DNS dynamique (fichiers lus à chaud par les instances DNS)
+forget_ip() {
+  local f
+  for f in "$HOSTSDIR"/*/hosts; do
+    [[ -f $f ]] || continue
+    grep -v "^$1 " "$f" >"$f.tmp" || true
+    mv "$f.tmp" "$f"
+  done
+}
+
+# Retire des lignes du fichier de baux, DHCP arrêté (dnsmasq réécrit ce fichier en fonctionnant)
+drop_leases() {
+  local pattern=$1 running=0
+  systemctl is-active -q gwdns@dhcp && running=1
+  ((running)) && systemctl stop gwdns@dhcp
+  [[ -f $LEASES ]] && { grep -viE "$pattern" "$LEASES" >"$LEASES.tmp" || true; mv "$LEASES.tmp" "$LEASES"; }
+  ((running)) && systemctl start gwdns@dhcp
+  true
+}
+
+release() {
+  local mac ip iface
+  for mac; do
+    mac=${mac,,}
+    [[ $mac =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]] || { echo "MAC invalide : $mac" >&2; exit 2; }
+    ip=$(awk -v m="$mac" 'tolower($2)==m {print $3; exit}' "$LEASES" 2>/dev/null)
+    [[ -n $ip ]] || continue
+    # Carte de la passerelle sur le réseau de ce bail
+    iface=$(ip -o -4 addr show | awk -v p="${ip%.*}." 'index($4,p)==1 {print $2; exit}')
+    if [[ -n $iface ]] && command -v dhcp_release >/dev/null; then
+      # Vraie libération : dnsmasq supprime le bail et appelle gwdhcp-hook (del), qui retire le nom DNS
+      dhcp_release "$iface" "$ip" "$mac"
+      sleep 0.3
+    fi
+    if grep -qi " $mac " "$LEASES" 2>/dev/null; then drop_leases " $mac "; fi
+    forget_ip "$ip"
+    echo "libéré : $ip ($mac)"
+  done
+}
+
+prune_leases() {
+  [[ -f $LEASES && -f $DNS_MODULES ]] || return 0
+  # Garde les baux dont l'IP commence par le préfixe d'un réseau branché (10.66.66.)
+  awk 'NR == FNR { if ($1 !~ /^#/ && NF) { p = $1; sub(/0\/24$/, "", p); keep[p] = 1 } next }
+       { for (p in keep) if (index($3, p) == 1) { print; next } }' "$DNS_MODULES" "$LEASES" >"$LEASES.tmp"
+  mv "$LEASES.tmp" "$LEASES"
+}
+
 elements() { local e; e=$(cat "$@" 2>/dev/null | grep -v '^$' | paste -sd,); [[ -n $e ]] && echo "elements = { $e }"; true; }
 
 link_rules() {
@@ -109,7 +162,9 @@ case ${1:-} in
   block) add blocked "${2:?CIDR}" ;;
   unblock) del blocked "${2:?CIDR}" ;;
   status) for f in allowed blocked; do sed "s/^/$f /" "$STATE/$f"; done; exit 0 ;;
+  release) shift; release "$@"; exit 0 ;;
+  prune-leases) prune_leases; exit 0 ;;
   apply) ;;
-  *) sed -n '2,19p' "$0"; exit 2 ;;
+  *) sed -n '2,21p' "$0"; exit 2 ;;
 esac
 apply
