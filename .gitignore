@@ -1,0 +1,4 @@
+# Clés privées de la PKI du lab (non chiffrées)
+pki/
+# Surcharges locales de configuration
+scripts/config.local.env

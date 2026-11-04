@@ -1,0 +1,13 @@
+[Unit]
+Description=DHCP/DNS des modules : instance %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+# Dossiers des baux (dans /run, vidé au redémarrage) lus par les instances DNS
+ExecStartPre=/bin/sh -c 'for d in $(sed -n "s/^hostsdir=//p" /etc/gwdns/%i.conf); do mkdir -p "$d"; touch "$d/hosts"; done'
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/gwdns/%i.conf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Pare-feu de la passerelle des modules (gwctl)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/gwctl apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

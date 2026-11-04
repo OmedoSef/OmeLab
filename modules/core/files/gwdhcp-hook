@@ -1,0 +1,17 @@
+#!/bin/bash
+# Appelé par le DHCP de la passerelle (dnsmasq --dhcp-script) à chaque bail : add|old|del MAC IP [NOM].
+# Tient à jour /run/gwdns/leases/<module>/hosts, lu à chaud (hostsdir) par les instances DNS des modules
+# qui ont le droit de voir ce module.
+set -euo pipefail
+action=$1 ip=$3 name=${4:-}
+MODULES=/etc/gwdns/modules   # lignes : SOUS-RESEAU/24 PORT_FERME PORT_OUVERT MODULE DOMAINE
+
+while read -r net _ _ module domain; do
+  [[ -n $net && $net != \#* ]] || continue
+  [[ $ip == "${net%.0/24}."* ]] || continue
+  dir=/run/gwdns/leases/$module
+  mkdir -p "$dir"; touch "$dir/hosts"
+  grep -v "^$ip " "$dir/hosts" >"$dir/hosts.tmp" || true
+  if [[ $action != del && -n $name ]]; then echo "$ip $name.$domain $name" >>"$dir/hosts.tmp"; fi
+  mv "$dir/hosts.tmp" "$dir/hosts"
+done <"$MODULES"
