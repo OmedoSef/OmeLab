@@ -124,9 +124,14 @@ else
     echo "packages: [${pkgs//,/, }]"
     echo "runcmd:"
     echo "  - [systemctl, enable, --now, qemu-guest-agent]"
+    echo "  - [sh, -c, \"localectl set-x11-keymap $(labs_keyboard) 2>/dev/null || true\"]"
     for r in "${runs[@]}"; do printf '  - [sh, -c, %s]\n' "$(printf '%s' "$r" | sed 's/"/\\"/g; s/.*/"&"/')"; done
+    # Clavier : /etc/default/keyboard (console et X), puis localectl ci-dessus
+    echo "write_files:"
+    echo "  - path: /etc/default/keyboard"
+    echo "    encoding: b64"
+    echo "    content: $(keyboard_file "$(labs_keyboard)" | base64 -w0)"
     if ((${#files[@]})); then
-      echo "write_files:"
       for f in "${files[@]}"; do
         IFS=: read -r src dest mode <<<"$f"
         echo "  - path: $dest"

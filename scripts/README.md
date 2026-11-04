@@ -25,6 +25,7 @@ labctl pki init                      # (une fois) CA racine + intermédiaire du 
 | `vm-list.sh` | VMs avec état, lab et IP |
 | `vm-ip.sh` / `vm-ssh.sh` | IP d'une VM / SSH par nom |
 | `vm-snapshot.sh` | Snapshots create / list / revert / delete |
+| `vm-keyboard.sh` | Règle le clavier de VMs existantes (par SSH, ou par l'agent invité QEMU) |
 | `net-create.sh` / `net-delete.sh` / `net-list.sh` | Réseaux virtuels (nat, isolated, route) |
 | `lab.sh` | Actions groupées sur un lab : status, up, down, snapshot, revert, destroy |
 | `pki.sh` | relais vers `labctl pki` (PKI portée en Go) |
@@ -46,6 +47,8 @@ Chaque script affiche son aide avec `-h`.
   modifiable avec `-D`, y compris sur plusieurs niveaux : `-D prod.k8s.omedo.lab`). Une VM prend le domaine de sa
   1re carte (`web1.k8s.omedo.lab`), ou `omedo.lab` sur le réseau `default`.
   Pour interconnecter des labs plus tard : réseaux en mode `route`, ou une VM routeur/pare-feu à plusieurs cartes.
+- **Clavier** : celui de ce poste (lu avec `localectl`), ou `LABS_KEYBOARD=us` (fr, be, ch…) dans `config.local.env`.
+  Posé par cloud-init dès le premier démarrage ; pour une VM existante : `vm-keyboard.sh VM...`.
 - **Configuration** : valeurs par défaut dans `config.env`, à surcharger dans `config.local.env` (non versionné)
   ou par variable d'environnement.
 

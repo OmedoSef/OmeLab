@@ -76,6 +76,44 @@ wait_vm_ip() {
   echo "$ip"
 }
 
+# Disposition de clavier des VMs : LABS_KEYBOARD, sinon celle de ce poste, sinon us
+labs_keyboard() {
+  local kb=${LABS_KEYBOARD:-}
+  [[ -n $kb ]] || kb=$(localectl status 2>/dev/null | awk -F': *' '/X11 Layout/ {print $2; exit}' | cut -d, -f1)
+  echo "${kb:-us}"
+}
+
+# Contenu de /etc/default/keyboard pour une disposition (cloud-init l'écrit tel quel : le module keyboard
+# de cloud-init échoue sur les images sans console-setup, comme Debian)
+keyboard_file() {
+  printf 'XKBMODEL="pc105"\nXKBLAYOUT="%s"\nXKBVARIANT=""\nXKBOPTIONS=""\nBACKSPACE="guess"\n' "$1"
+}
+
+# Exécute une commande shell (root) dans une VM par l'agent invité QEMU ; affiche sa sortie, renvoie son code.
+# La VM doit avoir le canal org.qemu.guest_agent.0 et qemu-guest-agent actif.
+agent_exec() {
+  local vm=$1 cmd=$2 json pid st t=0
+  json=$(python3 -c 'import json,sys; print(json.dumps({"execute":"guest-exec","arguments":{"path":"/bin/sh","arg":["-c",sys.argv[1]],"capture-output":True}}))' "$cmd")
+  pid=$(virsh qemu-agent-command "$vm" "$json" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["return"]["pid"])') || return 125
+  while ((t < 120)); do
+    st=$(virsh qemu-agent-command "$vm" "{\"execute\":\"guest-exec-status\",\"arguments\":{\"pid\":$pid}}" 2>/dev/null) || return 125
+    if python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1])["return"]["exited"] else 1)' "$st"; then
+      python3 -c '
+import base64, json, sys
+r = json.loads(sys.argv[1])["return"]
+for k in ("out-data", "err-data"):
+    if r.get(k): sys.stdout.write(base64.b64decode(r[k]).decode(errors="replace"))
+sys.exit(r.get("exitcode", 1))' "$st"
+      return
+    fi
+    sleep 1; t=$((t + 1))
+  done
+  return 124
+}
+
+# L'agent invité répond-il ?
+agent_ready() { virsh qemu-agent-command "$1" '{"execute":"guest-ping"}' &>/dev/null; }
+
 # Chemin de labctl (outil Go du projet), compilé au besoin avec le Go du projet ou dans Docker
 labctl_bin() {
   local bin="$SCRIPTS_DIR/../bin/labctl"
