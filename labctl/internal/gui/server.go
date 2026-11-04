@@ -69,6 +69,8 @@ func Serve(l *lab.Lab, port int, openBrowser bool) error {
 	mux.HandleFunc("GET /api/core", s.api(s.handleCore))
 	mux.HandleFunc("GET /api/pki", s.api(s.handlePKI))
 	mux.HandleFunc("GET /api/pki/file", s.api(s.handlePKIFile))
+	mux.HandleFunc("GET /api/config", s.api(s.handleConfig))
+	mux.HandleFunc("POST /api/config", s.api(s.handleConfigEdit))
 
 	srv := &http.Server{Handler: s.checkHost(mux), ReadHeaderTimeout: 10 * time.Second}
 	url := fmt.Sprintf("http://%s/#t=%s", s.host, s.token)
@@ -161,6 +163,99 @@ func (s *server) handlePKIFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-pem-file")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(p)))
 	http.ServeFile(w, r, p)
+}
+
+// Configuration éditable (core.conf) de chaque module, et changements en attente sur la passerelle.
+type configHost struct {
+	Name   string `json:"name"`
+	IP     string `json:"ip"`
+	MAC    string `json:"mac"`
+	Source string `json:"source"` // module.env (lecture seule ici) ou core.conf
+}
+
+type configModule struct {
+	Name    string            `json:"name"`
+	Subnet  string            `json:"subnet"`
+	Domain  string            `json:"domain"`
+	Hosts   []configHost      `json:"hosts"`
+	Aliases map[string]string `json:"aliases"`
+	Links   []string          `json:"links"`
+}
+
+func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	mods, err := s.lab.Modules()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var out []configModule
+	for _, m := range mods {
+		if m.Env == nil {
+			continue
+		}
+		cm := configModule{Name: m.Name, Subnet: m.Env.Subnet, Domain: m.Env.Domain, Aliases: m.Conf.Aliases, Links: m.Conf.Links}
+		for _, vm := range m.Env.VMs() {
+			cm.Hosts = append(cm.Hosts, configHost{vm, m.Env.IP(vm), m.Env.Macs[vm], "module.env"})
+		}
+		for h, o := range m.Conf.Hosts {
+			cm.Hosts = append(cm.Hosts, configHost{h, fmt.Sprintf("%s.%d", m.Env.Subnet, o), m.Conf.HostMACs[h], "core.conf"})
+		}
+		out = append(out, cm)
+	}
+	resp := map[string]any{"modules": out, "gateway": lab.DomState(lab.GatewayVM)}
+	if resp["gateway"] == "running" {
+		if changes, err := s.lab.PendingCoreChanges(); err != nil {
+			resp["pendingError"] = err.Error()
+		} else {
+			resp["pending"] = changes
+		}
+	}
+	writeJSON(w, resp)
+}
+
+type configEdit struct {
+	Op     string `json:"op"` // host-add, host-del, alias-add, alias-del, link, unlink
+	Module string `json:"module"`
+	Name   string `json:"name"`
+	Octet  int    `json:"octet"`
+	MAC    string `json:"mac"`
+	Target string `json:"target"`
+}
+
+// handleConfigEdit modifie core.conf (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
+func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
+	var e configEdit
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<12)).Decode(&e); err != nil {
+		http.Error(w, "requête invalide", http.StatusBadRequest)
+		return
+	}
+	if !s.busy.TryLock() {
+		http.Error(w, "une action est en cours", http.StatusConflict)
+		return
+	}
+	defer s.busy.Unlock()
+	var err error
+	switch e.Op {
+	case "host-add":
+		err = s.lab.ConfAddHost(e.Module, e.Name, e.Octet, e.MAC)
+	case "host-del":
+		err = s.lab.ConfDelHost(e.Module, e.Name)
+	case "alias-add":
+		err = s.lab.ConfAddAlias(e.Module, e.Name, e.Target)
+	case "alias-del":
+		err = s.lab.ConfDelAlias(e.Module, e.Name)
+	case "link", "unlink":
+		err = s.lab.ConfLink(e.Module, e.Target, e.Op == "link")
+	default:
+		err = fmt.Errorf("opération inconnue : %s", e.Op)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	log.Printf("configuration : %s %s %s %s", e.Op, e.Module, e.Name, e.Target)
+	s.invalidate()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

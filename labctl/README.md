@@ -40,8 +40,10 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 | Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core-config` (`internal/coreconf`) ; `core apply` l'appelle puis l'envoie | fonctions `gen_*` supprimées de `modules/core/module.sh` |
 | Outils VM (`vm-list`, `vm-ip`, `net-*`, `image-get`, snapshots) | à faire | `scripts/*.sh` |
 | Création / suppression de VMs (cloud-init) | à faire | `vm-create.sh`, `vm-destroy.sh` |
+| Édition de `core.conf` (réservations, alias, liens) | ✅ en Go (`internal/lab/corefile.go`), utilisée par la GUI | les commandes bash `core dhcp/dns/link` restent, même format |
 | Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
 
+`labctl core-config --diff` montre ce qui changerait sur la passerelle (comme le bandeau de la GUI) ;
 `labctl core-config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour
 contrôler l'effet d'un changement de `module.env` / `core.conf` avant `labctl core apply`. Au portage, la sortie Go
 a été comparée fichier par fichier à celle du bash déployée sur la passerelle : identique.
@@ -55,8 +57,14 @@ vérifie l'interopérabilité avec openssl dans les deux sens.
 pas ouvrir le navigateur). Trois onglets :
 
 - **Modules** : par module, état des VMs, IP, snapshots, accès Internet (module entier ou VM par VM) ; par VM :
-  démarrer, arrêter, console (virt-viewer), snapshot, restauration ; matrice des liens entre modules (dès qu'il
-  y a deux modules) ; champ pour lancer n'importe quelle commande d'un module.
+  démarrer, arrêter, console (virt-viewer), snapshot, restauration ; champ pour lancer n'importe quelle commande
+  d'un module.
+- **Configuration** : par module, réservations DHCP (nom, IP, MAC), alias DNS et liens entre modules
+  (`core.conf`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
+  un bandeau signale les changements en attente, montre exactement ce qui changera dans la configuration de la
+  passerelle (diff), et le bouton *Appliquer* la déploie. Mêmes validations que la ligne de commande
+  (IP ou MAC déjà prise, nom de VM, cible d'alias inconnue…). Les réservations de `module.env` sont affichées
+  en lecture seule.
 - **Core** : passerelle (créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console),
   état des services (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et
   bloquées dans le pare-feu.

@@ -13,12 +13,14 @@ import (
 )
 
 func coreConfigCmd(l *lab.Lab) *cobra.Command {
-	return &cobra.Command{
+	var diff bool
+	c := &cobra.Command{
 		Use:   "core-config [DOSSIER]",
 		Short: "Génère la configuration de la passerelle (DHCP, DNS, réseau, liens) depuis module.env et core.conf",
 		Long: `Génère la configuration de la passerelle core-gw à partir des module.env et core.conf des modules.
 
 Sans DOSSIER : affiche ce qui serait appliqué (pour contrôler avant « labctl core apply »).
+--diff : n'affiche que ce qui changerait par rapport à la configuration installée sur la passerelle.
 Avec DOSSIER : y écrit gwdns/ et networkd/ (utilisé par « core apply », qui les envoie sur la passerelle).`,
 		GroupID: "outils",
 		Args:    cobra.MaximumNArgs(1),
@@ -26,6 +28,24 @@ Avec DOSSIER : y écrit gwdns/ et networkd/ (utilisé par « core apply », qui 
 			return nil, cobra.ShellCompDirectiveFilterDirs
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
+			if diff {
+				changes, err := l.PendingCoreChanges()
+				if err != nil {
+					return err
+				}
+				if len(changes) == 0 {
+					fmt.Println("la passerelle est à jour : rien à appliquer")
+					return nil
+				}
+				for _, ch := range changes {
+					fmt.Printf("===== %s\n", ch.File)
+					for _, d := range ch.Lines {
+						fmt.Printf("%s %s\n", d.Op, d.Text)
+					}
+				}
+				fmt.Println("\n(à appliquer avec : labctl core apply)")
+				return nil
+			}
 			in, err := l.CoreInput()
 			if err != nil {
 				return err
@@ -58,4 +78,6 @@ Avec DOSSIER : y écrit gwdns/ et networkd/ (utilisé par « core apply », qui 
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&diff, "diff", false, "seulement les changements par rapport à la passerelle")
+	return c
 }
