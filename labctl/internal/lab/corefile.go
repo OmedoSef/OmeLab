@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"labs/labctl/internal/coreconf"
+	mod "labs/labctl/internal/module"
 )
 
 // Édition de modules/<module>/core.conf : réservations DHCP (host), alias DNS (alias), liens (link).
@@ -31,6 +32,20 @@ func (l *Lab) confModule(name string) (*Module, error) {
 		return nil, fmt.Errorf("le module %s n'a pas de réseau (module.env)", name)
 	}
 	return m, nil
+}
+
+// saveEdit enregistre une édition : dans le module.yaml s'il existe (commentaires préservés), sinon
+// dans core.conf (ancien format).
+func saveEdit(m *Module, yamlEdit func(*mod.Module), kind, key, add string) error {
+	if m.HasYAML {
+		y, err := mod.Load(m.Dir)
+		if err != nil {
+			return fmt.Errorf("%s illisible : %w", mod.FileName, err)
+		}
+		yamlEdit(y)
+		return y.Save()
+	}
+	return editConf(m, kind, key, add)
 }
 
 // editConf retire les lignes « kind nom ... » correspondantes puis ajoute add (si non vide).
@@ -106,7 +121,8 @@ func (l *Lab) ConfAddHost(module, name string, octet int, mac string) error {
 			return err
 		}
 	}
-	return editConf(m, "host", name, fmt.Sprintf("host %s %d %s", name, octet, mac))
+	return saveEdit(m, func(y *mod.Module) { y.AddHost(mod.Host{Name: name, IP: octet, MAC: mac}) },
+		"host", name, fmt.Sprintf("host %s %d %s", name, octet, mac))
 }
 
 // ConfDelHost retire une réservation de core.conf (celles de module.env se changent dans module.env).
@@ -121,7 +137,7 @@ func (l *Lab) ConfDelHost(module, name string) error {
 		}
 		return fmt.Errorf("pas de réservation %s dans core.conf de %s", name, module)
 	}
-	return editConf(m, "host", name, "")
+	return saveEdit(m, func(y *mod.Module) { y.DelHost(name) }, "host", name, "")
 }
 
 // ConfAddAlias crée (ou remplace) l'alias name.<domaine> -> target (VM du module ou nom complet).
@@ -148,7 +164,7 @@ func (l *Lab) ConfAddAlias(module, name, target string) error {
 	if target == name {
 		return fmt.Errorf("un alias ne peut pas pointer sur lui-même")
 	}
-	return editConf(m, "alias", name, fmt.Sprintf("alias %s %s", name, target))
+	return saveEdit(m, func(y *mod.Module) { y.SetAlias(name, target) }, "alias", name, fmt.Sprintf("alias %s %s", name, target))
 }
 
 // ConfDelAlias retire un alias.
@@ -160,7 +176,7 @@ func (l *Lab) ConfDelAlias(module, name string) error {
 	if _, ok := m.Conf.Aliases[name]; !ok {
 		return fmt.Errorf("pas d'alias %s dans %s", name, module)
 	}
-	return editConf(m, "alias", name, "")
+	return saveEdit(m, func(y *mod.Module) { y.DelAlias(name) }, "alias", name, "")
 }
 
 // ConfLink ajoute (on) ou retire le lien src -> dst : src peut joindre et résoudre dst.
@@ -179,5 +195,5 @@ func (l *Lab) ConfLink(src, dst string, on bool) error {
 	if on {
 		add = "link " + dst
 	}
-	return editConf(m, "link", dst, add)
+	return saveEdit(m, func(y *mod.Module) { y.SetLink(dst, on) }, "link", dst, add)
 }

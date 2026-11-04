@@ -125,18 +125,6 @@ random_mac() { printf '52:54:00:%02x:%02x:%02x\n' $((RANDOM % 256)) $((RANDOM % 
 net_host_ip() { virsh net-dumpxml "$1" | grep -m1 -oP "<ip address='\K[^']+" || true; }
 # Domaine DNS d'un réseau libvirt (vide si aucun)
 net_domain() { virsh net-dumpxml "$1" | grep -m1 -oP "<domain name='\K[^']+" || true; }
-# Domaine DNS des VMs d'un réseau : celui du module qui l'utilise (modules/*/module.env), sinon celui
-# déclaré dans libvirt (réseaux créés par net-create.sh), sinon vide
-net_lab_domain() {
-  local env d
-  for env in "$SCRIPTS_DIR"/../modules/*/module.env; do
-    [[ -f $env ]] || continue
-    # shellcheck source=/dev/null
-    d=$( source "$env"; [[ ${NET:-} == "$1" ]] && echo "${DOMAIN:-$NET.$LABS_PKI_DOMAIN}" ) || true
-    [[ -n $d ]] && { echo "$d"; return 0; }
-  done
-  net_domain "$1"
-}
 net_forward_mode() { virsh net-dumpxml "$1" | grep -m1 -oP "<forward mode='\K[^']+" || true; }
 
 ip2int() { local IFS=.; read -r a b c d <<<"$1"; echo $(( (a << 24) + (b << 16) + (c << 8) + d )); }

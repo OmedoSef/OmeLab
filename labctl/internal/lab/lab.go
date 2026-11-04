@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"labs/labctl/internal/module"
 )
 
 // Lab est la racine d'une arborescence Labs (dossier contenant lab.sh et modules/).
@@ -73,6 +75,11 @@ type Module struct {
 	Env         *Env      // nil pour un module sans module.env (ex. core)
 	Commands    *CmdNode  // arbre des commandes, tiré de l'en-tête d'aide de module.sh
 	Conf        *CoreConf // core.conf du module (vide s'il n'existe pas)
+
+	// Module déclaratif : module.yaml (source de vérité ; Env et Conf en sont dérivés)
+	HasYAML bool
+	YAML    *module.Module
+	YAMLErr error
 }
 
 // Env reprend les variables utiles de module.env.
@@ -125,22 +132,27 @@ func (l *Lab) Modules() ([]*Module, error) {
 	for _, e := range entries {
 		dir := filepath.Join(l.Root, "modules", e.Name())
 		script := filepath.Join(dir, "module.sh")
-		if _, err := os.Stat(script); err != nil {
+		_, errScript := os.Stat(script)
+		_, errYAML := os.Stat(filepath.Join(dir, module.FileName))
+		if errScript != nil && errYAML != nil {
 			continue
 		}
-		m := &Module{Name: e.Name(), Dir: dir}
-		header, err := readHeader(script)
-		if err != nil {
-			return nil, err
+		m := &Module{Name: e.Name(), Dir: dir, Commands: newNode()}
+		if errScript == nil {
+			header, err := readHeader(script)
+			if err != nil {
+				return nil, err
+			}
+			m.Description = header.description
+			m.Commands = ParseUsage(m.Name, header.lines)
 		}
-		m.Description = header.description
-		m.Commands = ParseUsage(m.Name, header.lines)
 		if env, err := ParseEnv(filepath.Join(dir, "module.env"), pkiDomain); err == nil {
 			m.Env = env
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return nil, fmt.Errorf("module %s : %w", m.Name, err)
 		}
 		m.Conf, _ = ParseCoreConf(filepath.Join(dir, "core.conf"))
+		l.loadYAML(m) // le YAML, s'il existe, prime sur module.env / core.conf
 		mods = append(mods, m)
 	}
 	return mods, nil

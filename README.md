@@ -75,8 +75,12 @@ Un module est un dossier `modules/<nom>/` contenant :
 | Fichier | Contenu |
 |---|---|
 | `module.sh` | ses commandes ; la ligne 2 est sa description (affichée par `./lab.sh`) |
-| `module.env` | `MODULE`, `NET`, `SUBNET`, `HOSTS` (VM → dernier octet), `MACS` (VM → MAC), `NO_INTERNET`, `DOMAIN` (optionnel) |
-| `core.conf` | réservations DHCP en plus, alias DNS, liens vers d'autres modules (géré par `./lab.sh core dhcp/dns/link`) |
+| `module.yaml` | **la description du module** : réseau, CA, DNS (alias, réservations, liens), VMs — voir [docs/module-yaml.md](docs/module-yaml.md) |
+| `files/` | fichiers copiés dans les VMs (configurations, modèles avec variables `${...}`) |
+| `module.sh` | (transition) commandes bash du module, en attendant le moteur `labctl module <m> up` |
+
+`labctl module validate` contrôle les `module.yaml` sans rien créer ; `labctl module show <m>` affiche les valeurs
+effectives de chaque VM et leur origine.
 
 Les briques réseau, stockage, téléchargement et passerelle sont dans `scripts/lib/module.sh`.
 

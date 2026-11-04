@@ -56,12 +56,11 @@ Services communs à tous les modules, centralisés sur une petite VM **`core-gw`
 
 ## Où est la configuration
 
-Tout ce qui concerne un module côté core vit **dans le dossier du module**, versionné :
+Tout ce qui concerne un module côté core vit **dans son `module.yaml`**, versionné :
 
 | Fichier | Contenu | Modifié par |
 |---|---|---|
-| `module.env` | `SUBNET`, `DOMAIN`, VMs du module (`HOSTS` = dernier octet, `MACS`), `NO_INTERNET` | à la main |
-| `core.conf` | `host NOM OCTET MAC` (réservations en plus), `alias NOM CIBLE`, `link MODULE` | `core dhcp`, `core dns`, `core link` |
+| `module.yaml` | `network` (sous-réseau, domaine), `vms` (IP, MAC, `internet: never`), et section `dns` : `hosts` (réservations en plus), `aliases`, `links` | à la main, ou `core dhcp`, `core dns`, `core link`, la GUI (commentaires et mise en forme préservés) |
 
 L'état **Internet ouvert / fermé** n'est pas de la configuration : il vit dans la passerelle et se remet à zéro
 quand elle redémarre.
@@ -92,7 +91,7 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 
 ## DNS
 
-- Le domaine d'un module est `DOMAIN=` dans son `module.env` (défaut `<réseau>.omedo.lab`). Il peut avoir
+- Le domaine d'un module est `network.domain` dans son `module.yaml` (défaut `<réseau>.omedo.lab`). Il peut avoir
   plusieurs niveaux (`k8s.client-a.omedo.lab`). En changer après coup impose de recréer la CA dérivée du module.
 - Le DHCP fournit le domaine de recherche : `kali`, `dvwa`… marchent aussi en nom court.
 - Les VMs en DHCP libre (plage `.100`–`.199`) sont aussi résolues, sous le nom qu'elles annoncent.
@@ -108,7 +107,7 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 | `gwdns@.service` | `/etc/systemd/system/` | instances dnsmasq : `dhcp`, et `<module>-open` / `<module>-closed` par module |
 | `90-gw.conf` | `/etc/sysctl.d/` | routage IPv4 activé, IPv6 désactivé |
 
-`./lab.sh core apply` génère sur l'hôte avec `labctl core-config` (Go), depuis `module.env` et `core.conf` de chaque
+`./lab.sh core apply` génère sur l'hôte avec `labctl core-config` (Go), depuis le `module.yaml` de chaque
 module branché, puis envoie le tout sur la passerelle (`labctl core-config` seul affiche ce qui serait appliqué) :
 
 - l'adresse `.254` de la passerelle sur chaque réseau (`/etc/systemd/network/50-gw-<module>.network`) ;

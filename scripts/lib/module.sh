@@ -1,22 +1,35 @@
 # shellcheck shell=bash disable=SC2034  # NET_CHANGED, GW_OCTET... lus par les modules
 # Briques communes aux modules (modules/<nom>/module.sh). À sourcer après lib/common.sh.
 #
-# Contrat d'un module : un fichier modules/<nom>/module.env qui définit au minimum
-#   MODULE      nom du module
-#   NET         réseau libvirt du module (isolé)
-#   SUBNET      trois premiers octets du /24, ex : 10.66.66
-#   HOSTS       tableau associatif  VM -> dernier octet de son IP réservée (entre 2 et 99)
-#   MACS        tableau associatif  VM -> adresse MAC de sa carte (sert à la réservation DHCP)
-#   NO_INTERNET VMs qui n'initient jamais rien hors du module (ni Internet, ni modules liés)
-#   DOMAIN      (optionnel) domaine DNS du module, défaut : <NET>.$LABS_PKI_DOMAIN
-# DHCP, DNS, routage et liens sont assurés par la passerelle du module core, toujours en .254.
-# Le réseau libvirt n'est qu'un bridge isolé : l'hôte y a l'adresse .1, sans DHCP ni DNS.
+# Un module est décrit par modules/<nom>/module.yaml (voir docs/module-yaml.md), lu par labctl. Les scripts
+# bash y accèdent par module_source (variables MODULE, NET, SUBNET, DOMAIN, HOSTS, MACS, NO_INTERNET) et
+# module_conf (lignes host / alias / link). Les anciens module.env / core.conf restent lus s'il n'y a pas de YAML.
+# La passerelle du module core prend toujours l'adresse .254 du réseau d'un module.
 
 MODULES_DIR="$(cd "$SCRIPTS_DIR/../modules" && pwd)"
 GW_OCTET=254
 
-module_env() { echo "$MODULES_DIR/$1/module.env"; }
-module_list() { local f; for f in "$MODULES_DIR"/*/module.env; do basename "$(dirname "$f")"; done; }
+module_list() {
+  local d
+  for d in "$MODULES_DIR"/*/; do
+    [[ -f $d/module.yaml || -f $d/module.env ]] && basename "$d"
+  done
+  true
+}
+
+# Contenu au format module.env d'un module : dérivé du module.yaml (source de vérité) par labctl,
+# ou ancien fichier module.env
+module_source() {
+  if [[ -f $MODULES_DIR/$1/module.yaml ]]; then "$(labctl_bin)" module env "$1"
+  elif [[ -f $MODULES_DIR/$1/module.env ]]; then cat "$MODULES_DIR/$1/module.env"
+  else die "module inconnu : $1 ($(module_list | xargs))"; fi
+}
+
+# Réservations, alias et liens d'un module (lignes host / alias / link de l'ancien core.conf)
+module_conf() {
+  if [[ -f $MODULES_DIR/$1/module.yaml ]]; then "$(labctl_bin)" module conf "$1"
+  elif [[ -f $MODULES_DIR/$1/core.conf ]]; then cat "$MODULES_DIR/$1/core.conf"; fi
+}
 
 # MAC de la carte de la passerelle sur le réseau d'un module : 52:54:00:fe:<2e octet>:<3e octet>
 gw_mac() { local IFS=.; read -r _ b c <<<"$1"; printf '52:54:00:fe:%02x:%02x\n' "$b" "$c"; }

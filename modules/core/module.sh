@@ -27,8 +27,8 @@
 #   ./lab.sh core status | start | stop | ssh [cmd] | destroy
 #
 # Tout ce qui concerne un module côté core vit dans deux fichiers du module :
-#   module.env  réseau, domaine, VMs du module avec IP et MAC (HOSTS, MACS), VMs sans Internet
-#   core.conf   réservations DHCP en plus (host), alias DNS (alias), liens vers d'autres modules (link)
+#   module.yaml réseau, domaine, VMs avec IP et MAC, VMs sans Internet, et dans sa section dns : réservations
+#               en plus (hosts), alias (aliases), liens vers d'autres modules (links) — voir docs/module-yaml.md
 #
 # Internet est fermé par défaut et après chaque redémarrage de la passerelle. Même ouverte, elle ne laisse
 # sortir que vers Internet (jamais vers ton LAN ni les réseaux privés). Sans lien, aucun module ne voit
@@ -46,27 +46,22 @@ DHCP_RANGE_END=199
 
 usage() { sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
-# ---------------------------------------------------------------- core.conf d'un module
-conf_file() { echo "$MODULES_DIR/$1/core.conf"; }
-# Lignes d'un type (host / alias / link) du core.conf d'un module, sans le mot-clé
-conf_entries() { local f; f=$(conf_file "$1"); [[ -f $f ]] && awk -v t="$2" '$1==t {$1=""; sub(/^ /, ""); print}' "$f"; true; }
-# conf_edit MODULE "ligne à ajouter" ["regex des lignes à retirer"]
-conf_edit() {
-  local f; f=$(conf_file "$1")
-  [[ -f $f ]] || printf '# Module %s côté core (géré par ./lab.sh core dhcp|dns|link)\n# host NOM OCTET MAC  |  alias NOM CIBLE  |  link MODULE\n' "$1" >"$f"
-  [[ -z ${3:-} ]] || { grep -vE "$3" "$f" >"$f.tmp" || true; mv "$f.tmp" "$f"; }
-  [[ -z ${2:-} ]] || echo "$2" >>"$f"
-}
+# ---------------------------------------------------------------- configuration d'un module
+# Source de vérité : modules/<m>/module.yaml (réservations, alias et liens dans sa section dns:).
+# Lignes d'un type (host / alias / link), sans le mot-clé
+conf_entries() { module_conf "$1" | awk -v t="$2" '$1==t {$1=""; sub(/^ /, ""); print}'; true; }
+# Modification (mêmes validations que la GUI) : labctl module edit MODULE OPERATION ARGS...
+conf_set() { "$(labctl_bin)" module edit "$@"; }
 
-# Charge le module.env (et les réservations de core.conf) d'un module dans des variables M_*
+# Charge un module (module.yaml, via labctl) dans des variables M_*
 load_module() {
-  local env; env=$(module_env "${1:?nom de module manquant}")
-  [[ -f $env ]] || die "module inconnu : $1 ($(module_list | xargs))"
+  local src
+  src=$(module_source "${1:?nom de module manquant}") || exit 1
   M_MODULE='' M_NET='' M_SUBNET='' M_NO_INTERNET='' M_DOMAIN=''
-  # shellcheck disable=SC2153  # MODULE, NET, SUBNET... viennent du module.env sourcé
+  # shellcheck disable=SC2153  # MODULE, NET, SUBNET... viennent de la configuration du module
   eval "$(
     # shellcheck source=/dev/null
-    source "$env"
+    source <(echo "$src")
     printf 'M_MODULE=%q M_NET=%q M_SUBNET=%q M_NO_INTERNET=%q M_DOMAIN=%q\n' \
       "$MODULE" "$NET" "$SUBNET" "${NO_INTERNET:-}" "${DOMAIN:-$NET.$LABS_PKI_DOMAIN}"
     printf 'declare -gA M_HOSTS=('; for k in "${!HOSTS[@]}"; do printf '[%q]=%q ' "$k" "${HOSTS[$k]}"; done; echo ')'
@@ -96,7 +91,7 @@ attached_modules() {
 
 # ---------------------------------------------------------------- application de la configuration
 # La configuration (réseau .254, DHCP, DNS, liens, VMs bloquées) est générée par labctl core-config
-# (Go, labctl/internal/coreconf) depuis module.env et core.conf ; ce script l'envoie et recharge les services.
+# (Go, labctl/internal/coreconf) depuis les module.yaml ; ce script l'envoie et recharge les services.
 core_apply() {
   require_gw
   local tmp m t instances=(dhcp) attached=''
@@ -283,8 +278,8 @@ cmd_link() {
   ((both)) && pairs+=("$b $a")
   for pair in "${pairs[@]}"; do
     read -r src dst <<<"$pair"
-    conf_edit "$src" "" "^link $dst\$"
-    if [[ $action == link ]]; then conf_edit "$src" "link $dst"; ok "lien $src -> $dst : $src joint et résout $dst"
+    conf_set "$src" "$action" "$dst" || exit 1
+    if [[ $action == link ]]; then ok "lien $src -> $dst : $src joint et résout $dst"
     else ok "lien $src -> $dst retiré"; fi
   done
   apply_if_running
@@ -325,17 +320,7 @@ cmd_dhcp() {
     add)
       local name=${2:-} octet=${3:-} mac=${4:-}
       load_module "${1:-}"
-      [[ $name =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || die "nom invalide : $name"
-      if ! [[ $octet =~ ^[0-9]+$ ]] || ((octet < 2 || octet >= DHCP_RANGE_START)); then
-        die "OCTET entre 2 et $((DHCP_RANGE_START - 1)) (hors plage DHCP libre)"
-      fi
-      [[ ${mac,,} =~ ^([0-9a-f]{2}:){5}[0-9a-f]{2}$ ]] || die "MAC invalide : $mac"
-      [[ -z ${M_HOSTS[$name]:-} ]] || die "$name est déjà réservée (module.env ou core.conf)"
-      for vm in "${!M_HOSTS[@]}"; do
-        [[ ${M_HOSTS[$vm]} != "$octet" ]] || die "$M_SUBNET.$octet est déjà réservée pour $vm"
-        [[ ${M_MACS[$vm]:-,} != "${mac,,}" ]] || die "MAC déjà réservée pour $vm"
-      done
-      conf_edit "$1" "host $name $octet ${mac,,}"
+      conf_set "$1" host-add "$name" "$octet" "$mac" || exit 1
       ok "réservation $name : $M_SUBNET.$octet pour ${mac,,} (DNS : $name.$M_DOMAIN)"
       apply_if_running ;;
     release)
@@ -344,8 +329,7 @@ cmd_dhcp() {
       core_gw_ssh sudo gwctl release "$@" ;;
     del)
       load_module "${1:-}"
-      [[ -n $(conf_entries "$1" host | awk -v n="${2:-}" '$1==n') ]] || die "pas de réservation ${2:-} dans core.conf de $1 (celles de module.env se changent dans module.env)"
-      conf_edit "$1" "" "^host ${2} "
+      conf_set "$1" host-del "${2:-}" || exit 1
       ok "réservation ${2} retirée"
       apply_if_running ;;
     *) usage 1 ;;
@@ -374,11 +358,9 @@ cmd_dns() {
       case $op in
         add)
           [[ -n $target ]] || usage 1
-          [[ $target == *.* || -n ${M_HOSTS[$target]:-} ]] || die "cible inconnue dans $m : $target (VM : ${!M_HOSTS[*]}, ou nom complet)"
-          [[ -z ${M_HOSTS[$name]:-} ]] || die "$name est déjà le nom d'une VM"
-          conf_edit "$m" "alias $name $target" "^alias $name "
+          conf_set "$m" alias-add "$name" "$target" || exit 1
           ok "alias $name.$M_DOMAIN -> $target" ;;
-        del) conf_edit "$m" "" "^alias $name "; ok "alias $name.$M_DOMAIN retiré" ;;
+        del) conf_set "$m" alias-del "$name" || exit 1; ok "alias $name.$M_DOMAIN retiré" ;;
         *) usage 1 ;;
       esac
       apply_if_running ;;

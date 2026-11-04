@@ -20,6 +20,7 @@ labctl vm create web1 -n default -n lab-demo:10.10.0.11/24 -l demo -w   # labctl
 labctl vm ssh web1 ; labctl vm destroy web1
 labctl image list ; labctl image get rocky9
 labctl net list            # réseaux libvirt ; labctl net create|delete
+labctl module validate     # contrôle des module.yaml ; labctl module show pentest : valeurs effectives
 labctl -v pentest status   # -v : affiche la commande bash réellement lancée
 deactivate                 # retire labctl, Go, la complétion et (labs)
 ```
@@ -64,12 +65,13 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 | Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` → relais ; `vm_ip` des scripts passe par labctl |
 | Images cloud | ✅ en Go : `labctl image list|get` ; empreinte vérifiée (SHA256/512 publiées par les distributions) ; refus de remplacer une image utilisée comme base | `image-get.sh` → relais |
 | Création / suppression de VMs (cloud-init) | ✅ en Go : `labctl vm create|destroy|ssh` ; définition libvirt écrite par labctl (plus de virt-install) ; retour arrière complet si la création échoue | `vm-create.sh`, `vm-destroy.sh`, `vm-ssh.sh` → relais |
-| Édition de `core.conf` (réservations, alias, liens) | ✅ en Go (`internal/lab/corefile.go`), utilisée par la GUI | les commandes bash `core dhcp/dns/link` restent, même format |
+| Édition de la configuration d'un module (réservations, alias, liens) | ✅ en Go, dans le `module.yaml` en préservant commentaires et mise en forme ; utilisée par la GUI et par `core dhcp/dns/link` (via `labctl module edit`) | `core.conf` supprimé |
+| Modules déclaratifs | 🟡 `labctl module list|validate|show` ; le YAML est la source de vérité (pentest migré) ; moteur `up/status/certs` à venir | `module.env`, `core.conf` supprimés ; `module.sh` de pentest en attendant `up` |
 | Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
 
 `labctl core-config --diff` montre ce qui changerait sur la passerelle (comme le bandeau de la GUI) ;
 `labctl core-config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour
-contrôler l'effet d'un changement de `module.env` / `core.conf` avant `labctl core apply`. Au portage, la sortie Go
+contrôler l'effet d'un changement de `module.yaml` avant `labctl core apply`. Au portage, la sortie Go
 a été comparée fichier par fichier à celle du bash déployée sur la passerelle : identique.
 
 La PKI Go est compatible avec les fichiers produits par l'ancien script (clés PKCS#8, mêmes chemins) ; un test
@@ -84,10 +86,10 @@ pas ouvrir le navigateur). Trois onglets :
   démarrer, arrêter, console (virt-viewer), snapshot, restauration ; champ pour lancer n'importe quelle commande
   d'un module.
 - **Configuration** : par module, réservations DHCP (nom, IP, MAC), alias DNS et liens entre modules
-  (`core.conf`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
+  (section `dns` du `module.yaml`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
   un bandeau signale les changements en attente, montre exactement ce qui changera dans la configuration de la
   passerelle (diff), et le bouton *Appliquer* la déploie. Mêmes validations que la ligne de commande
-  (IP ou MAC déjà prise, nom de VM, cible d'alias inconnue…). Les réservations de `module.env` sont affichées
+  (IP ou MAC déjà prise, nom de VM, cible d'alias inconnue…). Les IP des VMs (`vms:` du module) sont affichées
   en lecture seule.
 - **Core** : passerelle (créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console),
   état des services (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et
@@ -135,7 +137,8 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | Dossier | Rôle |
 |---|---|
 | `cmd/labctl/` | point d'entrée |
-| `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/module/` | modules déclaratifs : lecture stricte du `module.yaml`, valeurs effectives, variables, validateur, édition préservant la mise en forme |
+| `internal/lab/` | découverte des modules, lecture des `module.yaml` (et anciens `module.env`) / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
 | `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique |
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
