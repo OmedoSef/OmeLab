@@ -11,6 +11,7 @@ if [[ $# -eq 0 || $1 == -h || $1 == --help ]]; then
   echo "Usage : ./lab.sh <module> <commande> [arguments]"
   echo
   echo "Modules :"
+  printf '  %-10s %s\n' core "passerelle core-gw (intégrée à labctl) : Internet, DHCP, DNS, liens entre modules"
   for d in "$MODULES_DIR"/*/; do
     m=$(basename "$d")
     if [[ -f $d/module.sh ]]; then desc=$(sed -n '2s/^# *//p' "$d/module.sh")
@@ -21,12 +22,18 @@ if [[ $# -eq 0 || $1 == -h || $1 == --help ]]; then
   exit 0
 fi
 module=$1; shift
+labctl="$(dirname "$MODULES_DIR")/bin/labctl"
+# La passerelle (core) est intégrée à labctl
+if [[ $module == core ]]; then
+  [[ -x $labctl ]] || { echo "labctl absent : ./labctl/build.sh" >&2; exit 1; }
+  [[ $# -gt 0 ]] || set -- --help
+  exec "$labctl" core "$@"
+fi
 if [[ -x $MODULES_DIR/$module/module.sh ]]; then
   exec "$MODULES_DIR/$module/module.sh" "$@"
 fi
 # Module déclaratif (module.yaml seul) : moteur de labctl
 if [[ -f $MODULES_DIR/$module/module.yaml ]]; then
-  labctl="$(dirname "$MODULES_DIR")/bin/labctl"
   [[ -x $labctl ]] || { echo "labctl absent : ./labctl/build.sh" >&2; exit 1; }
   [[ $# -gt 0 ]] || set -- --help
   exec "$labctl" module "$module" "$@"

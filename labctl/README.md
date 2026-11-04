@@ -21,20 +21,14 @@ labctl vm ssh web1 ; labctl vm destroy web1
 labctl image list ; labctl image get rocky9
 labctl net list            # réseaux libvirt ; labctl net create|delete
 labctl module validate     # contrôle des module.yaml ; labctl module show pentest : valeurs effectives
-labctl -v pentest status   # -v : affiche la commande bash réellement lancée
+labctl pentest status      # module déclaratif : up, status, start, stop, certs…
+labctl core status         # passerelle : internet, dhcp, dns, link…
 deactivate                 # retire labctl, Go, la complétion et (labs)
 ```
 
-`labctl <module> ...` est exactement `./lab.sh <module> ...`. La complétion est **tirée de l'en-tête d'aide de
-chaque `module.sh`** (les lignes `#   ./lab.sh <module> commande ARG [OPT]`). Ajouter une commande à un module,
-avec sa ligne d'aide, suffit à la rendre complétable, sans toucher au Go. Noms d'arguments reconnus :
-
-| Dans l'aide | Complété par |
-|---|---|
-| `MODULE`, `A`, `B`, `AUTRE` | les modules qui ont un réseau |
-| `VM`, `VM...` | les VMs du module courant, ou du module saisi juste avant |
-| `NOM` juste après `VM` | les snapshots de cette VM |
-| `--option` | l'option elle-même |
+`labctl <module> ...` est exactement `./lab.sh <module> ...`. La complétion couvre tout : commandes, modules,
+VMs, snapshots, réservations, alias. Elle vient des module.yaml : un nouveau module ou une nouvelle VM est
+complétable tout de suite, sans toucher au Go.
 
 ## Renouveler la chaîne de certificats
 
@@ -61,16 +55,17 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 | Bloc | État | Remplace |
 |---|---|---|
 | PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
-| Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core-config` (`internal/coreconf`) ; `core apply` l'appelle puis l'envoie | fonctions `gen_*` supprimées de `modules/core/module.sh` |
+| Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core config` (`internal/coreconf`) | fonctions `gen_*` du bash |
 | Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` → relais ; `vm_ip` des scripts passe par labctl |
 | Images cloud | ✅ en Go : `labctl image list|get` ; empreinte vérifiée (SHA256/512 publiées par les distributions) ; refus de remplacer une image utilisée comme base | `image-get.sh` → relais |
 | Création / suppression de VMs (cloud-init) | ✅ en Go : `labctl vm create|destroy|ssh` ; définition libvirt écrite par labctl (plus de virt-install) ; retour arrière complet si la création échoue | `vm-create.sh`, `vm-destroy.sh`, `vm-ssh.sh` → relais |
 | Édition de la configuration d'un module (réservations, alias, liens) | ✅ en Go, dans le `module.yaml` en préservant commentaires et mise en forme ; utilisée par la GUI et par `core dhcp/dns/link` (via `labctl module edit`) | `core.conf` supprimé |
-| Modules déclaratifs | 🟡 `labctl module list|validate|show` ; le YAML est la source de vérité (pentest migré) ; moteur `up/status/certs` à venir | `module.env`, `core.conf` supprimés ; `module.sh` de pentest en attendant `up` |
-| Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
+| Modules déclaratifs | ✅ moteur `labctl <m> up|status|certs…` piloté par `module.yaml` ; éditeur dans la GUI | `modules/pentest/module.sh` supprimé |
+| Passerelle core | ✅ intégrée à labctl : `labctl core gw|apply|update|attach|detach|internet|link|dhcp|dns|status…` ; fichiers de la passerelle embarqués (`internal/lab/gwfiles`) | `modules/core/module.sh`, `scripts/lib/module.sh` supprimés |
+| Derniers scripts | à faire : `vm-keyboard.sh`, relais `scripts/*.sh`, `lab.sh` | |
 
-`labctl core-config --diff` montre ce qui changerait sur la passerelle (comme le bandeau de la GUI) ;
-`labctl core-config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour
+`labctl core config --diff` montre ce qui changerait sur la passerelle (comme le bandeau de la GUI) ;
+`labctl core config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour
 contrôler l'effet d'un changement de `module.yaml` avant `labctl core apply`. Au portage, la sortie Go
 a été comparée fichier par fichier à celle du bash déployée sur la passerelle : identique.
 

@@ -5,3 +5,5 @@ scripts/config.local.env
 # Outils Go du projet (Go, delve, caches) et binaires compilés
 .tools/
 bin/
+# Remplacements locaux des fichiers de la passerelle (mise au point, voir docs/core.md)
+/core/

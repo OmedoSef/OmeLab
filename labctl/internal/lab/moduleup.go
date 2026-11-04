@@ -96,13 +96,6 @@ func (r *run) selectVMs(names []string) ([]string, error) {
 	return names, nil
 }
 
-// lab lance « lab.sh <args> » (commandes du module core, encore en bash) en recopiant sa sortie.
-func (r *run) lab(args ...string) error {
-	cmd := r.l.Command(args...)
-	cmd.Stdout, cmd.Stderr = r.out, r.out
-	return cmd.Run()
-}
-
 // ---------------------------------------------------------------- up
 
 // UpOptions règle ModuleUp.
@@ -204,13 +197,13 @@ func (r *run) ensureNetwork() error {
 		return fmt.Errorf("démarrage du réseau %s : %w", net, err)
 	}
 	if DomState(GatewayVM) == "absente" {
-		r.logf("attention: pas de passerelle %s : ni DHCP, ni DNS, ni Internet pour le module (./lab.sh core gw)", GatewayVM)
+		r.logf("attention: pas de passerelle %s : ni DHCP, ni DNS, ni Internet pour le module (labctl core gw)", GatewayVM)
 		return nil
 	}
 	if r.gatewayAttached() {
 		return nil
 	}
-	return r.lab("core", "attach", r.y.Module)
+	return r.l.Gateway(r.out).Attach(r.y.Module, true)
 }
 
 // gatewayAttached indique si la passerelle a une carte sur le réseau du module.
@@ -247,7 +240,7 @@ func (r *run) applyCore() error {
 		return nil
 	}
 	r.logf("==> Configuration DHCP/DNS de la passerelle")
-	return r.lab("core", "apply")
+	return r.l.Gateway(r.out).Apply()
 }
 
 // ---------------------------------------------------------------- VMs
@@ -378,7 +371,7 @@ func (r *run) adoptVM(vm string, apply bool) error {
 func (r *run) createVM(vm string) (err error) {
 	v, lv, e := virt.Shared(), r.libvirtName(vm), r.eff(vm)
 	if DomState(GatewayVM) != "running" {
-		return fmt.Errorf("la passerelle %s doit tourner (DHCP du module) : ./lab.sh core start", GatewayVM)
+		return fmt.Errorf("la passerelle %s doit tourner (DHCP du module) : labctl core start", GatewayVM)
 	}
 	// IP fixe : la MAC est choisie maintenant et écrite dans le YAML, pour que la réservation DHCP soit stable
 	if e.IP > 0 && e.MAC == "" {
@@ -427,10 +420,10 @@ func (r *run) createVM(vm string) (err error) {
 			return nil
 		}
 		open = false
-		return r.lab("core", "internet", "off", r.y.Module, vm)
+		return r.l.Gateway(r.out).InternetOff(r.y.Module, []string{vm})
 	}
 	if e.Internet == "install" {
-		if err := r.lab("core", "internet", "on", r.y.Module, vm); err != nil {
+		if err := r.l.Gateway(r.out).InternetOn(r.y.Module, []string{vm}); err != nil {
 			return err
 		}
 		open = true
@@ -939,7 +932,7 @@ func (l *Lab) ModuleDestroy(name string, vms []string, out io.Writer) error {
 		return nil
 	}
 	if DomState(GatewayVM) != "absente" && r.gatewayAttached() {
-		if err := r.lab("core", "detach", name); err != nil {
+		if err := r.l.Gateway(r.out).Detach(name); err != nil {
 			return err
 		}
 	}
@@ -1104,7 +1097,7 @@ func (l *Lab) ModuleCheck(name string, out io.Writer) error {
 	if r.y.PKI != nil {
 		chk(l.PKITool(io.Discard).Initialized(), "PKI des labs initialisée", "labctl pki init")
 	}
-	chk(DomState(GatewayVM) != "absente", "passerelle "+GatewayVM+" (DHCP, DNS, Internet des modules)", "./lab.sh core gw")
+	chk(DomState(GatewayVM) != "absente", "passerelle "+GatewayVM+" (DHCP, DNS, Internet des modules)", "labctl core gw")
 	if out, err := exec.Command("df", "-BG", "--output=avail", l.VMDir()+"/..").Output(); err == nil {
 		var gb int
 		fmt.Sscanf(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(out)), "Avail")), "%dG", &gb)

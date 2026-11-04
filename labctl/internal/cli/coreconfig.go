@@ -12,18 +12,19 @@ import (
 	"labs/labctl/internal/lab"
 )
 
-func coreConfigCmd(l *lab.Lab) *cobra.Command {
+// coreConfigCmd : « labctl core config » (et l'ancien nom « labctl core-config », caché).
+func coreConfigCmd(l *lab.Lab, use string, hidden bool) *cobra.Command {
 	var diff bool
 	c := &cobra.Command{
-		Use:   "core-config [DOSSIER]",
-		Short: "Génère la configuration de la passerelle (DHCP, DNS, réseau, liens) depuis module.env et core.conf",
-		Long: `Génère la configuration de la passerelle core-gw à partir des module.env et core.conf des modules.
+		Use:    use + " [DOSSIER]",
+		Hidden: hidden,
+		Short:  "Configuration générée pour la passerelle (DHCP, DNS, réseau, liens) ; --diff : ce qui changerait",
+		Long: `Génère la configuration de la passerelle core-gw à partir des module.yaml des modules.
 
 Sans DOSSIER : affiche ce qui serait appliqué (pour contrôler avant « labctl core apply »).
 --diff : n'affiche que ce qui changerait par rapport à la configuration installée sur la passerelle.
-Avec DOSSIER : y écrit gwdns/ et networkd/ (utilisé par « core apply », qui les envoie sur la passerelle).`,
-		GroupID: "outils",
-		Args:    cobra.MaximumNArgs(1),
+Avec DOSSIER : y écrit gwdns/ et networkd/ (ce que « core apply » envoie sur la passerelle).`,
+		Args: cobra.MaximumNArgs(1),
 		ValidArgsFunction: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 			return nil, cobra.ShellCompDirectiveFilterDirs
 		},

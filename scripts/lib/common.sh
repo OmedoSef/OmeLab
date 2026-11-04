@@ -116,7 +116,7 @@ core_release_leases() {
   local gw; gw=$(vm_ip core-gw) || return 0
   # shellcheck disable=SC2029  # MAC validées par gwctl, développées côté hôte volontairement
   ssh "${SSH_OPTS[@]}" "$LABS_VM_USER@$gw" sudo gwctl release "$@" >/dev/null 2>&1 \
-    || warn "baux DHCP non libérés sur core-gw ($*) : ./lab.sh core dhcp release $*"
+    || warn "baux DHCP non libérés sur core-gw ($*) : labctl core dhcp release $*"
 }
 
 random_mac() { printf '52:54:00:%02x:%02x:%02x\n' $((RANDOM % 256)) $((RANDOM % 256)) $((RANDOM % 256)); }

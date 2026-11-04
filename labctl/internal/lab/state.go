@@ -1,8 +1,6 @@
 package lab
 
 import (
-	"bufio"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -156,21 +154,7 @@ func (l *Lab) Status() (*State, error) {
 	return st, nil
 }
 
-// internetStatus interroge la passerelle via « lab.sh core internet status » : module -> état.
+// internetStatus renvoie l'état Internet de chaque module (texte de « labctl core internet status »).
 func (l *Lab) internetStatus() map[string]string {
-	out := map[string]string{}
-	cmd := l.Command("core", "internet", "status")
-	cmd.Env = append(os.Environ(), "LC_ALL=C.UTF-8")
-	b, err := cmd.Output()
-	if err != nil {
-		return out
-	}
-	sc := bufio.NewScanner(strings.NewReader(string(b)))
-	for sc.Scan() {
-		f := strings.Fields(sc.Text())
-		if len(f) >= 3 && f[0] != "MODULE" {
-			out[f[0]] = strings.Join(f[2:], " ")
-		}
-	}
-	return out
+	return l.Gateway(nil).internetText()
 }

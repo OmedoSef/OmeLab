@@ -208,7 +208,7 @@ func printModuleStatus(st *lab.ModuleStatus) {
 		}
 	}
 	if st.CoreDirty {
-		gw += ", configuration DHCP/DNS à appliquer (./lab.sh core apply)"
+		gw += ", configuration DHCP/DNS à appliquer (labctl core apply)"
 	}
 	fmt.Println(gw)
 	if st.CA != "" {

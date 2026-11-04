@@ -231,3 +231,48 @@ func (c *Conn) DeleteVolumeAt(path string) (bool, error) {
 	})
 	return found, err
 }
+
+// AttachInterface ajoute une carte sur un réseau libvirt (définition, et VM en marche si live).
+func (c *Conn) AttachInterface(name, network, mac, model string, live bool) error {
+	var b strings.Builder
+	b.WriteString("<interface type='network'><mac address='")
+	_ = xml.EscapeText(&b, []byte(mac))
+	b.WriteString("'/><source network='")
+	_ = xml.EscapeText(&b, []byte(network))
+	b.WriteString("'/><model type='")
+	_ = xml.EscapeText(&b, []byte(model))
+	b.WriteString("'/></interface>")
+	return c.deviceOp(name, b.String(), live, true)
+}
+
+// DetachInterface retire la carte de MAC donnée (définition, et VM en marche si live).
+func (c *Conn) DetachInterface(name, mac string, live bool) error {
+	ifs, err := c.Interfaces(name)
+	if err != nil {
+		return err
+	}
+	for _, i := range ifs {
+		if strings.EqualFold(i.MAC, mac) {
+			x := fmt.Sprintf("<interface type='%s'><mac address='%s'/><source network='%s'/></interface>", i.Type, i.MAC, i.Network)
+			return c.deviceOp(name, x, live, false)
+		}
+	}
+	return nil
+}
+
+func (c *Conn) deviceOp(name, x string, live, attach bool) error {
+	return c.do(func(lv *libvirt.Libvirt) error {
+		d, err := c.lookup(lv, name)
+		if err != nil {
+			return err
+		}
+		flags := libvirt.DomainDeviceModifyConfig
+		if live {
+			flags |= libvirt.DomainDeviceModifyLive
+		}
+		if attach {
+			return lv.DomainAttachDeviceFlags(d, x, uint32(flags))
+		}
+		return lv.DomainDetachDeviceFlags(d, x, uint32(flags))
+	})
+}

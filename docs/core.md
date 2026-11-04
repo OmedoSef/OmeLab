@@ -1,4 +1,4 @@
-# Module core
+# Passerelle core (intégrée à labctl)
 
 Services communs à tous les modules, centralisés sur une petite VM **`core-gw`** (Debian 13, 512 Mo) :
 
@@ -20,38 +20,38 @@ Services communs à tous les modules, centralisés sur une petite VM **`core-gw`
 ```
 
 > Sans `core-gw` démarrée, les modules n'ont **ni adresse IP, ni DNS, ni Internet**. Démarrer la passerelle
-> avant les VMs : `./lab.sh core start`.
+> avant les VMs : `labctl core start`.
 
 ## Commandes
 
 ```bash
-./lab.sh core gw                       # crée la passerelle et la branche sur chaque module existant
-./lab.sh core status                   # cartes, services, état Internet, liens
+labctl core gw                       # crée la passerelle et la branche sur chaque module existant
+labctl core status                   # cartes, services, état Internet, liens
 
-./lab.sh core internet on pentest              # ouvre tout le module
-./lab.sh core internet on pentest kali web     # ou seulement ces VMs
-./lab.sh core internet off pentest [VM...]     # referme
-./lab.sh core internet status
+labctl core internet on pentest              # ouvre tout le module
+labctl core internet on pentest kali web     # ou seulement ces VMs
+labctl core internet off pentest [VM...]     # referme
+labctl core internet status
 
-./lab.sh core link pentest autre               # pentest peut joindre et résoudre « autre »
-./lab.sh core link pentest autre --both        # dans les deux sens
-./lab.sh core unlink pentest autre [--both]
-./lab.sh core links
+labctl core link pentest autre               # pentest peut joindre et résoudre « autre »
+labctl core link pentest autre --both        # dans les deux sens
+labctl core unlink pentest autre [--both]
+labctl core links
 
-./lab.sh core dhcp list [MODULE]               # réservations (IP fixes)
-./lab.sh core dhcp leases [MODULE]             # baux en cours
-./lab.sh core dhcp add pentest dc01 40 52:54:00:aa:bb:cc   # 10.66.66.40 + dc01.<domaine>
-./lab.sh core dhcp del pentest dc01
-./lab.sh core dhcp release 52:54:00:aa:bb:cc   # libère un bail (automatique à la suppression d'une VM)
+labctl core dhcp list [MODULE]               # réservations (IP fixes)
+labctl core dhcp leases [MODULE]             # baux en cours
+labctl core dhcp add pentest dc01 40 52:54:00:aa:bb:cc   # 10.66.66.40 + dc01.<domaine>
+labctl core dhcp del pentest dc01
+labctl core dhcp release 52:54:00:aa:bb:cc   # libère un bail (automatique à la suppression d'une VM)
 
-./lab.sh core dns list [MODULE]
-./lab.sh core dns alias add pentest dvwa web   # dvwa.pentest-lab.omedo.lab -> web
-./lab.sh core dns alias del pentest dvwa
+labctl core dns list [MODULE]
+labctl core dns alias add pentest dvwa web   # dvwa.pentest-lab.omedo.lab -> web
+labctl core dns alias del pentest dvwa
 
-./lab.sh core apply                    # régénère tout (réseau, DHCP, DNS, pare-feu) sur la passerelle
-./lab.sh core update                   # pousse une nouvelle version des fichiers système, puis apply
-./lab.sh core attach|detach MODULE     # (fait automatiquement par « <module> network » / « destroy »)
-./lab.sh core start|stop|ssh|destroy
+labctl core apply                    # régénère tout (réseau, DHCP, DNS, pare-feu) sur la passerelle
+labctl core update                   # pousse une nouvelle version des fichiers système, puis apply
+labctl core attach|detach MODULE     # (fait automatiquement par « <module> network » / « destroy »)
+labctl core start|stop|ssh|destroy
 ```
 
 ## Où est la configuration
@@ -99,7 +99,7 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 
 ## Fonctionnement interne
 
-| Fichier (dans `files/`) | Installé sur la passerelle | Rôle |
+| Fichier (embarqué dans labctl : `labctl/internal/lab/gwfiles/`) | Installé sur la passerelle | Rôle |
 |---|---|---|
 | `gwctl` | `/usr/local/sbin/gwctl` | génère le pare-feu nftables (accès Internet, VMs bloquées, liens, redirections DNS) ; libère et purge les baux DHCP |
 | `gwdhcp-hook` | `/usr/local/sbin/gwdhcp-hook` | à chaque bail DHCP, met à jour les noms dynamiques du module |
@@ -107,8 +107,12 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 | `gwdns@.service` | `/etc/systemd/system/` | instances dnsmasq : `dhcp`, et `<module>-open` / `<module>-closed` par module |
 | `90-gw.conf` | `/etc/sysctl.d/` | routage IPv4 activé, IPv6 désactivé |
 
-`./lab.sh core apply` génère sur l'hôte avec `labctl core-config` (Go), depuis le `module.yaml` de chaque
-module branché, puis envoie le tout sur la passerelle (`labctl core-config` seul affiche ce qui serait appliqué) :
+Ces fichiers sont embarqués dans l'exécutable. Pour en mettre un au point sans recompiler, déposer sa version
+dans `core/files/<nom>` à la racine de `Labs/` : elle remplace celle de labctl. Puis `labctl core update`
+l'installe sur la passerelle.
+
+`labctl core apply` génère sur l'hôte la configuration, depuis le `module.yaml` de chaque module branché, puis
+l'envoie sur la passerelle (`labctl core config` l'affiche sans rien appliquer, `--diff` : seulement ce qui change) :
 
 - l'adresse `.254` de la passerelle sur chaque réseau (`/etc/systemd/network/50-gw-<module>.network`) ;
 - le DHCP (`/etc/gwdns/dhcp.conf`) ;

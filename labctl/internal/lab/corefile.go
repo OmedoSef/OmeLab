@@ -12,7 +12,7 @@ import (
 )
 
 // Édition de modules/<module>/core.conf : réservations DHCP (host), alias DNS (alias), liens (link).
-// Mêmes règles que les commandes « ./lab.sh core dhcp|dns|link » ; rien n'est appliqué sur la
+// Mêmes règles que les commandes « labctl core dhcp|dns|link » ; rien n'est appliqué sur la
 // passerelle (voir PendingCoreChanges et « core apply »).
 
 var (
@@ -20,7 +20,7 @@ var (
 	reMAC      = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
 )
 
-const coreConfHeader = "# Module %s côté core (géré par ./lab.sh core dhcp|dns|link et labctl)\n# host NOM OCTET MAC  |  alias NOM CIBLE  |  link MODULE\n"
+const coreConfHeader = "# Module %s côté core (géré par labctl core dhcp|dns|link et labctl)\n# host NOM OCTET MAC  |  alias NOM CIBLE  |  link MODULE\n"
 
 // confModule renvoie un module qui a un réseau (module.env).
 func (l *Lab) confModule(name string) (*Module, error) {

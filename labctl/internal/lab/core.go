@@ -3,7 +3,6 @@ package lab
 import (
 	"bufio"
 	"net/netip"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -62,9 +61,7 @@ func (l *Lab) Core() *CoreState {
 		return cs
 	}
 
-	cmd := l.Command("core", "ssh", coreProbe)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	b, err := cmd.Output()
+	b, err := l.Gateway(nil).sshOut(coreProbe)
 	if err != nil {
 		cs.Error = "passerelle injoignable en SSH : " + err.Error()
 		return cs

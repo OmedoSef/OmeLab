@@ -31,7 +31,7 @@ Labs/
 
 | Module | Rôle | Doc |
 |---|---|---|
-| `core` | Passerelle Internet activable par module ou par VM, DHCP et DNS de tous les modules, liens entre modules | [modules/core](modules/core/README.md) |
+| `core` | Passerelle Internet activable par module ou par VM, DHCP et DNS de tous les modules, liens entre modules | [docs/core.md](docs/core.md) |
 | `pentest` | Lab d'entraînement au pentest, isolé | [modules/pentest](modules/pentest/README.md) |
 
 Outils génériques et PKI : [scripts/README.md](scripts/README.md).
@@ -42,16 +42,16 @@ Outils génériques et PKI : [scripts/README.md](scripts/README.md).
   son sous-réseau `/24`, son domaine DNS et sa CA dérivée.
 - **Tout est centralisé sur la passerelle `core-gw`**, présente en `.254` dans chaque module. Elle fournit le
   **DHCP** (IP fixes par MAC), le **DNS**, le **routage** et le **pare-feu**. Sans elle, les modules n'ont plus
-  d'adresses : `./lab.sh core start` d'abord.
+  d'adresses : `labctl core start` d'abord.
 - **Internet est fermé par défaut**, et toujours refermé au redémarrage de la passerelle :
   ```bash
-  ./lab.sh core internet on pentest kali     # Kali seule
-  ./lab.sh core internet off pentest
+  labctl core internet on pentest kali     # Kali seule
+  labctl core internet off pentest
   ```
   Même ouverte, la passerelle ne laisse sortir que vers Internet. Ton LAN et les autres réseaux privés
   restent injoignables.
 - **Liens entre modules** : par défaut, un module ne voit aucun autre module, ni par le routage ni par le DNS.
-  `./lab.sh core link A B [--both]` ouvre les deux d'un coup, dans un sens ou dans les deux.
+  `labctl core link A B [--both]` ouvre les deux d'un coup, dans un sens ou dans les deux.
 - **DNS** : `<vm>.<domaine du module>`, des alias, et les noms Internet seulement pour les VMs autorisées à sortir.
 - **Adressage** d'un module : `.1` = hôte, `.2`–`.99` = VMs à IP réservée, `.100`–`.199` = DHCP libre,
   `.254` = passerelle core (routeur, DHCP, DNS).
@@ -62,7 +62,7 @@ Outils génériques et PKI : [scripts/README.md](scripts/README.md).
 
 ```bash
 ./scripts/pki.sh init          # une fois : CA racine Omedo Labs
-./lab.sh core gw               # passerelle Internet + DNS
+labctl core gw               # passerelle Internet + DNS
 labctl pentest check
 labctl pentest up              # réseau, CA, VMs : tout ce que décrit modules/pentest/module.yaml
 ```
@@ -79,12 +79,11 @@ Un module est un dossier `modules/<nom>/` contenant :
 
 Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|destroy`
 (aussi sous `labctl module <m> …` et `./lab.sh <m> …`). Aucune ligne de code propre à un module.
-Le module `core` (passerelle) garde encore son `module.sh` en bash.
+La passerelle `core` n'est pas un module : elle est intégrée à labctl (`labctl core …`, voir [docs/core.md](docs/core.md)).
 
 `labctl module validate` contrôle les `module.yaml` sans rien créer ; `labctl module show <m>` affiche les valeurs
 effectives de chaque VM et leur origine.
 
-Les briques réseau, stockage, téléchargement et passerelle sont dans `scripts/lib/module.sh`.
 
 labctl découvre les modules automatiquement : un nouveau dossier avec un `module.yaml` apparaît dans `labctl`,
 sa complétion et la GUI sans aucune modification du code Go ni recompilation.

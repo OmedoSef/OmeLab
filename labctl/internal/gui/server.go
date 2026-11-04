@@ -280,16 +280,19 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
 	}
-	pki := req.Args[0] == "pki"
-	if pki {
+	// PKI et passerelle sont en Go : on relance labctl lui-même (même analyse d'options que la CLI)
+	native := req.Args[0] == "pki" || req.Args[0] == "core"
+	if req.Args[0] == "pki" {
 		// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
 		if req.Args[1] == "trust-host" {
 			http.Error(w, "pki trust-host demande sudo : à lancer dans un terminal (labctl pki trust-host)", http.StatusBadRequest)
 			return
 		}
-	} else if _, err := s.lab.Module(req.Args[0]); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	} else if req.Args[0] != "core" {
+		if _, err := s.lab.Module(req.Args[0]); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	for _, a := range req.Args {
 		if strings.ContainsAny(a, "\x00\n") {
@@ -310,8 +313,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	pw := &flushWriter{w: w, f: flusher}
 
 	cmd := s.lab.Command(req.Args...)
-	if pki {
-		// La PKI est en Go : on relance labctl lui-même, avec exactement l'analyse d'options de la CLI
+	if native {
 		self, err := os.Executable()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

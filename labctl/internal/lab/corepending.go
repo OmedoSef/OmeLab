@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 
@@ -28,9 +27,7 @@ type FileChange struct {
 // DeployedCoreConfig lit la configuration actuellement installée sur la passerelle (même découpage
 // que coreconf.Files : gwdns/..., networkd/...).
 func (l *Lab) DeployedCoreConfig() (coreconf.Files, error) {
-	cmd := l.Command("core", "ssh", `sudo tar -C / -cf - etc/gwdns $(ls /etc/systemd/network/50-gw-*.network 2>/dev/null | sed 's|^/||') 2>/dev/null`)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	out, err := cmd.Output()
+	out, err := l.Gateway(nil).sshOut(`sudo tar -C / -cf - etc/gwdns $(ls /etc/systemd/network/50-gw-*.network 2>/dev/null | sed 's|^/||') 2>/dev/null`)
 	if err != nil && len(out) == 0 {
 		return nil, fmt.Errorf("lecture de la configuration de la passerelle : %w", err)
 	}
