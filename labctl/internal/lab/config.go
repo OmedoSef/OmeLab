@@ -15,8 +15,8 @@ var (
 	reAssign = regexp.MustCompile(`^(?:export\s+)?([A-Z_]+)=("([^"]*)"|'([^']*)'|(\S*))\s*(#.*)?$`)
 )
 
-// Setting renvoie un réglage avec la même priorité que les scripts bash : variable d'environnement,
-// puis scripts/config.local.env, puis la valeur par défaut de scripts/config.env. Les défauts qui
+// Setting renvoie un réglage : variable d'environnement, puis config.local.env, puis la valeur par défaut
+// de config.env (à la racine de Labs). Les défauts qui
 // dépendent d'un calcul shell ($(...)) ne sont pas interprétés : fallback est alors utilisé.
 // Les références $VAR / ${VAR} d'une valeur (ex. "$LABS_STORAGE_DIR/images") sont développées.
 func (l *Lab) Setting(name, fallback string) string {
@@ -27,9 +27,9 @@ func (l *Lab) setting(name, fallback string, depth int) string {
 	raw, ok := "", false
 	if v, set := os.LookupEnv(name); set && v != "" {
 		raw, ok = v, true
-	} else if v, set := readAssign(filepath.Join(l.Root, "scripts", "config.local.env"), name); set {
+	} else if v, set := readAssign(filepath.Join(l.Root, "config.local.env"), name); set {
 		raw, ok = v, true
-	} else if v, set := readDefault(filepath.Join(l.Root, "scripts", "config.env"), name); set && !strings.Contains(v, "$(") {
+	} else if v, set := readDefault(filepath.Join(l.Root, "config.env"), name); set && !strings.Contains(v, "$(") {
 		raw, ok = v, true
 	}
 	if !ok {

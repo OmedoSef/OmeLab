@@ -13,14 +13,13 @@ import (
 func testLab(t *testing.T) *Lab {
 	t.Helper()
 	root := t.TempDir()
-	os.WriteFile(filepath.Join(root, "lab.sh"), []byte("#!/bin/sh\n"), 0o755)
+	os.WriteFile(filepath.Join(root, "config.env"), nil, 0o644)
 	for name, env := range map[string]string{
 		"pentest": "NET=pentest-lab\nSUBNET=10.66.66\ndeclare -A HOSTS=([kali]=10 [msf2]=20)\ndeclare -A MACS=([kali]=52:54:00:66:66:10 [msf2]=52:54:00:66:66:20)\nNO_INTERNET=\"msf2\"\n",
 		"demo":    "NET=demo-lab\nSUBNET=10.77.77\ndeclare -A HOSTS=()\n",
 	} {
 		dir := filepath.Join(root, "modules", name)
 		os.MkdirAll(dir, 0o755)
-		os.WriteFile(filepath.Join(dir, "module.sh"), []byte("#!/bin/sh\n# Module "+name+" : test\n"), 0o755)
 		os.WriteFile(filepath.Join(dir, "module.env"), []byte(env), 0o644)
 	}
 	t.Setenv("LABS_PKI_DOMAIN", "omedo.lab")

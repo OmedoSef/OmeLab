@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -26,17 +25,16 @@ func newPKI(l *lab.Lab) *pki.PKI {
 	}
 }
 
-// remote résout l'IP d'une VM avec scripts/vm-ip.sh (couche VM pas encore portée en Go).
+// remote : accès SSH aux VMs pour installer la CA ou un certificat.
 func remote(l *lab.Lab) pki.Remote {
 	return pki.Remote{
 		User:    l.Setting("LABS_VM_USER", "lab"),
 		SSHOpts: sshOpts,
 		IP: func(vm string) (string, error) {
-			out, err := exec.Command(filepath.Join(l.Root, "scripts", "vm-ip.sh"), vm).Output()
-			if err != nil {
-				return "", errors.New("pas d'IP (VM démarrée ?)")
+			if ip := l.VMIP(vm); ip != "" {
+				return ip, nil
 			}
-			return strings.TrimSpace(string(out)), nil
+			return "", errors.New("pas d'IP (VM démarrée ?)")
 		},
 	}
 }

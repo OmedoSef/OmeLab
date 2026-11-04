@@ -166,7 +166,7 @@ Utilisables dans `run`, `certificates[].reload` et les fichiers `template: true`
 | `labctl <m> ssh VM [cmd]` | shell SSH (images cloud) |
 | `labctl <m> destroy [VM...]` | supprime (confirmation) ; sans VM : tout le module, sauf le `module.yaml`, la CA et les sources téléchargées |
 
-Les mêmes commandes existent sous `labctl module <m> …` et `./lab.sh <m> …`.
+Les mêmes commandes existent sous `labctl module <m> …`.
 Les VMs existantes (`pentest-kali`, …) sont **reprises telles quelles** : aucune recréation. Leurs disques
 restent où ils sont (pool `pentest-lab`) ; les nouvelles VMs vont dans le dossier des VMs.
 
@@ -231,7 +231,7 @@ Chaque champ facultatif d'une VM est pris, dans l'ordre, du premier niveau qui l
 |---|---|---|
 | 1 | la VM | `vms.kali.cpus: 4` |
 | 2 | `defaults:` du module | `defaults: {memory: 2048, image: ubuntu2404}` |
-| 3 | tes réglages (`scripts/config.local.env`, sinon `config.env`) | `LABS_DEFAULT_CPUS=1`, `LABS_DEFAULT_MEMORY`, `LABS_DEFAULT_DISK`, `LABS_DEFAULT_IMAGE` |
+| 3 | tes réglages (`config.local.env`, sinon `config.env`, à la racine) | `LABS_DEFAULT_CPUS=1`, `LABS_DEFAULT_MEMORY`, `LABS_DEFAULT_DISK`, `LABS_DEFAULT_IMAGE` |
 | 4 | intégré à labctl | 1 vCPU, 2048 Mio, 20 Gio, `debian13`, q35/virtio/spice, `internet: off`, pas de snapshot |
 
 `labctl module <m> status` (et la GUI) affiche la valeur effective de chaque champ et son origine.

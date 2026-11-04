@@ -273,15 +273,13 @@ type runRequest struct {
 	Args []string `json:"args"` // [module, commande, ...] ou ["pki", commande, ...]
 }
 
-// handleRun exécute « lab.sh <module> ... » et renvoie sa sortie au fil de l'eau.
+// handleRun exécute « labctl <module|core|pki> ... » et renvoie sa sortie au fil de l'eau.
 func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	var req runRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<14)).Decode(&req); err != nil || len(req.Args) < 2 {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
 	}
-	// PKI et passerelle sont en Go : on relance labctl lui-même (même analyse d'options que la CLI)
-	native := req.Args[0] == "pki" || req.Args[0] == "core"
 	if req.Args[0] == "pki" {
 		// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
 		if req.Args[1] == "trust-host" {
@@ -312,16 +310,14 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	pw := &flushWriter{w: w, f: flusher}
 
-	cmd := s.lab.Command(req.Args...)
-	if native {
-		self, err := os.Executable()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		cmd = exec.Command(self, req.Args...)
-		cmd.Dir = s.lab.Root
+	// Tout est en Go : on relance labctl lui-même (même analyse d'options que la CLI)
+	self, err := os.Executable()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+	cmd := exec.Command(self, req.Args...)
+	cmd.Dir = s.lab.Root
 	// La GUI demande déjà confirmation : pas de question interactive côté script
 	cmd.Env = append(os.Environ(), "ASSUME_YES=1")
 	cmd.Stdout, cmd.Stderr = pw, pw

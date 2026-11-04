@@ -8,8 +8,8 @@ import (
 
 func TestSettingExpansion(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "scripts"), 0o755)
-	os.WriteFile(filepath.Join(root, "scripts", "config.env"), []byte(`LABS_STORAGE_DIR="${LABS_STORAGE_DIR:-$HOME/Virt/kvm}"
+
+	os.WriteFile(filepath.Join(root, "config.env"), []byte(`LABS_STORAGE_DIR="${LABS_STORAGE_DIR:-$HOME/Virt/kvm}"
 LABS_IMAGES_DIR="${LABS_IMAGES_DIR:-$LABS_STORAGE_DIR/images}"
 LABS_PKI_DIR="${LABS_PKI_DIR:-$(cd x && pwd)/pki}"
 LABS_VM_USER="${LABS_VM_USER:-lab}"
@@ -25,7 +25,7 @@ LABS_VM_USER="${LABS_VM_USER:-lab}"
 	if got := l.Setting("LABS_PKI_DIR", "repli"); got != "repli" {
 		t.Errorf("$(...) doit donner le repli : %q", got)
 	}
-	os.WriteFile(filepath.Join(root, "scripts", "config.local.env"), []byte("LABS_STORAGE_DIR=/data/kvm\n"), 0o644)
+	os.WriteFile(filepath.Join(root, "config.local.env"), []byte("LABS_STORAGE_DIR=/data/kvm\n"), 0o644)
 	if got := l.Setting("LABS_IMAGES_DIR", ""); got != "/data/kvm/images" {
 		t.Errorf("config.local.env doit primer : %q", got)
 	}

@@ -73,7 +73,7 @@ func netCmd(l *lab.Lab) *cobra.Command {
 
 L'hôte prend la 1re adresse ; le DHCP distribue la 2e moitié de la plage (.128-.254 en /24), la 1re moitié
 reste libre pour les IP fixes. Les VMs se résolvent par nom dans DOMAINE (défaut : NOM.<domaine des labs>).
-Les réseaux des modules sont créés par leur module (./lab.sh <module> network), pas par cette commande.`,
+Les réseaux des modules sont créés par leur module (labctl <module> up), pas par cette commande.`,
 		Example: "  labctl net create demo -s 10.10.0.0/24\n  labctl net create interco -s 10.99.0.0/24 -M route --no-dhcp",
 		Args:    cobra.ExactArgs(1), ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(_ *cobra.Command, args []string) error {

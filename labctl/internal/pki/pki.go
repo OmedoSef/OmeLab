@@ -1,7 +1,7 @@
 // Package pki gère la PKI des labs : CA racine -> CA intermédiaire -> certificats, et CA dérivées
 // (signées par la racine, limitées à un domaine et un sous-réseau par nameConstraints).
 //
-// Les fichiers sont compatibles avec ceux de l'ancien scripts/pki.sh (openssl) :
+// Les fichiers sont compatibles avec ceux de l'ancien script pki.sh (openssl) :
 //
 //	root/root-ca.{key,crt}
 //	intermediate/intermediate-ca.{key,crt}, intermediate/ca-chain.crt (intermédiaire + racine)

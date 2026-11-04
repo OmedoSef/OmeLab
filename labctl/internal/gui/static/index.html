@@ -211,7 +211,7 @@ async function load(fresh = false) {
   }
 }
 
-// --- Exécution d'une commande lab.sh, sortie affichée au fil de l'eau
+// --- Exécution d'une commande labctl, sortie affichée au fil de l'eau
 async function run(args, confirmText) {
   if (running) return;
   if (confirmText && !confirm(confirmText)) return;

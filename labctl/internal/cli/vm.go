@@ -102,7 +102,7 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 	ip.Flags().IntVarP(&wait, "wait", "w", 0, "attendre jusqu'à N secondes qu'elle en ait une")
 	c.AddCommand(ip)
 
-	c.AddCommand(snapshotCmd(), vmCreateCmd(l), vmDestroyCmd(l), vmSSHCmd(l))
+	c.AddCommand(snapshotCmd(), vmCreateCmd(l), vmDestroyCmd(l), vmSSHCmd(l), vmKeyboardCmd(l))
 	return c
 }
 

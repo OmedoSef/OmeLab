@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -21,7 +20,7 @@ import (
 	"labs/labctl/internal/module"
 )
 
-// Lab est la racine d'une arborescence Labs (dossier contenant lab.sh et modules/).
+// Lab est la racine d'une arborescence Labs (dossier contenant config.env et modules/).
 type Lab struct {
 	Root    string
 	Verbose bool // affiche sur stderr les commandes lancées
@@ -34,7 +33,7 @@ func Find() (*Lab, error) {
 		if isRoot(r) {
 			return &Lab{Root: r}, nil
 		}
-		return nil, fmt.Errorf("LABS_ROOT=%s n'est pas une racine Labs (lab.sh et modules/ attendus)", r)
+		return nil, fmt.Errorf("LABS_ROOT=%s n'est pas une racine Labs (config.env et modules/ attendus)", r)
 	}
 	var starts []string
 	if exe, err := os.Executable(); err == nil {
@@ -63,7 +62,7 @@ func isRoot(d string) bool {
 	if err != nil || !st.IsDir() {
 		return false
 	}
-	_, err = os.Stat(filepath.Join(d, "lab.sh"))
+	_, err = os.Stat(filepath.Join(d, "config.env"))
 	return err == nil
 }
 
@@ -71,7 +70,7 @@ func isRoot(d string) bool {
 type Module struct {
 	Name        string
 	Dir         string
-	Description string    // ligne 2 de module.sh
+	Description string    // description: du module.yaml
 	Env         *Env      // nil pour un module sans module.env (ex. core)
 	Commands    *CmdNode  // arbre des commandes, tiré de l'en-tête d'aide de module.sh
 	Conf        *CoreConf // core.conf du module (vide s'il n'existe pas)
@@ -131,21 +130,12 @@ func (l *Lab) Modules() ([]*Module, error) {
 	var mods []*Module
 	for _, e := range entries {
 		dir := filepath.Join(l.Root, "modules", e.Name())
-		script := filepath.Join(dir, "module.sh")
-		_, errScript := os.Stat(script)
 		_, errYAML := os.Stat(filepath.Join(dir, module.FileName))
-		if errScript != nil && errYAML != nil {
+		_, errEnv := os.Stat(filepath.Join(dir, "module.env"))
+		if errYAML != nil && errEnv != nil {
 			continue
 		}
-		m := &Module{Name: e.Name(), Dir: dir, Commands: newNode()}
-		if errScript == nil {
-			header, err := readHeader(script)
-			if err != nil {
-				return nil, err
-			}
-			m.Description = header.description
-			m.Commands = ParseUsage(m.Name, header.lines)
-		}
+		m := &Module{Name: e.Name(), Dir: dir, Commands: ParseUsage(e.Name(), EngineUsage(e.Name()))}
 		if env, err := ParseEnv(filepath.Join(dir, "module.env"), pkiDomain); err == nil {
 			m.Env = env
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -153,9 +143,6 @@ func (l *Lab) Modules() ([]*Module, error) {
 		}
 		m.Conf, _ = ParseCoreConf(filepath.Join(dir, "core.conf"))
 		l.loadYAML(m) // le YAML, s'il existe, prime sur module.env / core.conf
-		if errScript != nil {
-			m.Commands = ParseUsage(m.Name, EngineUsage(m.Name))
-		}
 		mods = append(mods, m)
 	}
 	return mods, nil
@@ -177,39 +164,6 @@ func (l *Lab) Module(name string) (*Module, error) {
 
 // pkiDomain renvoie le domaine racine des labs (LABS_PKI_DOMAIN).
 func (l *Lab) pkiDomain() string { return l.Setting("LABS_PKI_DOMAIN", "omedo.lab") }
-
-type header struct {
-	description string
-	lines       []string
-}
-
-// readHeader lit le bloc de commentaires en tête d'un module.sh (jusqu'à la première ligne non commentée).
-func readHeader(path string) (header, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return header{}, err
-	}
-	defer f.Close()
-	var h header
-	sc := bufio.NewScanner(f)
-	for n := 1; sc.Scan(); n++ {
-		line := sc.Text()
-		if n == 1 && strings.HasPrefix(line, "#!") {
-			continue
-		}
-		if !strings.HasPrefix(line, "#") {
-			break
-		}
-		if strings.HasPrefix(line, "# shellcheck") {
-			continue
-		}
-		if n == 2 {
-			h.description = strings.TrimSpace(strings.TrimPrefix(line, "#"))
-		}
-		h.lines = append(h.lines, line)
-	}
-	return h, sc.Err()
-}
 
 var (
 	reVar   = regexp.MustCompile(`^([A-Z_]+)=("?)([^"]*)("?)\s*(#.*)?$`)
@@ -300,26 +254,10 @@ func ParseCoreConf(path string) (*CoreConf, error) {
 	return c, nil
 }
 
-// Exec remplace le processus courant par « lab.sh <module> <args...> » : entrées et sorties
-// (y compris un terminal interactif pour ssh) sont celles de labctl.
-func (l *Lab) Exec(args ...string) error {
-	return l.ExecScript(filepath.Join(l.Root, "lab.sh"), args...)
-}
-
 // ExecScript remplace le processus courant par un script du projet.
 func (l *Lab) ExecScript(script string, args ...string) error {
 	if l.Verbose {
 		fmt.Fprintf(os.Stderr, "+ %s %s\n", script, strings.Join(args, " "))
 	}
 	return syscall.Exec(script, append([]string{script}, args...), os.Environ())
-}
-
-// Command prépare « lab.sh <args...> » sans le lancer (pour la GUI, qui capture la sortie).
-func (l *Lab) Command(args ...string) *exec.Cmd {
-	cmd := exec.Command(filepath.Join(l.Root, "lab.sh"), args...)
-	cmd.Dir = l.Root
-	if l.Verbose {
-		fmt.Fprintf(os.Stderr, "+ lab.sh %s\n", strings.Join(args, " "))
-	}
-	return cmd
 }

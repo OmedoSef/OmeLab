@@ -485,13 +485,9 @@ func (r *run) waitSSH(vm string, timeout int) bool {
 	return false
 }
 
-func agentReady(lv string) bool {
-	return exec.Command("virsh", "-c", "qemu:///system", "qemu-agent-command", lv, `{"execute":"guest-ping"}`).Run() == nil
-}
-
 func waitAgent(lv string, timeout int) bool {
 	for t := 0; t < timeout; t += 3 {
-		if agentReady(lv) {
+		if virt.Shared().AgentReady(lv) {
 			return true
 		}
 		time.Sleep(3 * time.Second)
@@ -505,9 +501,7 @@ func (r *run) keyboard(vm, layout string) error {
 	if layout == "" {
 		layout = r.l.Keyboard()
 	}
-	cmd := exec.Command(filepath.Join(r.l.Root, "scripts", "vm-keyboard.sh"), "-l", layout, lv)
-	cmd.Stdout, cmd.Stderr = r.out, r.out
-	if err := cmd.Run(); err != nil {
+	if err := r.l.VMKeyboard(lv, layout, r.out); err != nil {
 		return err
 	}
 	r.logf("==> Redémarrage de %s pour que l'interface graphique prenne le clavier %s", vm, layout)
@@ -1052,7 +1046,13 @@ func (l *Lab) ModuleCheck(name string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fail := 0
+	var tools []string
+	for _, vm := range r.y.VMNames() {
+		if r.eff(vm).Source != nil {
+			tools = []string{"7z"}
+		}
+	}
+	fail := l.HostCheck(out, tools...)
 	chk := func(ok bool, what, fix string) {
 		if ok {
 			r.logf("ok  %s", what)
@@ -1060,39 +1060,6 @@ func (l *Lab) ModuleCheck(name string, out io.Writer) error {
 		}
 		r.logf("attention: %s -> %s", what, fix)
 		fail++
-	}
-	cpu, _ := os.ReadFile("/proc/cpuinfo")
-	chk(bytes.Contains(cpu, []byte(" vmx")) || bytes.Contains(cpu, []byte(" svm")), "virtualisation matérielle", "activer VT-x/AMD-V dans le BIOS")
-	f, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
-	if err == nil {
-		f.Close()
-	}
-	chk(err == nil, "/dev/kvm accessible", "sudo usermod -aG kvm $USER")
-	_, err = virt.Shared().Networks()
-	chk(err == nil, "connexion à libvirt (qemu:///system)", "sudo usermod -aG libvirt $USER ; sudo systemctl enable --now libvirtd.socket")
-	tools := []string{"qemu-img", "ssh"}
-	cloud, source := false, false
-	for _, vm := range r.y.VMNames() {
-		if r.eff(vm).Source != nil {
-			source = true
-		} else {
-			cloud = true
-		}
-	}
-	if cloud {
-		tools = append(tools, "cloud-localds")
-	}
-	if source {
-		tools = append(tools, "7z")
-	}
-	for _, t := range tools {
-		_, err := exec.LookPath(t)
-		chk(err == nil, "commande "+t, "sudo apt install qemu-utils cloud-image-utils p7zip-full openssh-client")
-	}
-	if cloud {
-		key := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
-		_, err := os.Stat(key)
-		chk(err == nil, "clé SSH "+key, "ssh-keygen -t ed25519")
 	}
 	if r.y.PKI != nil {
 		chk(l.PKITool(io.Discard).Initialized(), "PKI des labs initialisée", "labctl pki init")

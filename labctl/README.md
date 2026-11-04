@@ -1,8 +1,8 @@
 # labctl
 
 Outil de pilotage des labs, en Go : une **CLI avec autocomplétion** et une **GUI web locale**.
-Les scripts bash des modules restent la source de vérité. labctl les découvre, lit leur configuration
-et les appelle ; la logique sera portée en Go progressivement, module par module.
+Tout est en Go : les modules sont décrits par leur `module.yaml` et construits par le moteur de labctl,
+la passerelle core est intégrée, et il n'y a plus de script bash.
 
 ## Utilisation
 
@@ -26,7 +26,7 @@ labctl core status         # passerelle : internet, dhcp, dns, link…
 deactivate                 # retire labctl, Go, la complétion et (labs)
 ```
 
-`labctl <module> ...` est exactement `./lab.sh <module> ...`. La complétion couvre tout : commandes, modules,
+La complétion couvre tout : commandes, modules,
 VMs, snapshots, réservations, alias. Elle vient des module.yaml : un nouveau module ou une nouvelle VM est
 complétable tout de suite, sans toucher au Go.
 
@@ -49,20 +49,20 @@ Rare, mais possible depuis la GUI (onglet PKI, *Maintenance de la chaîne*) ou e
 
 ## Migration des scripts bash vers Go
 
-Chaque bloc porté en Go devient une commande de labctl, testée ; le script bash correspondant devient un
-relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle.
+Historique : chaque bloc porté en Go est devenu une commande de labctl, testée ; le script bash correspondant
+est d'abord devenu un relais, puis a disparu. Migration terminée.
 
 | Bloc | État | Remplace |
 |---|---|---|
-| PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
+| PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` |
 | Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core config` (`internal/coreconf`) | fonctions `gen_*` du bash |
-| Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` → relais ; `vm_ip` des scripts passe par labctl |
-| Images cloud | ✅ en Go : `labctl image list|get` ; empreinte vérifiée (SHA256/512 publiées par les distributions) ; refus de remplacer une image utilisée comme base | `image-get.sh` → relais |
-| Création / suppression de VMs (cloud-init) | ✅ en Go : `labctl vm create|destroy|ssh` ; définition libvirt écrite par labctl (plus de virt-install) ; retour arrière complet si la création échoue | `vm-create.sh`, `vm-destroy.sh`, `vm-ssh.sh` → relais |
+| Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` |
+| Images cloud | ✅ en Go : `labctl image list|get` ; empreinte vérifiée (SHA256/512 publiées par les distributions) ; refus de remplacer une image utilisée comme base | `image-get.sh`  |
+| Création / suppression de VMs (cloud-init) | ✅ en Go : `labctl vm create|destroy|ssh` ; définition libvirt écrite par labctl (plus de virt-install) ; retour arrière complet si la création échoue | `vm-create.sh`, `vm-destroy.sh`, `vm-ssh.sh`  |
 | Édition de la configuration d'un module (réservations, alias, liens) | ✅ en Go, dans le `module.yaml` en préservant commentaires et mise en forme ; utilisée par la GUI et par `core dhcp/dns/link` (via `labctl module edit`) | `core.conf` supprimé |
 | Modules déclaratifs | ✅ moteur `labctl <m> up|status|certs…` piloté par `module.yaml` ; éditeur dans la GUI | `modules/pentest/module.sh` supprimé |
 | Passerelle core | ✅ intégrée à labctl : `labctl core gw|apply|update|attach|detach|internet|link|dhcp|dns|status…` ; fichiers de la passerelle embarqués (`internal/lab/gwfiles`) | `modules/core/module.sh`, `scripts/lib/module.sh` supprimés |
-| Derniers scripts | à faire : `vm-keyboard.sh`, relais `scripts/*.sh`, `lab.sh` | |
+| Derniers scripts | ✅ `labctl check`, `labctl lab …`, `labctl vm keyboard` (agent invité QEMU par libvirt, sans virsh) ; réglages dans `config.env` à la racine | `scripts/`, `lab.sh` supprimés : plus de bash |
 
 `labctl core config --diff` montre ce qui changerait sur la passerelle (comme le bandeau de la GUI) ;
 `labctl core config` sans argument affiche la configuration qui serait appliquée sur la passerelle : pratique pour

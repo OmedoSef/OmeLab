@@ -10,7 +10,7 @@ labctl gui                        # interface graphique (navigateur, 127.0.0.1 u
 deactivate
 ```
 
-Sans activation, le point d'entrée bash reste utilisable : `./lab.sh <module> <commande> ...`.
+Sans activation : `bin/labctl <module> <commande> ...` (labctl retrouve le dossier Labs tout seul).
 Voir [labctl](labctl/README.md) pour la GUI, la complétion et le débogage.
 
 ## Organisation
@@ -18,12 +18,11 @@ Voir [labctl](labctl/README.md) pour la GUI, la complétion et le débogage.
 ```
 Labs/
 ├── activate          active l'environnement (labctl, complétion, Go du projet) ; deactivate pour sortir
-├── lab.sh            point d'entrée bash
+├── config.env        réglages (stockage, utilisateur des VMs, clavier, domaine…) ; config.local.env pour les tiens
+├── docs/             documentation : modules déclaratifs, passerelle core, VMs/réseaux/PKI
 ├── labctl/           outil de pilotage en Go : CLI avec complétion + GUI web locale
 ├── modules/
-│   ├── core/         services communs : passerelle Internet, DHCP, DNS, liens (VM core-gw)
 │   └── pentest/      lab de pentest : Kali, Metasploitable 2, DVWA + Juice Shop
-├── scripts/          outils génériques (VMs, réseaux, images, PKI) et bibliothèques communes
 ├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
 ├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
 └── .vscode/          configuration de débogage de labctl
@@ -34,7 +33,7 @@ Labs/
 | `core` | Passerelle Internet activable par module ou par VM, DHCP et DNS de tous les modules, liens entre modules | [docs/core.md](docs/core.md) |
 | `pentest` | Lab d'entraînement au pentest, isolé | [modules/pentest](modules/pentest/README.md) |
 
-Outils génériques et PKI : [scripts/README.md](scripts/README.md).
+VMs hors module, réseaux, images et PKI : [docs/vms.md](docs/vms.md).
 
 ## Principes communs
 
@@ -56,12 +55,13 @@ Outils génériques et PKI : [scripts/README.md](scripts/README.md).
 - **Adressage** d'un module : `.1` = hôte, `.2`–`.99` = VMs à IP réservée, `.100`–`.199` = DHCP libre,
   `.254` = passerelle core (routeur, DHCP, DNS).
 - **PKI** : racine *Omedo Labs Root CA*. Chaque module a sa CA dérivée, limitée à son domaine et à son
-  sous-réseau. Toutes les VMs créées par ces scripts font confiance à la racine.
+  sous-réseau. Toutes les VMs créées par labctl font confiance à la racine.
 
 ## Démarrage
 
 ```bash
-./scripts/pki.sh init          # une fois : CA racine Omedo Labs
+labctl check                   # prérequis de l'hôte
+labctl pki init                # une fois : CA racine Omedo Labs
 labctl core gw               # passerelle Internet + DNS
 labctl pentest check
 labctl pentest up              # réseau, CA, VMs : tout ce que décrit modules/pentest/module.yaml
@@ -78,7 +78,7 @@ Un module est un dossier `modules/<nom>/` contenant :
 | `README.md` | exercices, notes |
 
 Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|destroy`
-(aussi sous `labctl module <m> …` et `./lab.sh <m> …`). Aucune ligne de code propre à un module.
+(aussi sous `labctl module <m> …`). Aucune ligne de code propre à un module.
 La passerelle `core` n'est pas un module : elle est intégrée à labctl (`labctl core …`, voir [docs/core.md](docs/core.md)).
 
 `labctl module validate` contrôle les `module.yaml` sans rien créer ; `labctl module show <m>` affiche les valeurs

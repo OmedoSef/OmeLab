@@ -4,7 +4,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -52,36 +51,12 @@ func newRoot() *cobra.Command {
 	}
 	root.AddGroup(&cobra.Group{ID: "modules", Title: "Modules :"}, &cobra.Group{ID: "outils", Title: "Outils :"})
 	for _, m := range mods {
-		if _, err := os.Stat(filepath.Join(m.Dir, "module.sh")); err != nil && m.HasYAML {
-			root.AddCommand(engineCmd(l, m.Name, "modules")) // module déclaratif : moteur Go
-			continue
+		if m.HasYAML { // un module = un module.yaml, construit par le moteur de labctl
+			root.AddCommand(engineCmd(l, m.Name, "modules"))
 		}
-		root.AddCommand(moduleCmd(l, m, &verbose))
 	}
-	root.AddCommand(modulesCmd(l), vmCmd(l), netCmd(l), imageCmd(l), pkiCmd(l), coreCmd(l), coreConfigCmd(l, "core-config", true), hostfwCmd(), statusCmd(l), guiCmd(l, &verbose), completionCmd())
+	root.AddCommand(checkCmd(l), labCmd(l), modulesCmd(l), vmCmd(l), netCmd(l), imageCmd(l), pkiCmd(l), coreCmd(l), coreConfigCmd(l, "core-config", true), hostfwCmd(), statusCmd(l), guiCmd(l, &verbose), completionCmd())
 	return root
-}
-
-// moduleCmd transmet tout à « lab.sh <module> ... » ; la complétion suit l'aide du module.
-func moduleCmd(l *lab.Lab, m *lab.Module, verbose *bool) *cobra.Command {
-	return &cobra.Command{
-		Use:                m.Name + " <commande> [arguments]",
-		Short:              strings.TrimPrefix(m.Description, "Module "+m.Name+" : "),
-		GroupID:            "modules",
-		DisableFlagParsing: true, // les options (--both...) appartiennent au module
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// DisableFlagParsing : -v / --verbose est repris ici à la main
-			for len(args) > 0 && (args[0] == "-v" || args[0] == "--verbose") {
-				*verbose = true
-				args = args[1:]
-			}
-			l.Verbose = *verbose
-			return l.Exec(append([]string{m.Name}, args...)...)
-		},
-		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			return m.Commands.Complete(m.Name, args, toComplete, l), cobra.ShellCompDirectiveNoFileComp
-		},
-	}
 }
 
 func statusCmd(l *lab.Lab) *cobra.Command {

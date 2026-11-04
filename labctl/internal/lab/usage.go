@@ -29,7 +29,7 @@ var (
 )
 
 // ParseUsage construit l'arbre des commandes d'un module à partir des lignes
-// « #   ./lab.sh <module> cmd [sous-cmd] ARG [OPT]   description » de son en-tête.
+// « #   ./lab.sh <module> cmd [sous-cmd] ARG [OPT]   description » (forme héritée des en-têtes bash).
 func ParseUsage(module string, lines []string) *CmdNode {
 	root := newNode()
 	for _, line := range lines {
