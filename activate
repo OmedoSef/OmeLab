@@ -1,0 +1,85 @@
+# Active l'environnement des labs dans le shell courant (bash ou zsh), à la manière d'un virtualenv :
+#
+#   source ./activate     labctl, son autocomplétion et le Go du projet deviennent disponibles,
+#                         l'invite affiche (labs)
+#   deactivate            tout est retiré : PATH, variables, complétion, invite
+#
+# Rien n'est installé dans le système ni dans ~/.bashrc : l'environnement ne vit que dans ce shell.
+# shellcheck shell=bash
+
+if [ -n "${LABS_ROOT:-}" ] && command -v deactivate >/dev/null 2>&1; then
+  deactivate
+fi
+
+if [ -n "${BASH_VERSION:-}" ]; then
+  LABS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  # shellcheck disable=SC2296  # syntaxe zsh
+  LABS_ROOT="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+else
+  echo "activate : shell non pris en charge (bash ou zsh)" >&2
+  return 1
+fi
+export LABS_ROOT
+
+# Sauvegarde de ce qui est modifié, pour deactivate
+_LABS_OLD_PATH="$PATH"
+_LABS_OLD_PS1="${PS1-}"
+_LABS_GO_VARS="GOPATH GOMODCACHE GOCACHE GOBIN GOTOOLCHAIN GOTELEMETRY GOFLAGS"
+for _v in $_LABS_GO_VARS; do
+  eval "_LABS_OLD_$_v=\"\${$_v-__unset__}\""
+done
+unset _v
+
+export PATH="$LABS_ROOT/bin:$LABS_ROOT/.tools/bin:$LABS_ROOT/.tools/go/bin:$PATH"
+export GOPATH="$LABS_ROOT/.tools/gopath" GOMODCACHE="$LABS_ROOT/.tools/gopath/pkg/mod" \
+  GOCACHE="$LABS_ROOT/.tools/cache" GOBIN="$LABS_ROOT/.tools/bin" \
+  GOTOOLCHAIN=local GOTELEMETRY=off GOFLAGS=-modcacherw
+
+# labctl : compilé au premier usage si besoin (Go du projet, sinon Docker)
+if [ ! -x "$LABS_ROOT/bin/labctl" ]; then
+  if [ -x "$LABS_ROOT/.tools/go/bin/go" ]; then
+    "$LABS_ROOT/labctl/build.sh" build
+  elif command -v docker >/dev/null 2>&1; then
+    "$LABS_ROOT/labctl/build.sh" docker
+  else
+    echo "activate : labctl absent et ni Go (labctl/build.sh tools) ni Docker disponibles" >&2
+  fi
+fi
+
+# Autocomplétion, limitée à ce shell
+if [ -x "$LABS_ROOT/bin/labctl" ]; then
+  if [ -n "${BASH_VERSION:-}" ]; then
+    # shellcheck disable=SC1090
+    source <("$LABS_ROOT/bin/labctl" completion bash)
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    command -v compdef >/dev/null 2>&1 || { autoload -Uz compinit && compinit; }
+    # shellcheck disable=SC1090
+    source <("$LABS_ROOT/bin/labctl" completion zsh)
+  fi
+fi
+
+PS1="(labs) ${PS1-}"
+
+deactivate() {
+  PATH="$_LABS_OLD_PATH"
+  PS1="$_LABS_OLD_PS1"
+  local v old
+  for v in $_LABS_GO_VARS; do
+    eval "old=\"\$_LABS_OLD_$v\""
+    if [ "$old" = "__unset__" ]; then unset "$v"; else export "$v=$old"; fi
+    unset "_LABS_OLD_$v"
+  done
+  if [ -n "${BASH_VERSION:-}" ]; then
+    complete -r labctl 2>/dev/null
+  elif [ -n "${ZSH_VERSION:-}" ]; then
+    compdef -d labctl 2>/dev/null
+  fi
+  unset LABS_ROOT _LABS_OLD_PATH _LABS_OLD_PS1 _LABS_GO_VARS
+  unset -f deactivate __start_labctl _labctl 2>/dev/null
+  hash -r 2>/dev/null
+  true
+}
+
+hash -r 2>/dev/null
+echo "Labs activé ($LABS_ROOT) : labctl --help, labctl gui ; « deactivate » pour quitter."

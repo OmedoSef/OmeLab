@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labs</title>
+<style>
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e3e6eb;
+  --accent: #2f6fde; --ok: #1e9e5a; --warn: #c98a12; --bad: #d1433b; --off: #98a2b3;
+  --chip: #eef2f8; --log: #0f141c; --logtext: #d4dae3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c; --panel: #181e27; --text: #e4e8ee; --muted: #8b95a5; --line: #283140;
+    --accent: #5b93f0; --ok: #3cc47c; --warn: #e0a83a; --bad: #ef6b63; --off: #5d6878;
+    --chip: #222a36; --log: #0a0e14; --logtext: #c9d1dc;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+header h1 { font-size: 18px; margin: 0; }
+.spacer { flex: 1; }
+main { padding: 20px 24px 280px; display: grid; gap: 18px; max-width: 1200px; margin: 0 auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.card-head h2 { font-size: 16px; margin: 0; }
+.meta { color: var(--muted); font-size: 13px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 9px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; background: var(--off); vertical-align: middle; }
+.dot.running { background: var(--ok); } .dot.paused { background: var(--warn); } .dot.absente { background: transparent; border: 1px solid var(--off); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--chip); font-size: 12px; white-space: nowrap; }
+.pill.open { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); font-weight: 600; }
+.pill.never { color: var(--bad); }
+.pill.on { color: var(--ok); }
+button, select, input { font: inherit; color: inherit; }
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover:not(:disabled) { color: #fff; filter: brightness(1.08); }
+button.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
+select, input { border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 5px 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.links { padding: 14px 16px; overflow-x: auto; }
+.links table td, .links table th { text-align: center; padding: 8px 12px; }
+.links table th:first-child, .links table td:first-child { text-align: left; }
+.empty { padding: 18px 16px; color: var(--muted); }
+#log { position: fixed; left: 0; right: 0; bottom: 0; height: 240px; background: var(--log); color: var(--logtext); display: flex; flex-direction: column; border-top: 1px solid var(--line); z-index: 3; }
+#log.collapsed { height: 38px; }
+#log .bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; font-size: 13px; border-bottom: 1px solid #1f2733; }
+#log .bar button { background: transparent; color: var(--logtext); border-color: #2c3645; padding: 2px 9px; }
+#log pre { margin: 0; padding: 10px 16px; overflow: auto; flex: 1; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+#log.collapsed pre { display: none; }
+.busy { color: var(--warn); }
+.err { color: var(--bad); }
+@media (max-width: 760px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  th:nth-child(3), td:nth-child(3) { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Labs</h1>
+  <span id="gw" class="pill">passerelle…</span>
+  <span class="actions" id="gw-actions"></span>
+  <span class="spacer"></span>
+  <span id="updated" class="meta"></span>
+  <button id="refresh" title="Rafraîchir">↻</button>
+</header>
+<main id="main"><div class="empty">Chargement…</div></main>
+
+<section id="log" class="collapsed">
+  <div class="bar">
+    <strong>Journal</strong><span id="log-status" class="meta"></span>
+    <span class="spacer"></span>
+    <button id="log-clear">Effacer</button>
+    <button id="log-toggle">Afficher</button>
+  </div>
+  <pre id="log-out"></pre>
+</section>
+
+<script>
+"use strict";
+const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let state = null, running = false;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "X-Lab-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+  return r;
+}
+
+async function load(fresh = false) {
+  try {
+    state = await (await api("/api/state" + (fresh ? "?fresh" : ""))).json();
+    render();
+    $("#updated").textContent = "à jour " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("#updated").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  }
+}
+
+// --- Exécution d'une commande lab.sh, sortie affichée au fil de l'eau
+async function run(args, confirmText) {
+  if (running) return;
+  if (confirmText && !confirm(confirmText)) return;
+  running = true; render();
+  const log = $("#log-out");
+  $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer";
+  $("#log-status").innerHTML = `<span class="busy">en cours : lab.sh ${esc(args.join(" "))}</span>`;
+  log.textContent += `\n$ ./lab.sh ${args.join(" ")}\n`;
+  try {
+    const r = await api("/api/run", { method: "POST", body: JSON.stringify({ args }) });
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      // Retire les codes couleur ANSI des scripts
+      log.textContent += dec.decode(value, { stream: true }).replace(/\x1b\[[0-9;]*m/g, "");
+      log.scrollTop = log.scrollHeight;
+    }
+    $("#log-status").textContent = "";
+  } catch (e) {
+    log.textContent += `[erreur : ${e.message}]\n`;
+    $("#log-status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    running = false; log.scrollTop = log.scrollHeight;
+    await load(true);
+  }
+}
+
+async function console_(vm) {
+  try { await api("/api/console", { method: "POST", body: JSON.stringify({ vm }) }); }
+  catch (e) { alert(e.message); }
+}
+
+// --- Rendu
+function render() {
+  if (!state) return;
+  const gwUp = state.gateway.state === "running";
+  $("#gw").innerHTML = `<span class="dot ${gwUp ? "running" : ""}"></span>passerelle core-gw : ${esc(state.gateway.state)}`;
+  $("#gw-actions").innerHTML = gwUp
+    ? `<button data-run='["core","stop"]' data-confirm="Arrêter la passerelle ? Les modules perdent DHCP, DNS et Internet.">Arrêter</button>`
+    : `<button class="primary" data-run='["core","start"]'>Démarrer</button>`;
+
+  const mods = state.modules || [];
+  const dis = running || !gwUp ? "disabled" : "";
+  const busy = running ? "disabled" : "";
+  let html = "";
+  for (const m of mods) {
+    const has = c => (m.commands || []).includes(c);
+    const openAll = m.internetAll;
+    html += `<section class="card">
+      <div class="card-head">
+        <h2>${esc(m.name)}</h2>
+        <span class="meta mono">${esc(m.subnet)}.0/24 · ${esc(m.domain)}</span>
+        ${m.netActive ? "" : `<span class="pill never">réseau ${esc(m.net)} inactif</span>`}
+        <span class="spacer"></span>
+        <span class="pill ${m.internet !== "fermé" ? "open" : ""}">Internet : ${esc(m.internet)}</span>
+        <span class="actions">
+          ${openAll
+            ? `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name]))}'>Fermer Internet</button>`
+            : `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "on", m.name]))}' data-confirm="Ouvrir Internet à tout le module ${esc(m.name)} (sauf VMs « jamais ») ?">Ouvrir à tout le module</button>
+               ${m.internet !== "fermé" ? `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name]))}'>Tout fermer</button>` : ""}`}
+        </span>
+      </div>
+      <div class="meta" style="padding:8px 16px;border-bottom:1px solid var(--line)">${esc(m.description)}</div>
+      <table>
+        <thead><tr><th>VM</th><th>IP</th><th>Snapshots</th><th>Internet</th><th>Actions</th></tr></thead>
+        <tbody>`;
+    for (const v of m.vms || []) {
+      const up = v.state === "running", exists = v.state !== "absente";
+      const snaps = v.snapshots || [];
+      let net;
+      if (v.noInternet) net = `<span class="pill never">jamais</span>`;
+      else if (openAll) net = `<span class="pill open">ouvert (module)</span>`;
+      else if (v.internet) net = `<span class="pill open">ouvert</span> <button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name, v.name]))}'>Fermer</button>`;
+      else net = `<span class="pill">fermé</span> <button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "on", m.name, v.name]))}'>Ouvrir</button>`;
+      html += `<tr>
+        <td><span class="dot ${esc(v.state.replace(" ", "-"))}"></span><strong>${esc(v.name)}</strong> <span class="meta">${esc(v.state)}</span></td>
+        <td class="mono">${esc(v.ip)}</td>
+        <td class="meta">${snaps.length ? esc(snaps.join(", ")) : "—"}</td>
+        <td>${net}</td>
+        <td><div class="actions">${!exists
+          ? (has(v.name) ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, v.name]))}'>Créer</button>` : `<span class="meta">absente</span>`)
+          : `${has("start") && !up ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "start", v.name]))}'>Démarrer</button>` : ""}
+             ${has("stop") && up ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "stop", v.name]))}'>Arrêter</button>` : ""}
+             ${up ? `<button data-console="${esc(v.libvirt)}">Console</button>` : ""}
+             ${has("snapshot") ? `<button ${busy} data-snapshot='${esc(JSON.stringify([m.name, v.name]))}'>Snapshot</button>` : ""}
+             ${has("restore") && snaps.length ? `<button class="danger" ${busy} data-restore='${esc(JSON.stringify([m.name, v.name, snaps]))}'>Restaurer…</button>` : ""}`}
+        </div></td></tr>`;
+    }
+    if (!(m.vms || []).length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée</td></tr>`;
+    html += `</tbody></table>
+      <div class="card-head" style="border-top:1px solid var(--line);border-bottom:0">
+        <span class="meta">Commande du module :</span>
+        <input class="mono" style="flex:1;min-width:200px" placeholder="ex. status  ·  kali  ·  snapshot msf2 avant-exploit" data-cmd="${esc(m.name)}">
+        <button ${busy} data-cmd-run="${esc(m.name)}">Lancer</button>
+      </div>
+    </section>`;
+  }
+
+  // Liens entre modules : ligne = source, colonne = destination
+  if (mods.length > 1) {
+    html += `<section class="card"><div class="card-head"><h2>Liens entre modules</h2>
+      <span class="meta">une case cochée : la ligne peut joindre et résoudre la colonne (les réponses reviennent)</span></div>
+      <div class="links"><table><thead><tr><th>depuis \\ vers</th>${mods.map(m => `<th>${esc(m.name)}</th>`).join("")}</tr></thead><tbody>`;
+    for (const a of mods) {
+      html += `<tr><td><strong>${esc(a.name)}</strong></td>`;
+      for (const b of mods) {
+        if (a.name === b.name) { html += `<td class="meta">—</td>`; continue; }
+        const on = (a.links || []).includes(b.name);
+        html += `<td><input type="checkbox" ${on ? "checked" : ""} ${busy} data-link='${esc(JSON.stringify([on ? "unlink" : "link", a.name, b.name]))}'></td>`;
+      }
+      html += `</tr>`;
+    }
+    html += `</tbody></table></div></section>`;
+  } else if (mods.length === 1) {
+    html += `<section class="card"><div class="empty">Un seul module : les liens entre modules apparaîtront ici dès qu'il y en aura un deuxième.</div></section>`;
+  }
+  if (!mods.length) html = `<div class="empty">Aucun module avec réseau (module.env).</div>`;
+
+  const focus = document.activeElement?.dataset?.cmd, val = focus ? document.activeElement.value : "";
+  $("#main").innerHTML = html;
+  if (focus) { const el = $(`[data-cmd="${CSS.escape(focus)}"]`); el.value = val; el.focus(); }
+}
+
+// --- Actions (délégation d'événements)
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, input[type=checkbox]");
+  if (!t) return;
+  if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm);
+  else if (t.dataset.console) console_(t.dataset.console);
+  else if (t.dataset.snapshot) {
+    const [m, vm] = JSON.parse(t.dataset.snapshot);
+    const name = prompt(`Nom du snapshot de ${vm} (un snapshot existant du même nom est remplacé) :`, "clean");
+    if (name && /^[A-Za-z0-9._-]+$/.test(name)) run([m, "snapshot", vm, name]);
+    else if (name) alert("Nom invalide : lettres, chiffres, . _ - uniquement");
+  } else if (t.dataset.restore) {
+    const [m, vm, snaps] = JSON.parse(t.dataset.restore);
+    const name = snaps.length === 1 ? snaps[0] : prompt(`Snapshot à restaurer pour ${vm} (${snaps.join(", ")}) :`, snaps[0]);
+    if (name && snaps.includes(name)) run([m, "restore", vm, name], `Restaurer ${vm} au snapshot « ${name} » ? L'état actuel de la VM sera perdu.`);
+  } else if (t.dataset.link) {
+    e.preventDefault();
+    const [op, a, b] = JSON.parse(t.dataset.link);
+    run(["core", op, a, b], op === "link" ? `Autoriser ${a} à joindre et résoudre ${b} ?` : `Retirer le lien ${a} → ${b} ?`);
+  } else if (t.dataset.cmdRun) {
+    const input = $(`[data-cmd="${CSS.escape(t.dataset.cmdRun)}"]`);
+    const words = input.value.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return;
+    const destructive = words[0] === "destroy";
+    run([t.dataset.cmdRun, ...words], destructive ? `« ${words.join(" ")} » supprime définitivement des VMs. Continuer ?` : null)
+      .then(() => { input.value = ""; });
+  }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.dataset?.cmd) $(`[data-cmd-run="${CSS.escape(e.target.dataset.cmd)}"]`).click();
+});
+$("#refresh").onclick = () => load(true);
+$("#log-toggle").onclick = () => { const l = $("#log"); l.classList.toggle("collapsed"); $("#log-toggle").textContent = l.classList.contains("collapsed") ? "Afficher" : "Masquer"; };
+$("#log-clear").onclick = () => { $("#log-out").textContent = ""; };
+
+if (!token) $("#main").innerHTML = `<div class="empty err">Jeton absent : ouvre l'adresse complète affichée par « labctl gui ».</div>`;
+else { load(true); setInterval(() => { if (!running && !document.hidden) load(); }, 5000); }
+</script>
+</body>
+</html>

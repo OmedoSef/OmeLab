@@ -2,3 +2,6 @@
 pki/
 # Surcharges locales de configuration
 scripts/config.local.env
+# Outils Go du projet (Go, delve, caches) et binaires compilés
+.tools/
+bin/

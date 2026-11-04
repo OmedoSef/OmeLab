@@ -1,0 +1,24 @@
+{
+  // Go du projet (Labs/.tools), installé par « labctl/build.sh tools » : rien n'est requis dans le système
+  "go.goroot": "${workspaceFolder}/.tools/go",
+  "go.gopath": "${workspaceFolder}/.tools/gopath",
+  "go.toolsGopath": "${workspaceFolder}/.tools/gopath",
+  "go.alternateTools": {
+    "go": "${workspaceFolder}/.tools/go/bin/go",
+    "dlv": "${workspaceFolder}/.tools/bin/dlv"
+  },
+  "go.toolsEnvVars": {
+    "GOMODCACHE": "${workspaceFolder}/.tools/gopath/pkg/mod",
+    "GOCACHE": "${workspaceFolder}/.tools/cache",
+    "GOTOOLCHAIN": "local",
+    "GOTELEMETRY": "off",
+    "GOFLAGS": "-modcacherw"
+  },
+  "go.toolsManagement.autoUpdate": false,
+  "terminal.integrated.env.linux": {
+    "LABS_ROOT": "${workspaceFolder}"
+  },
+  "files.exclude": {
+    ".tools": true
+  }
+}

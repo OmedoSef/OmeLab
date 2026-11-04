@@ -1,24 +1,32 @@
 # Labs
 
 Labs de VMs locaux sur **QEMU/KVM + libvirt**, organisés en **modules**.
-Point d'entrée unique :
 
 ```bash
-./lab.sh                          # liste les modules
-./lab.sh <module>                 # aide du module
-./lab.sh <module> <commande> ...  # exécute une commande
+source ./activate                 # active l'environnement (labs) : labctl + autocomplétion, dans ce shell seulement
+labctl status                     # état de tout
+labctl <module> <commande> ...    # TAB pour compléter commandes, VMs, modules, snapshots
+labctl gui                        # interface graphique (navigateur, 127.0.0.1 uniquement)
+deactivate
 ```
+
+Sans activation, le point d'entrée bash reste utilisable : `./lab.sh <module> <commande> ...`.
+Voir [labctl](labctl/README.md) pour la GUI, la complétion et le débogage.
 
 ## Organisation
 
 ```
 Labs/
-├── lab.sh            point d'entrée
+├── activate          active l'environnement (labctl, complétion, Go du projet) ; deactivate pour sortir
+├── lab.sh            point d'entrée bash
+├── labctl/           outil de pilotage en Go : CLI avec complétion + GUI web locale
 ├── modules/
 │   ├── core/         services communs : passerelle Internet, DHCP, DNS, liens (VM core-gw)
 │   └── pentest/      lab de pentest : Kali, Metasploitable 2, DVWA + Juice Shop
 ├── scripts/          outils génériques (VMs, réseaux, images, PKI) et bibliothèques communes
-└── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
+├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
+├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
+└── .vscode/          configuration de débogage de labctl
 ```
 
 | Module | Rôle | Doc |
@@ -72,4 +80,5 @@ Un module est un dossier `modules/<nom>/` contenant :
 
 Les briques réseau, stockage, téléchargement et passerelle sont dans `scripts/lib/module.sh`.
 
-À venir : une petite interface graphique pour piloter les modules. Elle s'appuiera sur ces mêmes commandes.
+labctl découvre les modules automatiquement : un nouveau module apparaît dans `labctl`, sa complétion
+(tirée des lignes d'aide de son `module.sh`) et la GUI sans aucune modification du code Go.

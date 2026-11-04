@@ -1,0 +1,53 @@
+{
+  // Débogage de labctl (F5). Les points d'arrêt se posent dans labctl/internal/...
+  // labctl s'exécute sur l'hôte : il a accès à libvirt, à virsh et à tes clés SSH comme en ligne de commande.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "labctl status",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/labctl/cmd/labctl",
+      "cwd": "${workspaceFolder}",
+      "env": { "LABS_ROOT": "${workspaceFolder}" },
+      "args": ["status"]
+    },
+    {
+      "name": "labctl gui",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/labctl/cmd/labctl",
+      "cwd": "${workspaceFolder}",
+      "env": { "LABS_ROOT": "${workspaceFolder}" },
+      "args": ["gui", "-v"]
+    },
+    {
+      "name": "labctl (arguments au choix)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/labctl/cmd/labctl",
+      "cwd": "${workspaceFolder}",
+      "env": { "LABS_ROOT": "${workspaceFolder}" },
+      "args": "${input:labctlArgs}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "tests du paquet courant",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "labctlArgs",
+      "type": "promptString",
+      "description": "Arguments de labctl (ex. pentest status, core links)",
+      "default": "status"
+    }
+  ]
+}
