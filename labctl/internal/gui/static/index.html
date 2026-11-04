@@ -59,6 +59,19 @@ select, input { border: 1px solid var(--line); background: var(--panel); border-
 #log.collapsed pre { display: none; }
 .busy { color: var(--warn); }
 .err { color: var(--bad); }
+nav.tabs { display: flex; gap: 4px; }
+nav.tabs button { border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; color: var(--muted); }
+nav.tabs button.active { background: var(--chip); color: var(--text); font-weight: 600; }
+.view { display: grid; gap: 18px; }
+.view[hidden] { display: none; }
+form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 14px 16px; }
+form.inline label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+form.inline label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; padding: 14px 16px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; }
+.dot.active, .dot.ok { background: var(--ok); } .dot.failed { background: var(--bad); }
+.warn { color: var(--warn); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
 @media (max-width: 760px) {
   header, main { padding-left: 16px; padding-right: 16px; }
   th:nth-child(3), td:nth-child(3) { display: none; }
@@ -68,13 +81,22 @@ select, input { border: 1px solid var(--line); background: var(--panel); border-
 <body>
 <header>
   <h1>Labs</h1>
+  <nav class="tabs">
+    <button data-tab="modules">Modules</button>
+    <button data-tab="core">Core</button>
+    <button data-tab="pki">PKI</button>
+  </nav>
   <span id="gw" class="pill">passerelle…</span>
   <span class="actions" id="gw-actions"></span>
   <span class="spacer"></span>
   <span id="updated" class="meta"></span>
   <button id="refresh" title="Rafraîchir">↻</button>
 </header>
-<main id="main"><div class="empty">Chargement…</div></main>
+<main>
+  <div class="view" id="main"><div class="empty">Chargement…</div></div>
+  <div class="view" id="view-core" hidden><div class="empty">Chargement…</div></div>
+  <div class="view" id="view-pki" hidden><div class="empty">Chargement…</div></div>
+</main>
 
 <section id="log" class="collapsed">
   <div class="bar">
@@ -91,12 +113,43 @@ select, input { border: 1px solid var(--line); background: var(--panel); border-
 const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let state = null, running = false;
+let state = null, running = false, core = null, pki = null;
+let tab = "modules";
+try { tab = localStorage.getItem("labs-tab") || "modules"; } catch {}
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { "X-Lab-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
   if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
   return r;
+}
+
+function showTab(t) {
+  tab = ["modules", "core", "pki"].includes(t) ? t : "modules";
+  try { localStorage.setItem("labs-tab", tab); } catch {}
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  $("#main").hidden = tab !== "modules";
+  $("#view-core").hidden = tab !== "core";
+  $("#view-pki").hidden = tab !== "pki";
+  if (tab === "core") loadCore(); else if (tab === "pki") loadPKI();
+}
+
+async function loadCore(fresh = false) {
+  try { core = await (await api("/api/core" + (fresh ? "?fresh" : ""))).json(); renderCore(); }
+  catch (e) { $("#view-core").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
+}
+
+async function loadPKI() {
+  try { pki = await (await api("/api/pki")).json(); renderPKI(); }
+  catch (e) { $("#view-pki").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
+}
+
+async function download(path) {
+  try {
+    const blob = await (await api("/api/pki/file?path=" + encodeURIComponent(path))).blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = path.split("/").pop();
+    document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  } catch (e) { alert(e.message); }
 }
 
 async function load(fresh = false) {
@@ -116,8 +169,9 @@ async function run(args, confirmText) {
   running = true; render();
   const log = $("#log-out");
   $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer";
-  $("#log-status").innerHTML = `<span class="busy">en cours : lab.sh ${esc(args.join(" "))}</span>`;
-  log.textContent += `\n$ ./lab.sh ${args.join(" ")}\n`;
+  const shown = args[0] === "pki" ? `scripts/pki.sh ${args.slice(1).join(" ")}` : `./lab.sh ${args.join(" ")}`;
+  $("#log-status").innerHTML = `<span class="busy">en cours : ${esc(shown)}</span>`;
+  log.textContent += `\n$ ${shown}\n`;
   try {
     const r = await api("/api/run", { method: "POST", body: JSON.stringify({ args }) });
     const reader = r.body.getReader(), dec = new TextDecoder();
@@ -135,6 +189,8 @@ async function run(args, confirmText) {
   } finally {
     running = false; log.scrollTop = log.scrollHeight;
     await load(true);
+    if (tab === "core") await loadCore(true);
+    if (tab === "pki") await loadPKI();
   }
 }
 
@@ -234,11 +290,163 @@ function render() {
   if (focus) { const el = $(`[data-cmd="${CSS.escape(focus)}"]`); el.value = val; el.focus(); }
 }
 
+// --- Vue Core : passerelle, services, DHCP, pare-feu
+function renderCore() {
+  const c = core, busy = running ? "disabled" : "";
+  if (!c) return;
+  const up = c.state === "running", absent = c.state === "absente";
+  let h = `<section class="card">
+    <div class="card-head"><h2>Passerelle core-gw</h2>
+      <span class="pill"><span class="dot ${up ? "running" : ""}"></span>${esc(c.state)}</span>
+      <span class="spacer"></span>
+      <span class="actions">${absent
+        ? `<button class="primary" ${busy} data-run='["core","gw"]'>Créer la passerelle</button>`
+        : `${up
+            ? `<button ${busy} data-run='["core","apply"]' title="Régénère réseau, DHCP, DNS et pare-feu depuis module.env / core.conf">Appliquer la configuration</button>
+               <button ${busy} data-run='["core","update"]' title="Pousse la version courante des fichiers système puis applique">Mettre à jour</button>
+               <button data-console="core-gw">Console</button>
+               <button class="danger" ${busy} data-run='["core","stop"]' data-confirm="Arrêter la passerelle ? Les modules perdent DHCP, DNS et Internet.">Arrêter</button>`
+            : `<button class="primary" ${busy} data-run='["core","start"]'>Démarrer</button>`}`}
+      </span>
+    </div>
+    <dl class="kv">
+      <dt>WAN (NAT libvirt)</dt><dd class="mono">${esc(c.wan || "—")}</dd>
+      <dt>Réseaux branchés</dt><dd>${(c.networks || []).map(n => `<span class="pill">${esc(n)}</span>`).join(" ") || "—"}</dd>
+      ${c.error ? `<dt>Erreur</dt><dd class="err">${esc(c.error)}</dd>` : ""}
+    </dl>
+  </section>`;
+  if (absent) { h += `<section class="card"><div class="empty">La passerelle fournit DHCP, DNS et Internet à tous les modules : la créer d'abord.</div></section>`; }
+  if (up) {
+    h += `<section class="card"><div class="card-head"><h2>Services</h2>
+      <span class="meta">dnsmasq : un DHCP commun, deux DNS par module (ouvert / fermé) ; nftables : pare-feu</span></div>
+      <table><thead><tr><th>Service</th><th>État</th><th>Rôle</th></tr></thead><tbody>
+      ${(c.services || []).map(sv => `<tr><td class="mono"><span class="dot ${sv.active === "active" ? "active" : sv.active === "failed" ? "failed" : ""}"></span>${esc(sv.name)}</td>
+        <td>${esc(sv.active)} <span class="meta">(${esc(sv.sub)})</span></td><td class="meta">${esc(sv.role)}</td></tr>`).join("")
+        || `<tr><td colspan="3" class="empty">Aucun service trouvé</td></tr>`}
+      </tbody></table></section>`;
+    h += `<section class="card"><div class="card-head"><h2>Baux DHCP</h2><span class="meta">${(c.leases || []).length} bail(s)</span></div>
+      <table><thead><tr><th>IP</th><th>Nom</th><th>Module</th><th>MAC</th><th>Expire</th></tr></thead><tbody>
+      ${(c.leases || []).map(l => `<tr><td class="mono">${esc(l.ip)}</td><td>${esc(l.name || "—")}</td><td>${esc(l.module || "—")}</td>
+        <td class="mono meta">${esc(l.mac)}</td><td class="meta">${esc(l.expires)}</td></tr>`).join("")
+        || `<tr><td colspan="5" class="empty">Aucun bail</td></tr>`}
+      </tbody></table></section>`;
+    h += `<section class="card"><div class="card-head"><h2>Pare-feu</h2></div>
+      <dl class="kv">
+        <dt>Autorisées vers Internet</dt><dd class="tags">${(c.allowed || []).map(a => `<span class="pill open mono">${esc(a)}</span>`).join("") || `<span class="meta">aucune : Internet fermé partout</span>`}</dd>
+        <dt>Bloquées en permanence</dt><dd class="tags">${(c.blocked || []).map(a => `<span class="pill never mono">${esc(a)}</span>`).join("") || "—"}</dd>
+        <dt>Toujours</dt><dd class="meta">LAN et réseaux privés injoignables, rien n'entre depuis le WAN sauf SSH, aucun routage entre modules sans lien</dd>
+      </dl></section>`;
+  }
+  $("#view-core").innerHTML = h;
+}
+
+// --- Vue PKI : CA, certificats, émission, déploiement
+const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };
+function expiry(c) {
+  const cls = c.daysLeft < 30 ? "err" : c.daysLeft < 90 ? "warn" : "meta";
+  return `<span class="${cls}">${esc(c.notAfter)} (${c.daysLeft} j)</span>`;
+}
+function files(c) {
+  return (c.files || []).map(f => `<button data-download="${esc(f)}" title="${esc(f)}">${esc(f.split("/").pop())}</button>`).join(" ");
+}
+function renderPKI() {
+  const p = pki && pki.pki, vms = (pki && pki.vms) || [], busy = running ? "disabled" : "";
+  if (!p) return;
+  if (!p.initialized) {
+    $("#view-pki").innerHTML = `<section class="card"><div class="card-head"><h2>PKI</h2></div>
+      <div class="empty">Pas encore de PKI : la CA racine Omedo Labs (20 ans) et la CA intermédiaire (10 ans) seront créées.
+      <p><button class="primary" ${busy} data-run='["pki","init"]' data-confirm="Créer la CA racine et la CA intermédiaire ?">Initialiser la PKI</button></p></div></section>`;
+    return;
+  }
+  const subs = p.cas.filter(c => c.kind === "sub-ca");
+  const vmOpts = vms.map(v => `<option>${esc(v)}</option>`).join("");
+  let h = `<section class="card"><div class="card-head"><h2>Autorités de certification</h2>
+      <span class="meta">les VMs créées par les scripts font confiance à la racine</span></div>
+    <table><thead><tr><th>CA</th><th>Type</th><th>Limites</th><th>Expire</th><th>Fichiers publics</th></tr></thead><tbody>
+    ${p.cas.map(c => `<tr><td><strong>${esc(c.subject)}</strong>${c.issuer !== c.subject ? `<div class="meta">signée par ${esc(c.issuer)}</div>` : ""}</td>
+      <td>${esc(kindLabel[c.kind] || c.kind)}</td>
+      <td class="tags">${(c.constraints || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("") || `<span class="meta">—</span>`}</td>
+      <td>${expiry(c)}</td><td class="actions">${files(c)}</td></tr>`).join("")}
+    </tbody></table>
+    <form class="inline" data-form="subca">
+      <strong style="width:100%">Nouvelle CA dérivée</strong>
+      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9-]*" placeholder="k8s"></label>
+      <label>Domaine autorisé<input name="domain" required placeholder="k8s.omedo.lab"></label>
+      <label>Sous-réseau autorisé (IP)<input name="subnet" placeholder="10.70.70.0/24"></label>
+      <button ${busy}>Créer</button>
+    </form>
+  </section>`;
+
+  h += `<section class="card"><div class="card-head"><h2>Certificats émis</h2><span class="meta">${p.certs.length} certificat(s)</span></div>
+    <table><thead><tr><th>Nom</th><th>Noms (SAN)</th><th>Émetteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody>
+    ${p.certs.map(c => `<tr><td><strong>${esc(c.name)}</strong><div class="meta">${esc(kindLabel[c.kind] || c.kind)}${c.hasPfx ? " · .p12 dans pki/" : ""}</div></td>
+      <td class="tags">${(c.sans || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("")}</td>
+      <td class="meta">${esc(c.issuer)}</td><td>${expiry(c)}</td>
+      <td><div class="actions">${files(c)}
+        <select data-deploy-vm="${esc(c.name)}"><option value="">déployer sur…</option>${vmOpts}</select></div></td></tr>`).join("")
+      || `<tr><td colspan="5" class="empty">Aucun certificat</td></tr>`}
+    </tbody></table>
+    <form class="inline" data-form="issue">
+      <strong style="width:100%">Émettre un certificat</strong>
+      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9.-]*" placeholder="srv ou srv.pentest-lab.omedo.lab"></label>
+      <label>CA émettrice<select name="ca"><option value="">intermédiaire (tout omedo.lab)</option>
+        ${subs.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${esc(c.domain || "")})</option>`).join("")}</select></label>
+      <label>Noms DNS en plus<input name="dns" placeholder="www.x.omedo.lab,*.apps.x.omedo.lab"></label>
+      <label>Adresses IP<input name="ip" placeholder="10.66.66.40"></label>
+      <label>Validité (jours)<input name="days" type="number" min="1" max="825" placeholder="825" style="width:90px"></label>
+      <label class="check"><input type="checkbox" name="client"> client seulement</label>
+      <label class="check"><input type="checkbox" name="pfx"> .p12</label>
+      <button ${busy}>Émettre</button>
+    </form>
+  </section>`;
+
+  h += `<section class="card"><div class="card-head"><h2>Confiance dans les VMs</h2></div>
+    <form class="inline" data-form="trust">
+      <label>VM<select name="vm" required><option value="">choisir…</option>${vmOpts}</select></label>
+      <button ${busy}>Installer la CA racine dans la VM</button>
+      <span class="meta">(utile pour une VM créée avant la PKI ; sur ton poste : <span class="mono">labctl pki trust-host</span> dans un terminal, sudo requis)</span>
+    </form></section>`;
+  $("#view-pki").innerHTML = h;
+}
+
+// Formulaires PKI -> arguments de pki.sh
+document.addEventListener("submit", e => {
+  const f = e.target.closest("form[data-form]");
+  if (!f) return;
+  e.preventDefault();
+  const v = Object.fromEntries(new FormData(f));
+  const csv = s => (s || "").split(/[\s,]+/).filter(Boolean).join(",");
+  if (f.dataset.form === "subca") {
+    const args = ["pki", "sub-ca", v.name, "-D", v.domain.trim()];
+    if (v.subnet.trim()) args.push("-s", v.subnet.trim());
+    run(args, `Créer la CA dérivée « ${v.name} », limitée à ${v.domain}${v.subnet ? " et " + v.subnet : ""} ?`);
+  } else if (f.dataset.form === "issue") {
+    const args = ["pki", "issue", v.name.trim()];
+    if (v.ca) args.push("-C", v.ca);
+    if (csv(v.dns)) args.push("-d", csv(v.dns));
+    if (csv(v.ip)) args.push("-i", csv(v.ip));
+    if (v.days) args.push("--days", v.days);
+    if (v.client) args.push("--client");
+    if (v.pfx) args.push("--pfx");
+    run(args);
+  } else if (f.dataset.form === "trust") {
+    run(["pki", "trust-vm", v.vm], `Installer la CA racine Omedo Labs dans ${v.vm} (par SSH) ?`);
+  }
+});
+document.addEventListener("change", e => {
+  const s = e.target.closest("select[data-deploy-vm]");
+  if (!s || !s.value) return;
+  const vm = s.value; s.value = "";
+  run(["pki", "deploy", vm, s.dataset.deployVm], `Copier la clé, le certificat et la chaîne « ${s.dataset.deployVm} » dans ${vm}:/etc/ssl/lab ?`);
+});
+
 // --- Actions (délégation d'événements)
 document.addEventListener("click", e => {
   const t = e.target.closest("button, input[type=checkbox]");
   if (!t) return;
-  if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm);
+  if (t.dataset.tab) showTab(t.dataset.tab);
+  else if (t.dataset.download) download(t.dataset.download);
+  else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm);
   else if (t.dataset.console) console_(t.dataset.console);
   else if (t.dataset.snapshot) {
     const [m, vm] = JSON.parse(t.dataset.snapshot);
@@ -270,7 +478,14 @@ $("#log-toggle").onclick = () => { const l = $("#log"); l.classList.toggle("coll
 $("#log-clear").onclick = () => { $("#log-out").textContent = ""; };
 
 if (!token) $("#main").innerHTML = `<div class="empty err">Jeton absent : ouvre l'adresse complète affichée par « labctl gui ».</div>`;
-else { load(true); setInterval(() => { if (!running && !document.hidden) load(); }, 5000); }
+else {
+  load(true); showTab(tab);
+  setInterval(() => {
+    if (running || document.hidden) return;
+    load();
+    if (tab === "core") loadCore();
+  }, 5000);
+}
 </script>
 </body>
 </html>

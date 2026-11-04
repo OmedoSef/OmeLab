@@ -12,6 +12,7 @@ labctl status              # état de la passerelle, des modules et des VMs
 labctl pentest restore <TAB>          # kali msf2 web
 labctl pentest restore msf2 <TAB>     # clean (snapshots existants)
 labctl core internet on pentest <TAB> # kali msf2 web
+labctl pki issue srv -C <TAB>         # pentest (CA dérivées)
 labctl gui                 # ouvre l'interface dans le navigateur
 labctl -v pentest status   # -v : affiche la commande bash réellement lancée
 deactivate                 # retire labctl, Go, la complétion et (labs)
@@ -31,20 +32,25 @@ avec sa ligne d'aide, suffit à la rendre complétable, sans toucher au Go. Noms
 ## GUI
 
 `labctl gui` sert l'interface sur **127.0.0.1:8077** uniquement (`-p` pour un autre port, `--no-browser` pour ne
-pas ouvrir le navigateur). On y voit et pilote :
+pas ouvrir le navigateur). Trois onglets :
 
-- la passerelle (démarrer / arrêter) ;
-- par module : état des VMs, IP, snapshots, accès Internet (module entier ou VM par VM) ;
-- par VM : démarrer, arrêter, console (virt-viewer), snapshot, restauration ;
-- la matrice des liens entre modules (dès qu'il y a deux modules) ;
-- n'importe quelle commande d'un module (champ « Commande du module »).
+- **Modules** : par module, état des VMs, IP, snapshots, accès Internet (module entier ou VM par VM) ; par VM :
+  démarrer, arrêter, console (virt-viewer), snapshot, restauration ; matrice des liens entre modules (dès qu'il
+  y a deux modules) ; champ pour lancer n'importe quelle commande d'un module.
+- **Core** : passerelle (créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console),
+  état des services (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et
+  bloquées dans le pare-feu.
+- **PKI** : CA racine, intermédiaire et CA dérivées avec leurs limites (domaine, sous-réseau) et leur expiration ;
+  certificats émis avec leurs noms ; création d'une CA dérivée, émission d'un certificat, déploiement sur une
+  VM, installation de la CA racine dans une VM ; téléchargement des **certificats publics** (jamais des clés
+  privées ni des `.p12`, qui restent dans `pki/`). `pki trust-host` (sudo) reste en ligne de commande.
 
 La sortie des commandes s'affiche en direct dans le journal en bas de page.
 
 **Sécurité** : seul ton poste peut s'y connecter (127.0.0.1). Chaque lancement tire un jeton aléatoire, placé
 dans l'adresse ouverte (`#t=...`) et exigé pour chaque action, ce qui empêche un autre site web ouvert dans le
 navigateur de piloter tes labs. L'en-tête `Host` est vérifié contre le *DNS rebinding*. Une seule action tourne
-à la fois, et seules les commandes des modules existants sont acceptées. La suppression d'un module entier
+à la fois, et seules les commandes des modules existants et de la PKI sont acceptées. La suppression d'un module entier
 n'a pas de bouton (seulement le champ de commande, avec confirmation).
 
 ## Développer et déboguer
@@ -76,8 +82,8 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | Dossier | Rôle |
 |---|---|
 | `cmd/labctl/` | point d'entrée |
-| `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, complétion |
-| `internal/cli/` | commandes cobra (une par module, `status`, `gui`, `completion`) |
+| `internal/lab/` | découverte des modules, lecture de `module.env` / `core.conf` / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
 | `internal/gui/` | serveur web local et page `static/index.html` (embarquée dans le binaire) |
 
 Convention utilisée par labctl : la VM `<vm>` d'un module `<m>` s'appelle `<m>-<vm>` dans libvirt.

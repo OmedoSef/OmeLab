@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -42,6 +43,8 @@ type server struct {
 	cache  sync.Mutex
 	state  *lab.State
 	stated time.Time
+	core   *lab.CoreState
+	cored  time.Time
 }
 
 // Serve lance l'interface sur 127.0.0.1:port et ouvre le navigateur si demandé.
@@ -63,6 +66,9 @@ func Serve(l *lab.Lab, port int, openBrowser bool) error {
 	mux.HandleFunc("GET /api/state", s.api(s.handleState))
 	mux.HandleFunc("POST /api/run", s.api(s.handleRun))
 	mux.HandleFunc("POST /api/console", s.api(s.handleConsole))
+	mux.HandleFunc("GET /api/core", s.api(s.handleCore))
+	mux.HandleFunc("GET /api/pki", s.api(s.handlePKI))
+	mux.HandleFunc("GET /api/pki/file", s.api(s.handlePKIFile))
 
 	srv := &http.Server{Handler: s.checkHost(mux), ReadHeaderTimeout: 10 * time.Second}
 	url := fmt.Sprintf("http://%s/#t=%s", s.host, s.token)
@@ -125,8 +131,45 @@ func (s *server) handleState(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s.state)
 }
 
+func (s *server) handleCore(w http.ResponseWriter, r *http.Request) {
+	// Une connexion SSH à la passerelle : gardée 3 s
+	s.cache.Lock()
+	if s.core == nil || time.Since(s.cored) > 3*time.Second || r.URL.Query().Has("fresh") {
+		s.core, s.cored = s.lab.Core(), time.Now()
+	}
+	cs := s.core
+	s.cache.Unlock()
+	writeJSON(w, cs)
+}
+
+func (s *server) handlePKI(w http.ResponseWriter, r *http.Request) {
+	st, err := s.lab.PKI()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]any{"pki": st, "vms": s.lab.AllVMNames()})
+}
+
+// handlePKIFile sert un certificat public de la PKI (jamais une clé privée ni un .p12).
+func (s *server) handlePKIFile(w http.ResponseWriter, r *http.Request) {
+	p, err := s.lab.PublicFile(r.URL.Query().Get("path"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-pem-file")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(p)))
+	http.ServeFile(w, r, p)
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
 type runRequest struct {
-	Args []string `json:"args"` // [module, commande, ...]
+	Args []string `json:"args"` // [module, commande, ...] ou ["pki", commande, ...]
 }
 
 // handleRun exécute « lab.sh <module> ... » et renvoie sa sortie au fil de l'eau.
@@ -136,7 +179,14 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
 	}
-	if _, err := s.lab.Module(req.Args[0]); err != nil {
+	pki := req.Args[0] == "pki"
+	if pki {
+		// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
+		if req.Args[1] == "trust-host" {
+			http.Error(w, "pki trust-host demande sudo : à lancer dans un terminal (labctl pki trust-host)", http.StatusBadRequest)
+			return
+		}
+	} else if _, err := s.lab.Module(req.Args[0]); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -159,11 +209,15 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	pw := &flushWriter{w: w, f: flusher}
 
 	cmd := s.lab.Command(req.Args...)
+	if pki {
+		cmd = exec.Command(s.lab.PKIScript(), req.Args[1:]...)
+		cmd.Dir = s.lab.Root
+	}
 	// La GUI demande déjà confirmation : pas de question interactive côté script
 	cmd.Env = append(os.Environ(), "ASSUME_YES=1")
 	cmd.Stdout, cmd.Stderr = pw, pw
 	cmd.Stdin = nil
-	log.Printf("action : lab.sh %s", strings.Join(req.Args, " "))
+	log.Printf("action : %s", strings.Join(req.Args, " "))
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(pw, "\n[échec : %v]\n", err)
 		return
@@ -173,7 +227,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) invalidate() {
 	s.cache.Lock()
-	s.state = nil
+	s.state, s.core = nil, nil
 	s.cache.Unlock()
 }
 

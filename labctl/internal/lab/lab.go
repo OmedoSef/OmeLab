@@ -292,7 +292,11 @@ func ParseCoreConf(path string) (*CoreConf, error) {
 // Exec remplace le processus courant par « lab.sh <module> <args...> » : entrées et sorties
 // (y compris un terminal interactif pour ssh) sont celles de labctl.
 func (l *Lab) Exec(args ...string) error {
-	script := filepath.Join(l.Root, "lab.sh")
+	return l.ExecScript(filepath.Join(l.Root, "lab.sh"), args...)
+}
+
+// ExecScript remplace le processus courant par un script du projet.
+func (l *Lab) ExecScript(script string, args ...string) error {
 	if l.Verbose {
 		fmt.Fprintf(os.Stderr, "+ %s %s\n", script, strings.Join(args, " "))
 	}
