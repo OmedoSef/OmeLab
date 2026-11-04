@@ -16,6 +16,9 @@ labctl pki issue srv -C <TAB>         # pentest (CA dérivées)
 labctl gui                 # ouvre l'interface dans le navigateur
 labctl hostfw status       # pare-feu de l'hôte face aux VMs des modules (on/off : avec sudo)
 labctl vm list             # toutes les VMs : état, lab, IP ; labctl vm ip VM ; labctl vm snapshot ...
+labctl vm create web1 -n default -n lab-demo:10.10.0.11/24 -l demo -w   # labctl vm create --help
+labctl vm ssh web1 ; labctl vm destroy web1
+labctl image list ; labctl image get rocky9
 labctl net list            # réseaux libvirt ; labctl net create|delete
 labctl -v pentest status   # -v : affiche la commande bash réellement lancée
 deactivate                 # retire labctl, Go, la complétion et (labs)
@@ -59,8 +62,8 @@ relais vers labctl (même syntaxe), puis disparaît quand plus rien ne l'appelle
 | PKI | ✅ en Go : `labctl pki` (`internal/pki`, crypto/x509, sans openssl) | `scripts/pki.sh` → relais |
 | Génération de la config core (DHCP, DNS, pare-feu, liens) | ✅ en Go : `labctl core-config` (`internal/coreconf`) ; `core apply` l'appelle puis l'envoie | fonctions `gen_*` supprimées de `modules/core/module.sh` |
 | Outils VM et réseaux | ✅ en Go : `labctl vm list|ip|snapshot`, `labctl net list|create|delete` (`internal/virt`, libvirt sans virsh) | `vm-list.sh`, `vm-ip.sh`, `vm-snapshot.sh`, `net-*.sh` → relais ; `vm_ip` des scripts passe par labctl |
-| Images cloud (`image-get`) | à faire (avec la création de VMs) | `scripts/image-get.sh` |
-| Création / suppression de VMs (cloud-init) | à faire | `vm-create.sh`, `vm-destroy.sh` |
+| Images cloud | ✅ en Go : `labctl image list|get` ; empreinte vérifiée (SHA256/512 publiées par les distributions) ; refus de remplacer une image utilisée comme base | `image-get.sh` → relais |
+| Création / suppression de VMs (cloud-init) | ✅ en Go : `labctl vm create|destroy|ssh` ; définition libvirt écrite par labctl (plus de virt-install) ; retour arrière complet si la création échoue | `vm-create.sh`, `vm-destroy.sh`, `vm-ssh.sh` → relais |
 | Édition de `core.conf` (réservations, alias, liens) | ✅ en Go (`internal/lab/corefile.go`), utilisée par la GUI | les commandes bash `core dhcp/dns/link` restent, même format |
 | Modules `core`, `pentest` | à faire | `modules/*/module.sh` |
 

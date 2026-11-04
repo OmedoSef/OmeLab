@@ -1,0 +1,243 @@
+package lab
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"labs/labctl/internal/virt"
+)
+
+// DefaultVMSpec renvoie une description avec les valeurs par défaut des réglages (config.env).
+func (l *Lab) DefaultVMSpec(name string) VMSpec {
+	atoi := func(k string, def int) int {
+		if n, err := strconv.Atoi(l.Setting(k, "")); err == nil {
+			return n
+		}
+		return def
+	}
+	return VMSpec{
+		Name:      name,
+		Image:     l.Setting("LABS_DEFAULT_IMAGE", "debian13"),
+		CPUs:      atoi("LABS_DEFAULT_CPUS", 2),
+		MemoryMiB: atoi("LABS_DEFAULT_MEMORY", 2048),
+		DiskGiB:   atoi("LABS_DEFAULT_DISK", 20),
+	}
+}
+
+// VMDir renvoie le dossier des VMs créées par labctl (une VM = un sous-dossier).
+func (l *Lab) VMDir() string {
+	return l.Setting("LABS_VM_DIR", filepath.Join(l.Setting("LABS_STORAGE_DIR", ""), "vms"))
+}
+
+// Keyboard renvoie la disposition de clavier des VMs : LABS_KEYBOARD, sinon celle de ce poste, sinon us.
+func (l *Lab) Keyboard() string {
+	if kb := l.Setting("LABS_KEYBOARD", ""); kb != "" {
+		return kb
+	}
+	if out, err := exec.Command("localectl", "status").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if k, v, ok := strings.Cut(strings.TrimSpace(line), ":"); ok && k == "X11 Layout" {
+				if kb, _, _ := strings.Cut(strings.TrimSpace(v), ","); kb != "" {
+					return kb
+				}
+			}
+		}
+	}
+	return "us"
+}
+
+// NetDomain renvoie le domaine DNS des VMs d'un réseau : celui du module qui l'utilise, sinon celui déclaré
+// dans libvirt, sinon le domaine racine des labs.
+func (l *Lab) NetDomain(network string) string {
+	if mods, err := l.Modules(); err == nil {
+		for _, m := range mods {
+			if m.Env != nil && m.Env.Net == network {
+				return m.Env.Domain
+			}
+		}
+	}
+	if nets, err := virt.Shared().Networks(); err == nil {
+		for _, n := range nets {
+			if n.Name == network && n.Domain != "" {
+				return n.Domain
+			}
+		}
+	}
+	return l.pkiDomain()
+}
+
+// CreateOptions règle CreateVM.
+type CreateOptions struct {
+	DryRun bool      // affiche ce qui serait créé, sans rien créer
+	Wait   bool      // attend l'IP et la fin de cloud-init
+	Out    io.Writer // messages
+}
+
+// CreateVM crée et démarre une VM depuis une image cloud : disque qcow2 lié à l'image de base, disque
+// cloud-init, définition libvirt. En cas d'échec, rien n'est laissé derrière.
+func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
+	out := o.Out
+	if out == nil {
+		out = io.Discard
+	}
+	v := virt.Shared()
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	if !o.DryRun && v.State(s.Name) != "absente" {
+		return fmt.Errorf("la VM %s existe déjà", s.Name)
+	}
+
+	// Environnement : réseaux, domaine, passerelle, clés, CA, fichiers
+	nets := map[string]virt.Network{}
+	if all, err := v.Networks(); err == nil {
+		for _, n := range all {
+			nets[n.Name] = n
+		}
+	}
+	for i := range s.Nets {
+		if _, ok := nets[s.Nets[i].Network]; !ok && !o.DryRun {
+			return fmt.Errorf("réseau libvirt inexistant : %s (labctl net list)", s.Nets[i].Network)
+		}
+		if s.Nets[i].MAC == "" {
+			s.Nets[i].MAC = RandomMAC()
+		}
+	}
+	env := cloudEnv{
+		Domain:    l.NetDomain(s.Nets[0].Network),
+		Gateway:   s.Gateway,
+		Keyboard:  l.Keyboard(),
+		User:      l.Setting("LABS_VM_USER", "lab"),
+		Password:  l.Setting("LABS_VM_PASSWORD", "lab"),
+		Files:     map[string][]byte{},
+		InstantID: instanceID(s.Name),
+	}
+	if first := s.Nets[0]; first.Address != "" && env.Gateway == "" {
+		if n := nets[first.Network]; n.Forward == "nat" || n.Forward == "route" {
+			env.Gateway = n.HostIP
+		}
+	}
+	keyPath := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
+	key, err := os.ReadFile(keyPath)
+	if err != nil {
+		return fmt.Errorf("clé SSH publique introuvable : %s", keyPath)
+	}
+	env.PubKey = string(key)
+	if ca, err := os.ReadFile(filepath.Join(l.PKIDir(), "root", "root-ca.crt")); err == nil {
+		env.RootCA = string(ca)
+	}
+	for _, f := range s.Files {
+		b, err := os.ReadFile(f.Src)
+		if err != nil {
+			return fmt.Errorf("fichier introuvable : %s", f.Src)
+		}
+		env.Files[f.Src] = b
+	}
+	if s.UserData != "" {
+		if env.UserData, err = os.ReadFile(s.UserData); err != nil {
+			return fmt.Errorf("fichier introuvable : %s", s.UserData)
+		}
+	}
+	ci := renderCloudInit(&s, env)
+
+	dir := filepath.Join(l.VMDir(), s.Name)
+	disk, seed := filepath.Join(dir, "disk.qcow2"), filepath.Join(dir, "seed.iso")
+	desc := LabMarker
+	if s.Lab != "" {
+		desc += " lab=" + s.Lab
+	}
+	domXML := renderDomainXML(&s, disk, seed, desc)
+
+	if o.DryRun {
+		fmt.Fprintf(out, "----- user-data\n%s----- network-config\n%s----- meta-data\n%s----- domaine libvirt\n%s",
+			ci.UserData, ci.NetworkConfig, ci.MetaData, domXML)
+		return nil
+	}
+
+	base, err := l.EnsureImage(s.Image, false, out)
+	if err != nil {
+		return err
+	}
+	for _, tool := range []string{"qemu-img", "cloud-localds"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			return fmt.Errorf("commande manquante : %s (paquets qemu-utils, cloud-image-utils)", tool)
+		}
+	}
+	if _, err := os.Stat(dir); err == nil {
+		return fmt.Errorf("le dossier %s existe déjà (reste d'une VM supprimée à la main ?)", dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	defined := false
+	defer func() {
+		if err != nil { // rien ne doit rester d'une création ratée
+			if defined {
+				_ = v.DestroyDomain(s.Name)
+				_ = v.UndefineDomain(s.Name)
+			}
+			os.RemoveAll(dir)
+		}
+	}()
+
+	fmt.Fprintf(out, "==> Création de %s (%s, %d vCPU, %d Mio, %d Gio)\n", s.Name, s.Image, s.CPUs, s.MemoryMiB, s.DiskGiB)
+	if b, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", base, disk, fmt.Sprintf("%dG", s.DiskGiB)).CombinedOutput(); err != nil {
+		return fmt.Errorf("qemu-img : %s", strings.TrimSpace(string(b)))
+	}
+	for name, content := range map[string]string{"user-data": ci.UserData, "network-config": ci.NetworkConfig, "meta-data": ci.MetaData} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			return err
+		}
+	}
+	if b, err := exec.Command("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
+		filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")).CombinedOutput(); err != nil {
+		return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(b)))
+	}
+	if err := v.DefineDomain(domXML); err != nil {
+		return fmt.Errorf("définition refusée par libvirt : %w", err)
+	}
+	defined = true
+	if err := v.StartDomain(s.Name); err != nil {
+		return fmt.Errorf("démarrage de %s : %w", s.Name, err)
+	}
+	lab := ""
+	if s.Lab != "" {
+		lab = " (lab " + s.Lab + ")"
+	}
+	fmt.Fprintf(out, "ok  VM %s.%s démarrée%s\n", s.Name, env.Domain, lab)
+
+	if o.Wait {
+		return l.waitReady(s.Name, env.User, out)
+	}
+	return nil
+}
+
+// waitReady attend l'IP, l'accès SSH, puis la fin de cloud-init.
+func (l *Lab) waitReady(name, user string, out io.Writer) error {
+	fmt.Fprintln(out, "==> Attente de l'adresse IP...")
+	ip := l.WaitVMIP(name, 300)
+	if ip == "" {
+		return fmt.Errorf("pas d'IP au bout de 5 min (console : virsh console %s)", name)
+	}
+	fmt.Fprintf(out, "==> IP %s, attente de cloud-init...\n", ip)
+	target := user + "@" + ip
+	for i := 0; i < 60; i++ {
+		if exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, "true")...).Run() == nil {
+			break
+		}
+		time.Sleep(3 * time.Second)
+	}
+	b, err := exec.Command("ssh", append(append([]string{}, SSHOpts...), target, "cloud-init status --wait >/dev/null; cloud-init status")...).CombinedOutput()
+	fmt.Fprint(out, string(b))
+	if err != nil {
+		fmt.Fprintln(out, "attention: cloud-init a signalé une erreur (journal : sudo cat /var/log/cloud-init-output.log)")
+	}
+	fmt.Fprintf(out, "ok  %s prête : ssh %s  (ou labctl vm ssh %s)\n", name, target, name)
+	return nil
+}

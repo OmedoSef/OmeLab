@@ -18,17 +18,33 @@ var (
 // Setting renvoie un réglage avec la même priorité que les scripts bash : variable d'environnement,
 // puis scripts/config.local.env, puis la valeur par défaut de scripts/config.env. Les défauts qui
 // dépendent d'un calcul shell ($(...)) ne sont pas interprétés : fallback est alors utilisé.
+// Les références $VAR / ${VAR} d'une valeur (ex. "$LABS_STORAGE_DIR/images") sont développées.
 func (l *Lab) Setting(name, fallback string) string {
-	if v, ok := os.LookupEnv(name); ok && v != "" {
-		return v
+	return l.setting(name, fallback, 0)
+}
+
+func (l *Lab) setting(name, fallback string, depth int) string {
+	raw, ok := "", false
+	if v, set := os.LookupEnv(name); set && v != "" {
+		raw, ok = v, true
+	} else if v, set := readAssign(filepath.Join(l.Root, "scripts", "config.local.env"), name); set {
+		raw, ok = v, true
+	} else if v, set := readDefault(filepath.Join(l.Root, "scripts", "config.env"), name); set && !strings.Contains(v, "$(") {
+		raw, ok = v, true
 	}
-	if v, ok := readAssign(filepath.Join(l.Root, "scripts", "config.local.env"), name); ok {
-		return expandHome(v)
+	if !ok {
+		return fallback
 	}
-	if v, ok := readDefault(filepath.Join(l.Root, "scripts", "config.env"), name); ok && !strings.Contains(v, "$(") {
-		return expandHome(v)
+	if depth > 5 {
+		return raw
 	}
-	return fallback
+	return expandHome(os.Expand(raw, func(ref string) string {
+		if ref == "HOME" {
+			home, _ := os.UserHomeDir()
+			return home
+		}
+		return l.setting(ref, os.Getenv(ref), depth+1)
+	}))
 }
 
 func readAssign(path, name string) (string, bool) {

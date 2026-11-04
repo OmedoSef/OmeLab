@@ -19,9 +19,9 @@ labctl pki init                      # (une fois) CA racine + intermédiaire du 
 | Script | Rôle |
 |---|---|
 | `check-host.sh` | Vérifie que l'hôte est prêt |
-| `image-get.sh` | Télécharge les images cloud (`--list` pour le catalogue) |
-| `vm-create.sh` | Crée une VM (CPU, RAM, disque, cartes réseau, IP fixes, lab, paquets) |
-| `vm-destroy.sh` | Supprime une VM et ses disques |
+| `image-get.sh` | relais vers `labctl image` : catalogue (`--list`), téléchargement à empreinte vérifiée |
+| `vm-create.sh` | relais vers `labctl vm create` : crée une VM (CPU, RAM, disque, cartes réseau, IP fixes, lab, paquets) |
+| `vm-destroy.sh` | relais vers `labctl vm destroy` : supprime une VM et ses disques |
 | `vm-list.sh` | relais vers `labctl vm list` : VMs avec état, lab et IP |
 | `vm-ip.sh` / `vm-ssh.sh` | IP d'une VM (relais vers `labctl vm ip`) / SSH par nom |
 | `vm-snapshot.sh` | relais vers `labctl vm snapshot` : create / list / revert / delete |
