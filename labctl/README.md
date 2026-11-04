@@ -14,6 +14,7 @@ labctl pentest restore msf2 <TAB>     # clean (snapshots existants)
 labctl core internet on pentest <TAB> # kali msf2 web
 labctl pki issue srv -C <TAB>         # pentest (CA dérivées)
 labctl gui                 # ouvre l'interface dans le navigateur
+labctl hostfw status       # pare-feu de l'hôte face aux VMs des modules (on/off : avec sudo)
 labctl -v pentest status   # -v : affiche la commande bash réellement lancée
 deactivate                 # retire labctl, Go, la complétion et (labs)
 ```
