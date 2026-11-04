@@ -63,9 +63,8 @@ Outils génériques et PKI : [scripts/README.md](scripts/README.md).
 ```bash
 ./scripts/pki.sh init          # une fois : CA racine Omedo Labs
 ./lab.sh core gw               # passerelle Internet + DNS
-./lab.sh pentest check
-./lab.sh pentest network       # réseau du module, branché automatiquement sur la passerelle
-./lab.sh pentest kali          # puis msf2, web
+labctl pentest check
+labctl pentest up              # réseau, CA, VMs : tout ce que décrit modules/pentest/module.yaml
 ```
 
 ## Contrat d'un module
@@ -74,15 +73,18 @@ Un module est un dossier `modules/<nom>/` contenant :
 
 | Fichier | Contenu |
 |---|---|
-| `module.sh` | ses commandes ; la ligne 2 est sa description (affichée par `./lab.sh`) |
 | `module.yaml` | **la description du module** : réseau, CA, DNS (alias, réservations, liens), VMs — voir [docs/module-yaml.md](docs/module-yaml.md) |
 | `files/` | fichiers copiés dans les VMs (configurations, modèles avec variables `${...}`) |
-| `module.sh` | (transition) commandes bash du module, en attendant le moteur `labctl module <m> up` |
+| `README.md` | exercices, notes |
+
+Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|destroy`
+(aussi sous `labctl module <m> …` et `./lab.sh <m> …`). Aucune ligne de code propre à un module.
+Le module `core` (passerelle) garde encore son `module.sh` en bash.
 
 `labctl module validate` contrôle les `module.yaml` sans rien créer ; `labctl module show <m>` affiche les valeurs
 effectives de chaque VM et leur origine.
 
 Les briques réseau, stockage, téléchargement et passerelle sont dans `scripts/lib/module.sh`.
 
-labctl découvre les modules automatiquement : un nouveau module apparaît dans `labctl`, sa complétion
-(tirée des lignes d'aide de son `module.sh`) et la GUI sans aucune modification du code Go.
+labctl découvre les modules automatiquement : un nouveau dossier avec un `module.yaml` apparaît dans `labctl`,
+sa complétion et la GUI sans aucune modification du code Go ni recompilation.

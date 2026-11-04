@@ -270,7 +270,8 @@ function render() {
         <td class="meta">${snaps.length ? esc(snaps.join(", ")) : "—"}</td>
         <td>${net}</td>
         <td><div class="actions">${!exists
-          ? (has(v.name) ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, v.name]))}'>Créer</button>` : `<span class="meta">absente</span>`)
+          ? (has("up") ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "up", v.name]))}'>Créer</button>`
+            : has(v.name) ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, v.name]))}'>Créer</button>` : `<span class="meta">absente</span>`)
           : `${has("start") && !up ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "start", v.name]))}'>Démarrer</button>` : ""}
              ${has("stop") && up ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "stop", v.name]))}'>Arrêter</button>` : ""}
              ${up ? `<button data-console="${esc(v.libvirt)}">Console</button>` : ""}

@@ -4,6 +4,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -51,6 +52,10 @@ func newRoot() *cobra.Command {
 	}
 	root.AddGroup(&cobra.Group{ID: "modules", Title: "Modules :"}, &cobra.Group{ID: "outils", Title: "Outils :"})
 	for _, m := range mods {
+		if _, err := os.Stat(filepath.Join(m.Dir, "module.sh")); err != nil && m.HasYAML {
+			root.AddCommand(engineCmd(l, m.Name, "modules")) // module déclaratif : moteur Go
+			continue
+		}
 		root.AddCommand(moduleCmd(l, m, &verbose))
 	}
 	root.AddCommand(modulesCmd(l), vmCmd(l), netCmd(l), imageCmd(l), pkiCmd(l), coreConfigCmd(l), hostfwCmd(), statusCmd(l), guiCmd(l, &verbose), completionCmd())

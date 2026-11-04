@@ -4,13 +4,26 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"labs/labctl/internal/pki"
 )
+
+// PKITool renvoie la PKI des labs (réglages LABS_PKI_*), messages écrits sur out.
+func (l *Lab) PKITool(out io.Writer) *pki.PKI {
+	return &pki.PKI{
+		Dir:    l.PKIDir(),
+		Org:    l.Setting("LABS_PKI_ORG", "Omedo Labs"),
+		Domain: l.Setting("LABS_PKI_DOMAIN", "omedo.lab"),
+		Out:    out,
+	}
+}
 
 // PKIDir renvoie le dossier de la PKI (LABS_PKI_DIR, sinon <racine>/pki).
 func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l.Root, "pki")) }

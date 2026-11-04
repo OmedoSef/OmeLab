@@ -151,6 +151,14 @@ func (m *Module) SetVMValue(vm, key, value string) error {
 	if n.Kind != yaml.MappingNode { // « srv: » ou « srv: {} »
 		n.Kind, n.Tag, n.Value, n.Style = yaml.MappingNode, "", "", yaml.FlowStyle
 	}
+	if key == "mac" && mapValue(n, "mac") == nil { // la MAC à côté de l'IP qu'elle réserve
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if n.Content[i].Value == "ip" {
+				n.Content = append(n.Content[:i+2], append([]*yaml.Node{scalar("mac"), scalar(value)}, n.Content[i+2:]...)...)
+				return nil
+			}
+		}
+	}
 	setKey(n, key, scalar(value))
 	return nil
 }

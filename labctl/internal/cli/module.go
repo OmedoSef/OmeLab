@@ -33,9 +33,14 @@ func modulesCmd(l *lab.Lab) *cobra.Command {
 	}
 	c := &cobra.Command{
 		Use:     "module",
-		Short:   "Modules déclaratifs (module.yaml) : liste, validation, valeurs effectives",
+		Short:   "Modules déclaratifs (module.yaml) : liste, validation, up, status...",
 		GroupID: "outils",
 		Long:    "Modules déclaratifs : modules/<nom>/module.yaml (voir docs/module-yaml.md).",
+	}
+
+	// Une sous-commande par module déclaratif : labctl module <m> up|status|...
+	for _, name := range yamlModules(l) {
+		c.AddCommand(engineCmd(l, name, ""))
 	}
 
 	c.AddCommand(&cobra.Command{
@@ -83,33 +88,7 @@ réseaux libvirt. Sans argument : tous les modules déclaratifs.`,
 			if len(args) == 0 {
 				args = yamlModules(l)
 			}
-			errs, warns := 0, 0
-			for _, name := range args {
-				_, issues, err := l.ValidateModule(name)
-				if err != nil {
-					return err
-				}
-				e := module.Errors(issues)
-				errs, warns = errs+e, warns+len(issues)-e
-				if quiet && len(issues) == 0 {
-					continue
-				}
-				fmt.Printf("modules/%s/%s\n", name, module.FileName)
-				for _, i := range issues {
-					if quiet && !i.Error {
-						continue
-					}
-					fmt.Println(i)
-				}
-				if len(issues) == 0 {
-					fmt.Println("  ok")
-				}
-			}
-			fmt.Printf("%d erreur(s), %d avertissement(s)\n", errs, warns)
-			if errs > 0 {
-				return errors.New("configuration invalide")
-			}
-			return nil
+			return validateModules(l, args, quiet)
 		},
 	}
 	validate.Flags().BoolVarP(&quiet, "quiet", "q", false, "erreurs seulement")
@@ -120,61 +99,7 @@ réseaux libvirt. Sans argument : tous les modules déclaratifs.`,
 		Short: "Valeurs effectives de chaque VM et leur origine (VM, defaults, réglages, intégré)",
 		Args:  cobra.ExactArgs(1), ValidArgsFunction: names,
 		RunE: func(_ *cobra.Command, args []string) error {
-			y, _, err := l.ValidateModule(args[0])
-			if err != nil {
-				return err
-			}
-			if y == nil {
-				return errors.New("module illisible : labctl module validate " + args[0])
-			}
-			root := l.Setting("LABS_PKI_DOMAIN", "omedo.lab")
-			sub := "(choisi au premier up)"
-			if p := y.Subnet(); p.IsValid() {
-				sub = p.String()
-			}
-			fmt.Printf("module %s — réseau %s, %s, domaine %s\n", y.Module, y.NetworkName(), sub, y.Domain(root))
-			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			for _, name := range y.VMNames() {
-				e := y.Effective(name, l.Setting)
-				fmt.Fprintf(tw, "\n%s\t\t\n", name)
-				row := func(field, value string) {
-					origin := e.Origins[field]
-					if origin == "" {
-						origin = module.FromVM
-					}
-					fmt.Fprintf(tw, "  %s\t%s\t(%s)\n", field, value, origin)
-				}
-				ip := "DHCP libre (.100-.199)"
-				if e.IP > 0 {
-					ip = fmt.Sprintf("%s.%d", y.Prefix3(), e.IP)
-				}
-				fmt.Fprintf(tw, "  ip\t%s\t\n", ip)
-				if e.Source != nil {
-					src := e.Source.URL
-					if src == "" {
-						src = e.Source.Sums + " → " + e.Source.File
-					}
-					fmt.Fprintf(tw, "  source\t%s\t\n", src)
-				} else {
-					row("image", e.Image)
-				}
-				row("cpus", strconv.Itoa(e.CPUs))
-				row("memory", fmt.Sprintf("%d Mio", e.Memory))
-				row("disk", fmt.Sprintf("%d Gio", e.Disk))
-				row("internet", e.Internet)
-				snap := e.Snapshot
-				if snap == "" {
-					snap = "-"
-				}
-				row("snapshot", snap)
-				hw := []string{}
-				for _, f := range []struct{ k, v string }{{"machine", e.Hardware.Machine}, {"disk_bus", e.Hardware.DiskBus},
-					{"nic_model", e.Hardware.NICModel}, {"graphics", e.Hardware.Graphics}, {"video", e.Hardware.Video}} {
-					hw = append(hw, f.k+"="+f.v)
-				}
-				fmt.Fprintf(tw, "  hardware\t%s\t\n", strings.Join(hw, " "))
-			}
-			return tw.Flush()
+			return showModule(l, args[0])
 		},
 	})
 
@@ -289,4 +214,94 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// validateModules affiche les problèmes des module.yaml donnés ; erreur s'il y en a au moins une.
+func validateModules(l *lab.Lab, args []string, quiet bool) error {
+	errs, warns := 0, 0
+	for _, name := range args {
+		_, issues, err := l.ValidateModule(name)
+		if err != nil {
+			return err
+		}
+		e := module.Errors(issues)
+		errs, warns = errs+e, warns+len(issues)-e
+		if quiet && len(issues) == 0 {
+			continue
+		}
+		fmt.Printf("modules/%s/%s\n", name, module.FileName)
+		for _, i := range issues {
+			if quiet && !i.Error {
+				continue
+			}
+			fmt.Println(i)
+		}
+		if len(issues) == 0 {
+			fmt.Println("  ok")
+		}
+	}
+	fmt.Printf("%d erreur(s), %d avertissement(s)\n", errs, warns)
+	if errs > 0 {
+		return errors.New("configuration invalide")
+	}
+	return nil
+}
+
+// showModule affiche les valeurs effectives des VMs d'un module et leur origine.
+func showModule(l *lab.Lab, name string) error {
+	y, _, err := l.ValidateModule(name)
+	if err != nil {
+		return err
+	}
+	if y == nil {
+		return errors.New("module illisible : labctl module validate " + name)
+	}
+	root := l.Setting("LABS_PKI_DOMAIN", "omedo.lab")
+	sub := "(choisi au premier up)"
+	if p := y.Subnet(); p.IsValid() {
+		sub = p.String()
+	}
+	fmt.Printf("module %s — réseau %s, %s, domaine %s\n", y.Module, y.NetworkName(), sub, y.Domain(root))
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	for _, name := range y.VMNames() {
+		e := y.Effective(name, l.Setting)
+		fmt.Fprintf(tw, "\n%s\t\t\n", name)
+		row := func(field, value string) {
+			origin := e.Origins[field]
+			if origin == "" {
+				origin = module.FromVM
+			}
+			fmt.Fprintf(tw, "  %s\t%s\t(%s)\n", field, value, origin)
+		}
+		ip := "DHCP libre (.100-.199)"
+		if e.IP > 0 {
+			ip = fmt.Sprintf("%s.%d", y.Prefix3(), e.IP)
+		}
+		fmt.Fprintf(tw, "  ip\t%s\t\n", ip)
+		if e.Source != nil {
+			src := e.Source.URL
+			if src == "" {
+				src = e.Source.Sums + " → " + e.Source.File
+			}
+			fmt.Fprintf(tw, "  source\t%s\t\n", src)
+		} else {
+			row("image", e.Image)
+		}
+		row("cpus", strconv.Itoa(e.CPUs))
+		row("memory", fmt.Sprintf("%d Mio", e.Memory))
+		row("disk", fmt.Sprintf("%d Gio", e.Disk))
+		row("internet", e.Internet)
+		snap := e.Snapshot
+		if snap == "" {
+			snap = "-"
+		}
+		row("snapshot", snap)
+		hw := []string{}
+		for _, f := range []struct{ k, v string }{{"machine", e.Hardware.Machine}, {"disk_bus", e.Hardware.DiskBus},
+			{"nic_model", e.Hardware.NICModel}, {"graphics", e.Hardware.Graphics}, {"video", e.Hardware.Video}} {
+			hw = append(hw, f.k+"="+f.v)
+		}
+		fmt.Fprintf(tw, "  hardware\t%s\t\n", strings.Join(hw, " "))
+	}
+	return tw.Flush()
 }

@@ -15,6 +15,11 @@ import (
 // baux DHCP sur la passerelle, suppression de son dossier dans le dossier des VMs. Les disques situés
 // ailleurs sont conservés. Une VM non créée par les scripts est refusée sauf force.
 func (l *Lab) DestroyVM(name string, force bool, out io.Writer) error {
+	return l.destroyVM(name, force, false, out)
+}
+
+// destroyVM : purge supprime aussi les disques rangés dans un pool libvirt (VMs de module d'avant labctl).
+func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
 	v := virt.Shared()
 	state := v.State(name)
 	if state == "absente" {
@@ -36,9 +41,19 @@ func (l *Lab) DestroyVM(name string, force bool, out io.Writer) error {
 
 	vmDir := filepath.Clean(l.VMDir())
 	for _, d := range disks {
-		if !strings.HasPrefix(filepath.Clean(d), vmDir+string(filepath.Separator)) {
-			fmt.Fprintf(out, "attention: disque conservé (hors de %s) : %s\n", vmDir, d)
+		if strings.HasPrefix(filepath.Clean(d), vmDir+string(filepath.Separator)) {
+			continue
 		}
+		if purge {
+			if ok, err := v.DeleteVolumeAt(d); ok && err == nil {
+				fmt.Fprintf(out, "    disque supprimé : %s\n", d)
+				continue
+			} else if err != nil {
+				fmt.Fprintf(out, "attention: %s non supprimé : %v\n", d, err)
+				continue
+			}
+		}
+		fmt.Fprintf(out, "attention: disque conservé (hors de %s) : %s\n", vmDir, d)
 	}
 	var macs []string
 	for _, i := range ifs {

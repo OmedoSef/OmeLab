@@ -123,9 +123,10 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			env.Gateway = n.HostIP
 		}
 	}
+	cloud := s.Base == "" // image cloud : cloud-init ; sinon disque fourni, démarré tel quel
 	keyPath := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
 	key, err := os.ReadFile(keyPath)
-	if err != nil {
+	if err != nil && cloud {
 		return fmt.Errorf("clé SSH publique introuvable : %s", keyPath)
 	}
 	env.PubKey = string(key)
@@ -152,17 +153,29 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	if s.Lab != "" {
 		desc += " lab=" + s.Lab
 	}
+	if s.Role != "" {
+		desc += " role=" + s.Role
+	}
+	if !cloud {
+		seed = ""
+	}
 	domXML := renderDomainXML(&s, disk, seed, desc)
 
+	if o.DryRun && !cloud {
+		fmt.Fprintf(out, "----- disque fourni\n%s\n----- domaine libvirt\n%s", s.Base, domXML)
+		return nil
+	}
 	if o.DryRun {
 		fmt.Fprintf(out, "----- user-data\n%s----- network-config\n%s----- meta-data\n%s----- domaine libvirt\n%s",
 			ci.UserData, ci.NetworkConfig, ci.MetaData, domXML)
 		return nil
 	}
 
-	base, err := l.EnsureImage(s.Image, false, out)
-	if err != nil {
-		return err
+	base := s.Base
+	if cloud {
+		if base, err = l.EnsureImage(s.Image, false, out); err != nil {
+			return err
+		}
 	}
 	for _, tool := range []string{"qemu-img", "cloud-localds"} {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -186,18 +199,29 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 		}
 	}()
 
-	fmt.Fprintf(out, "==> Création de %s (%s, %d vCPU, %d Mio, %d Gio)\n", s.Name, s.Image, s.CPUs, s.MemoryMiB, s.DiskGiB)
-	if b, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", base, disk, fmt.Sprintf("%dG", s.DiskGiB)).CombinedOutput(); err != nil {
+	what := fmt.Sprintf("%s, %d vCPU, %d Mio, %d Gio", s.Image, s.CPUs, s.MemoryMiB, s.DiskGiB)
+	if !cloud {
+		what = fmt.Sprintf("disque fourni, %d vCPU, %d Mio", s.CPUs, s.MemoryMiB)
+	}
+	fmt.Fprintf(out, "==> Création de %s (%s)\n", s.Name, what)
+	// Disque lié à l'image de base (un disque fourni garde sa taille d'origine)
+	args := []string{"create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", base, disk}
+	if cloud {
+		args = append(args, fmt.Sprintf("%dG", s.DiskGiB))
+	}
+	if b, err := exec.Command("qemu-img", args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("qemu-img : %s", strings.TrimSpace(string(b)))
 	}
-	for name, content := range map[string]string{"user-data": ci.UserData, "network-config": ci.NetworkConfig, "meta-data": ci.MetaData} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
-			return err
+	if cloud {
+		for name, content := range map[string]string{"user-data": ci.UserData, "network-config": ci.NetworkConfig, "meta-data": ci.MetaData} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+				return err
+			}
 		}
-	}
-	if b, err := exec.Command("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
-		filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")).CombinedOutput(); err != nil {
-		return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(b)))
+		if b, err := exec.Command("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
+			filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")).CombinedOutput(); err != nil {
+			return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(b)))
+		}
 	}
 	if err := v.DefineDomain(domXML); err != nil {
 		return fmt.Errorf("définition refusée par libvirt : %w", err)
@@ -212,7 +236,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	}
 	fmt.Fprintf(out, "ok  VM %s.%s démarrée%s\n", s.Name, env.Domain, lab)
 
-	if o.Wait {
+	if o.Wait && cloud {
 		return l.waitReady(s.Name, env.User, out)
 	}
 	return nil

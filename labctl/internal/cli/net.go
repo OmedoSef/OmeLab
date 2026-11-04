@@ -192,6 +192,9 @@ func networkXML(name, mode, domain string, pfx netip.Prefix, dhcp bool) string {
 
 // confirmYN pose une question oui/non (non par défaut, et non sans terminal).
 func confirmYN(q string) bool {
+	if os.Getenv("ASSUME_YES") == "1" { // GUI : la confirmation a déjà été demandée
+		return true
+	}
 	fmt.Fprintf(os.Stderr, "%s [o/N] ", q)
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	switch strings.TrimSpace(strings.ToLower(line)) {

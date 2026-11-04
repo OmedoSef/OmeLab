@@ -195,3 +195,13 @@ func filterPrefix(words []string, prefix string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// EngineUsage décrit les commandes du moteur des modules déclaratifs (même forme que l'en-tête d'un module.sh).
+func EngineUsage(module string) []string {
+	var out []string
+	for _, c := range []string{"check", "up [VM...]", "status", "start [VM...]", "stop [VM...]", "snapshot VM [NOM]",
+		"restore VM [SNAPSHOT]", "certs [VM...]", "keyboard VM [DISPOSITION]", "ssh VM [cmd]", "destroy [VM...]", "show", "validate"} {
+		out = append(out, "#   ./lab.sh "+module+" "+c)
+	}
+	return out
+}

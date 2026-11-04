@@ -44,6 +44,9 @@ var (
 	}
 )
 
+// ReservedNames sont des sous-commandes de « labctl module » ou de labctl : pas utilisables comme nom de module.
+var ReservedNames = []string{"list", "validate", "show", "env", "conf", "edit", "core", "module", "vm", "net", "image", "pki", "status", "gui", "hostfw", "completion", "help"}
+
 type checker struct {
 	m      *Module
 	issues []Issue
@@ -80,6 +83,10 @@ func (m *Module) Validate(ctx Context) []Issue {
 		c.err("module", "nom du module obligatoire")
 	case !reName.MatchString(m.Module):
 		c.err("module", "nom invalide %q (minuscules, chiffres, tirets)", m.Module)
+	case len(m.Module) > 9:
+		c.err("module", "nom trop long %q : 9 caractères au plus (pont réseau virbr-<module>, 15 caractères)", m.Module)
+	case contains(ReservedNames, m.Module):
+		c.err("module", "nom réservé %q (commande de labctl : %s)", m.Module, strings.Join(ReservedNames, ", "))
 	case m.Dir != "" && filepath.Base(m.Dir) != m.Module:
 		c.err("module", "le nom %q doit être celui du dossier (%s)", m.Module, filepath.Base(m.Dir))
 	}
@@ -279,6 +286,9 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 	}
 	if vm.Memory > 0 && vm.Memory < 256 {
 		c.err(p+".memory", "au moins 256 Mio")
+	}
+	if eff.Internet == "never" && vm.IP == 0 {
+		c.err(p+".internet", "internet: never demande une IP fixe (ip:) : la passerelle bloque la VM par son adresse")
 	}
 	if eff.Internet == "never" && len(vm.Packages) > 0 {
 		c.err(p+".packages", "internet: never : les paquets ne pourront pas être installés")

@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/digitalocean/go-libvirt"
@@ -130,4 +131,103 @@ func (c *Conn) Description(name string) string {
 		return nil
 	})
 	return strings.TrimSpace(desc)
+}
+
+// ShutdownDomain demande l'arrêt propre d'une VM (ACPI).
+func (c *Conn) ShutdownDomain(name string) error {
+	return c.do(func(lv *libvirt.Libvirt) error {
+		d, err := c.lookup(lv, name)
+		if err != nil {
+			return err
+		}
+		return lv.DomainShutdown(d)
+	})
+}
+
+// RebootDomain redémarre une VM (ACPI).
+func (c *Conn) RebootDomain(name string) error {
+	return c.do(func(lv *libvirt.Libvirt) error {
+		d, err := c.lookup(lv, name)
+		if err != nil {
+			return err
+		}
+		return lv.DomainReboot(d, 0)
+	})
+}
+
+// DomainXML renvoie la définition d'une VM : celle du prochain démarrage (inactive) ou celle en cours.
+func (c *Conn) DomainXML(name string, inactive bool) (string, error) {
+	var x string
+	err := c.do(func(lv *libvirt.Libvirt) error {
+		d, err := c.lookup(lv, name)
+		if err != nil {
+			return err
+		}
+		var flags libvirt.DomainXMLFlags
+		if inactive {
+			flags = libvirt.DomainXMLInactive
+		}
+		x, err = lv.DomainGetXMLDesc(d, flags)
+		return err
+	})
+	return x, err
+}
+
+// Resources renvoie les vCPU et la mémoire (Mio) du prochain démarrage d'une VM.
+func (c *Conn) Resources(name string) (cpus, memMiB int, err error) {
+	x, err := c.DomainXML(name, true)
+	if err != nil {
+		return 0, 0, err
+	}
+	var d struct {
+		VCPU   int `xml:"vcpu"`
+		Memory struct {
+			Unit  string `xml:"unit,attr"`
+			Value int    `xml:",chardata"`
+		} `xml:"memory"`
+	}
+	if err := xml.Unmarshal([]byte(x), &d); err != nil {
+		return 0, 0, err
+	}
+	mem := d.Memory.Value
+	switch strings.ToLower(d.Memory.Unit) {
+	case "", "kib", "k":
+		mem /= 1024
+	case "gib", "g":
+		mem *= 1024
+	case "b", "bytes":
+		mem /= 1024 * 1024
+	}
+	return d.VCPU, mem, nil
+}
+
+// SetResources change vCPU et mémoire du prochain démarrage (la VM doit être redémarrée pour les prendre).
+func (c *Conn) SetResources(name string, cpus, memMiB int) error {
+	x, err := c.DomainXML(name, true)
+	if err != nil {
+		return err
+	}
+	x = reVCPU.ReplaceAllString(x, fmt.Sprintf("${1}%d${2}", cpus))
+	x = reMemory.ReplaceAllString(x, fmt.Sprintf("<${1} unit='KiB'>%d</${1}>", memMiB*1024))
+	return c.DefineDomain(x)
+}
+
+var (
+	reVCPU   = regexp.MustCompile(`(<vcpu[^>]*>)\d+(</vcpu>)`)
+	reMemory = regexp.MustCompile(`<(memory|currentMemory)[^>]*>\d+</(?:memory|currentMemory)>`)
+)
+
+// DeleteVolumeAt supprime un disque appartenant à un pool libvirt (fichiers de root : pas de sudo).
+// Renvoie false si le fichier n'appartient à aucun pool.
+func (c *Conn) DeleteVolumeAt(path string) (bool, error) {
+	found := false
+	err := c.do(func(lv *libvirt.Libvirt) error {
+		v, err := lv.StorageVolLookupByPath(path)
+		if err != nil {
+			return nil // pas un volume connu de libvirt
+		}
+		found = true
+		return lv.StorageVolDelete(v, 0)
+	})
+	return found, err
 }

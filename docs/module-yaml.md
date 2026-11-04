@@ -156,15 +156,31 @@ Utilisables dans `run`, `certificates[].reload` et les fichiers `template: true`
 |---|---|
 | `labctl module list` | modules et leur état |
 | `labctl module validate [MODULE]` | contrôle sans rien créer (code de sortie ≠ 0 en cas d'erreur) |
-| `labctl module <m> up [VM...]` | crée ce qui manque : réseau, branchement à la passerelle, CA, VMs, certificats, snapshots |
-| `labctl module <m> status` | VMs, IP, Internet, écarts entre le YAML et la réalité |
-| `labctl module <m> start` / `stop` [VM...] | démarre / arrête |
-| `labctl module <m> restore VM [SNAPSHOT]` | revient au snapshot (défaut : celui de `snapshot:`) |
-| `labctl module <m> certs` | (ré)émet et réinstalle les certificats déclarés — **règle le problème du certificat web après un renouvellement de la PKI** |
-| `labctl module <m> destroy [VM...]` | supprime (confirmation) |
+| `labctl <m> check` | prérequis de l'hôte pour ce module (KVM, libvirt, outils, clé SSH, PKI, passerelle, disque) |
+| `labctl <m> up [VM...] [--apply-changes]` | crée ce qui manque : réseau, branchement à la passerelle, CA, VMs, certificats, snapshots |
+| `labctl <m> status` | VMs, IP, snapshots, écarts entre le YAML et la réalité |
+| `labctl <m> start` / `stop [--force]` [VM...] | démarre / arrête (isolation vérifiée avant tout démarrage) |
+| `labctl <m> snapshot VM [NOM]` / `restore VM [SNAPSHOT]` | snapshot ; retour au snapshot (défaut : celui de `snapshot:`) |
+| `labctl <m> certs [--renew]` | (ré)émet et réinstalle les certificats déclarés : réémis d'office s'ils viennent d'une autre CA (PKI renouvelée), si leurs noms ont changé ou s'ils expirent dans 30 jours |
+| `labctl <m> keyboard VM [DISPOSITION]` | clavier d'une VM (SSH, sinon agent invité), puis redémarrage |
+| `labctl <m> ssh VM [cmd]` | shell SSH (images cloud) |
+| `labctl <m> destroy [VM...]` | supprime (confirmation) ; sans VM : tout le module, sauf le `module.yaml`, la CA et les sources téléchargées |
 
-`./lab.sh pentest …` continue de marcher (redirigé vers `labctl module pentest …`) le temps de la transition.
-Les VMs existantes (`pentest-kali`, …) sont **reprises telles quelles** : aucune recréation.
+Les mêmes commandes existent sous `labctl module <m> …` et `./lab.sh <m> …`.
+Les VMs existantes (`pentest-kali`, …) sont **reprises telles quelles** : aucune recréation. Leurs disques
+restent où ils sont (pool `pentest-lab`) ; les nouvelles VMs vont dans le dossier des VMs.
+
+Ce que fait `up`, dans l'ordre :
+1. sous-réseau : s'il manque, un `/24` libre (`10.N.N.0`) est choisi et écrit dans le fichier ;
+2. réseau libvirt isolé `<réseau>` (pont `virbr-<module>`, hôte en `.1`), puis branchement de la passerelle ;
+3. CA dérivée du module (`pki.ca`), limitée au domaine et au sous-réseau ;
+4. pour chaque VM absente : MAC écrite dans le fichier si `ip` est fixe, réservation DHCP appliquée sur la
+   passerelle, disque (image cloud ou `source` téléchargée, vérifiée, extraite, convertie), Internet ouvert
+   le temps de l'installation si `internet: install`, attente de cloud-init (ou de l'agent invité puis
+   réglage du clavier, ou d'une IP), Internet refermé, snapshot de référence ;
+5. pour chaque VM existante : isolation vérifiée, écarts signalés (ou appliqués avec `--apply-changes`),
+   certificats installés s'ils diffèrent ;
+6. configuration DHCP/DNS de la passerelle appliquée si elle a changé.
 
 ## Ce que vérifie le validateur
 
@@ -175,7 +191,9 @@ Les VMs existantes (`pentest-kali`, …) sont **reprises telles quelles** : aucu
 - `image` absente du catalogue ; `source` sans empreinte ; `image` et `source` à la fois ;
 - `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ;
 - alias vers une VM inexistante ; lien vers un module inexistant ; certificat dont un nom sort du domaine de la CA ;
-- variable `${...}` inconnue ; `internet: never` + une VM qui doit installer des paquets.
+- variable `${...}` inconnue ; `internet: never` + une VM qui doit installer des paquets ;
+- `internet: never` sans `ip` (la passerelle bloque par adresse) ;
+- nom de module de plus de 9 caractères (pont `virbr-<module>`) ou réservé (`list`, `validate`, `core`…).
 
 **Avertissements** (n'empêchent pas) :
 - empreinte MD5 seulement ; `file` avec `*` (version non figée) ;

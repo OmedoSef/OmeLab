@@ -153,6 +153,9 @@ func (l *Lab) Modules() ([]*Module, error) {
 		}
 		m.Conf, _ = ParseCoreConf(filepath.Join(dir, "core.conf"))
 		l.loadYAML(m) // le YAML, s'il existe, prime sur module.env / core.conf
+		if errScript != nil {
+			m.Commands = ParseUsage(m.Name, EngineUsage(m.Name))
+		}
 		mods = append(mods, m)
 	}
 	return mods, nil

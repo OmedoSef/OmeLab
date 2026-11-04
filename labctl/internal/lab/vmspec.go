@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/netip"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -23,11 +24,32 @@ type VMSpec struct {
 	Gateway   string    // passerelle si la 1re carte a une IP fixe (défaut : hôte du réseau s'il est NAT/routé)
 	DNS       []string  // DNS si IP fixe (défaut : la passerelle)
 	Lab       string    // rattachement (description libvirt « lab=... »)
+	Role      string    // rôle (description libvirt « role=... »)
 	Packages  []string  // paquets en plus de qemu-guest-agent
 	Files     []FileSpec
 	Run       []string // commandes shell lancées en fin d'installation, dans l'ordre
 	UserData  string   // fichier cloud-config remplaçant celui généré
 	NoCA      bool     // ne pas injecter la CA racine des labs
+	Base      string   // disque fourni (qcow2) à la place d'une image cloud : pas de cloud-init
+	HW        Hardware // matériel virtuel (vide = q35, virtio, spice)
+	NoAgent   bool     // pas de canal d'agent invité
+}
+
+// Hardware : matériel virtuel d'une VM ; une valeur vide prend le défaut indiqué.
+type Hardware struct {
+	Machine  string // q35 | pc
+	DiskBus  string // virtio | sata | ide
+	NICModel string // virtio | e1000
+	Graphics string // spice | vnc | none
+	Video    string // virtio | vga | qxl | cirrus
+	OSInfo   string // identifiant libosinfo (défaut : celui de l'image)
+}
+
+func or(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }
 
 // NetSpec est une carte réseau.
@@ -70,7 +92,7 @@ func (s *VMSpec) Validate() error {
 	switch {
 	case !reVMName.MatchString(s.Name):
 		return fmt.Errorf("nom invalide (lettres, chiffres, tirets) : %q", s.Name)
-	case Images[s.Image].URL == "":
+	case s.Base == "" && Images[s.Image].URL == "":
 		return fmt.Errorf("image inconnue : %q (%s)", s.Image, strings.Join(ImageNames(), ", "))
 	case s.CPUs < 1 || s.MemoryMiB < 256 || s.DiskGiB < 1:
 		return fmt.Errorf("ressources invalides : %d vCPU, %d Mio, %d Gio", s.CPUs, s.MemoryMiB, s.DiskGiB)
@@ -214,19 +236,20 @@ func xmlEsc(s string) string {
 }
 
 // renderDomainXML produit la définition libvirt (mêmes périphériques que virt-install : q35, CPU de l'hôte,
-// virtio, console série, agent invité, SPICE en local).
+// virtio, console série, agent invité, SPICE en local). seed vide : pas de disque cloud-init.
 func renderDomainXML(s *VMSpec, disk, seed, description string) string {
+	hw := s.HW
+	machine, bus, nic := or(hw.Machine, "q35"), or(hw.DiskBus, "virtio"), or(hw.NICModel, "virtio")
+	graphics, video := or(hw.Graphics, "spice"), or(hw.Video, "virtio")
+	osinfo := or(hw.OSInfo, Images[s.Image].OSInfo)
 	var b strings.Builder
 	fmt.Fprintf(&b, "<domain type='kvm'>\n  <name>%s</name>\n  <description>%s</description>\n", xmlEsc(s.Name), xmlEsc(description))
-	if os := Images[s.Image].OSInfo; os != "" {
-		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", xmlEsc(os))
+	if osinfo != "" {
+		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", xmlEsc(osinfoURI(osinfo)))
 	}
 	fmt.Fprintf(&b, "  <memory unit='MiB'>%d</memory>\n  <currentMemory unit='MiB'>%d</currentMemory>\n  <vcpu placement='static'>%d</vcpu>\n", s.MemoryMiB, s.MemoryMiB, s.CPUs)
-	b.WriteString(`  <os>
-    <type arch='x86_64' machine='q35'>hvm</type>
-    <boot dev='hd'/>
-  </os>
-  <features><acpi/><apic/><vmport state='off'/></features>
+	fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine))
+	b.WriteString(`  <features><acpi/><apic/><vmport state='off'/></features>
   <cpu mode='host-passthrough' check='none' migratable='on'/>
   <clock offset='utc'>
     <timer name='rtc' tickpolicy='catchup'/>
@@ -239,24 +262,57 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
   <pm><suspend-to-mem enabled='no'/><suspend-to-disk enabled='no'/></pm>
   <devices>
 `)
-	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='vda' bus='virtio'/>\n    </disk>\n", xmlEsc(disk))
-	fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='sda' bus='sata'/>\n      <readonly/>\n    </disk>\n", xmlEsc(seed))
-	for _, n := range s.Nets {
-		fmt.Fprintf(&b, "    <interface type='network'>\n      <mac address='%s'/>\n      <source network='%s'/>\n      <model type='virtio'/>\n    </interface>\n", xmlEsc(strings.ToLower(n.MAC)), xmlEsc(n.Network))
+	dev := map[string]string{"virtio": "vda", "sata": "sda", "ide": "hda"}[bus]
+	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", xmlEsc(disk), dev, bus)
+	if seed != "" {
+		cdBus, cdDev := "sata", "sdb"
+		if bus == "virtio" {
+			cdDev = "sda"
+		}
+		if machine == "pc" { // i440fx : pas de SATA
+			cdBus, cdDev = "ide", "hdc"
+		}
+		fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n      <readonly/>\n    </disk>\n", xmlEsc(seed), cdDev, cdBus)
 	}
-	b.WriteString(`    <serial type='pty'><target type='isa-serial' port='0'><model name='isa-serial'/></target></serial>
-    <console type='pty'><target type='serial' port='0'/></console>
-    <channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>
-    <channel type='spicevmc'><target type='virtio' name='com.redhat.spice.0'/></channel>
-    <input type='tablet' bus='usb'/>
-    <graphics type='spice' autoport='yes'><listen type='address' address='127.0.0.1'/><image compression='off'/></graphics>
-    <video><model type='virtio' heads='1' primary='yes'/></video>
-    <rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>
+	for _, n := range s.Nets {
+		fmt.Fprintf(&b, "    <interface type='network'>\n      <mac address='%s'/>\n      <source network='%s'/>\n      <model type='%s'/>\n    </interface>\n", xmlEsc(strings.ToLower(n.MAC)), xmlEsc(n.Network), xmlEsc(nic))
+	}
+	b.WriteString("    <serial type='pty'><target type='isa-serial' port='0'><model name='isa-serial'/></target></serial>\n    <console type='pty'><target type='serial' port='0'/></console>\n")
+	if !s.NoAgent {
+		b.WriteString("    <channel type='unix'><target type='virtio' name='org.qemu.guest_agent.0'/></channel>\n")
+	}
+	switch graphics {
+	case "spice":
+		b.WriteString("    <channel type='spicevmc'><target type='virtio' name='com.redhat.spice.0'/></channel>\n    <input type='tablet' bus='usb'/>\n")
+		b.WriteString("    <graphics type='spice' autoport='yes'><listen type='address' address='127.0.0.1'/><image compression='off'/></graphics>\n")
+	case "vnc":
+		b.WriteString("    <input type='tablet' bus='usb'/>\n    <graphics type='vnc' autoport='yes'><listen type='address' address='127.0.0.1'/></graphics>\n")
+	}
+	if graphics != "none" {
+		fmt.Fprintf(&b, "    <video><model type='%s' heads='1' primary='yes'/></video>\n", xmlEsc(video))
+	}
+	b.WriteString(`    <rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>
     <memballoon model='virtio'/>
   </devices>
 </domain>
 `)
 	return b.String()
+}
+
+// osinfoURI accepte un identifiant court (debian13) ou complet (http://debian.org/debian/13).
+func osinfoURI(id string) string {
+	if strings.Contains(id, "://") {
+		return id
+	}
+	if out, err := exec.Command("osinfo-query", "os", "--fields=short-id,id").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			f := strings.Split(line, "|")
+			if len(f) == 2 && strings.TrimSpace(f[0]) == id {
+				return strings.TrimSpace(f[1])
+			}
+		}
+	}
+	return id
 }
 
 func instanceID(name string) string { return fmt.Sprintf("%s-%d", name, time.Now().Unix()) }
