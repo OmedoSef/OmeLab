@@ -102,6 +102,36 @@ nav.tabs .count { display: inline-block; min-width: 18px; padding: 0 5px; margin
 .issues li:hover { background: var(--chip); }
 .issues .lvl { min-width: 64px; font-weight: 600; } .issues .e .lvl { color: var(--bad); } .issues .w .lvl { color: var(--warn); }
 .issues .ok { color: var(--ok); cursor: default; }
+/* Pastille de la passerelle dans l'en-tête : un indicateur, ses actions sont dans l'onglet Core */
+button#gw { border: 0; background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+button#gw.down { color: var(--bad); font-weight: 600; }
+/* Action en cours */
+.spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.doing { color: var(--warn); font-size: 13px; white-space: nowrap; }
+/* Notifications */
+#toasts { position: fixed; right: 16px; bottom: 52px; display: grid; gap: 8px; z-index: 5; width: min(420px, calc(100vw - 32px)); }
+.toast { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; background: var(--panel); border: 1px solid var(--line);
+  border-left: 4px solid var(--ok); box-shadow: 0 6px 20px rgb(0 0 0 / .18); font-size: 13px; }
+.toast.err { border-left-color: var(--bad); color: var(--text); }
+.toast .msg { flex: 1; overflow-wrap: anywhere; }
+.toast button { padding: 2px 8px; font-size: 12px; }
+/* Boîtes de dialogue */
+dialog#dlg { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 0; width: min(460px, calc(100vw - 32px)); }
+dialog#dlg::backdrop { background: rgb(0 0 0 / .45); }
+dialog#dlg form { display: grid; gap: 12px; padding: 18px 20px; }
+dialog#dlg h3 { margin: 0; font-size: 16px; }
+dialog#dlg p { margin: 0; white-space: pre-line; color: var(--muted); }
+dialog#dlg input, dialog#dlg select { width: 100%; }
+.dlg-actions { display: flex; flex-direction: row-reverse; gap: 8px; margin-top: 4px; }
+button.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+button.danger-solid:hover:not(:disabled) { color: #fff; border-color: var(--bad); filter: brightness(1.08); }
+.down-banner { border-color: color-mix(in srgb, var(--bad) 50%, transparent); background: color-mix(in srgb, var(--bad) 10%, var(--panel)); }
+.card-desc { padding: 8px 16px; border-bottom: 1px solid var(--line); }
+details.cmd summary { cursor: pointer; padding: 10px 16px; color: var(--muted); font-size: 13px; }
+details.cmd[open] summary { padding-bottom: 0; }
+.sep { width: 1px; align-self: stretch; background: var(--line); }
 @media (max-width: 760px) {
   header, main { padding-left: 16px; padding-right: 16px; }
   th:nth-child(3), td:nth-child(3) { display: none; }
@@ -118,9 +148,8 @@ nav.tabs .count { display: inline-block; min-width: 18px; padding: 0 5px; margin
     <button data-tab="core">Core</button>
     <button data-tab="pki">PKI</button>
   </nav>
-  <span id="gw" class="pill">passerelle…</span>
-  <span class="actions" id="gw-actions"></span>
   <span class="spacer"></span>
+  <button id="gw" data-tab="core" title="Passerelle core-gw : DHCP, DNS et Internet des modules (détails et actions dans l'onglet Core)">passerelle…</button>
   <span id="updated" class="meta"></span>
   <button id="refresh" title="Rafraîchir">↻</button>
 </header>
@@ -141,6 +170,8 @@ nav.tabs .count { display: inline-block; min-width: 18px; padding: 0 5px; margin
   </div>
   <pre id="log-out"></pre>
 </section>
+<div id="toasts"></div>
+<dialog id="dlg"></dialog>
 
 <script>
 "use strict";
@@ -150,8 +181,52 @@ const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
 addEventListener("hashchange", () => location.reload());
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let state = null, running = false, core = null, pki = null, config = null, showDiff = false;
+let state = null, running = false, current = null, core = null, pki = null, config = null, showDiff = false;
+const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
+const stLabel = s => stateLabel[s] || s;
+
+// Notification en bas à droite ; les erreurs restent jusqu'à fermeture
+function toast(msg, err = false, withLog = false) {
+  const t = document.createElement("div");
+  t.className = "toast" + (err ? " err" : "");
+  t.innerHTML = `<span>${err ? "✗" : "✓"}</span><span class="msg">${esc(msg)}</span>${withLog ? `<button data-show-log>Journal</button>` : ""}<button data-close aria-label="Fermer">×</button>`;
+  t.addEventListener("click", e => {
+    if (e.target.dataset.showLog !== undefined) openLog();
+    if (e.target.closest("button")) t.remove();
+  });
+  $("#toasts").append(t);
+  if (!err) setTimeout(() => t.remove(), 6000);
+}
+
+// Boîte de dialogue : confirmation (true), saisie ou choix (valeur), annulation (null)
+function ask({ title, text = "", ok = "Confirmer", danger = false, input = false, options = null, value = "", pattern = "", hint = "", cancel = true }) {
+  const d = $("#dlg");
+  const field = options
+    ? `<select name="v">${options.map(x => `<option ${x === value ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>`
+    : input ? `<input name="v" value="${esc(value)}" required autocomplete="off" spellcheck="false" ${pattern ? `pattern="${esc(pattern)}" title="${esc(hint)}"` : ""}>` : "";
+  // Bouton de validation en premier : c'est lui qu'Entrée déclenche (l'ordre affiché est inversé en CSS)
+  d.innerHTML = `<form method="dialog"><h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ""}${field}
+    <div class="dlg-actions"><button value="ok" class="${danger ? "danger-solid" : "primary"}">${esc(ok)}</button>
+    ${cancel ? `<button value="" formnovalidate>Annuler</button>` : ""}</div></form>`;
+  return new Promise(res => {
+    d.onclose = () => {
+      const f = d.querySelector("[name=v]");
+      res(d.returnValue === "ok" ? (f ? f.value.trim() : true) : null);
+    };
+    d.returnValue = "";
+    d.showModal();
+    const f = d.querySelector("[name=v]");
+    if (f) { f.focus(); f.select?.(); } else d.querySelector("button[value=ok]").focus();
+  });
+}
+
+function openLog() { $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer"; }
 let tab = "modules";
+const openCmd = new Set(); // champs « autre commande » dépliés (le rendu toutes les 5 s ne doit pas les refermer)
+document.addEventListener("toggle", e => {
+  const d = e.target.closest?.("details[data-cmd-box]");
+  if (d) d.open ? openCmd.add(d.dataset.cmdBox) : openCmd.delete(d.dataset.cmdBox);
+}, true);
 try { tab = localStorage.getItem("labs-tab") || "modules"; } catch {}
 
 async function api(path, opts = {}) {
@@ -179,7 +254,7 @@ async function loadConfig() {
 
 async function editConfig(body) {
   try { await api("/api/config", { method: "POST", body: JSON.stringify(body) }); await loadConfig(); return true; }
-  catch (e) { alert(e.message); return false; }
+  catch (e) { toast(e.message, true); return false; }
 }
 
 async function loadCore(fresh = false) {
@@ -198,106 +273,149 @@ async function download(path) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = path.split("/").pop();
     document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
-  } catch (e) { alert(e.message); }
+  } catch (e) { toast(e.message, true); }
 }
 
 async function load(fresh = false) {
   try {
     state = await (await api("/api/state" + (fresh ? "?fresh" : ""))).json();
     render();
-    $("#updated").textContent = "à jour " + new Date().toLocaleTimeString();
+    $("#updated").textContent = "à jour à " + new Date().toLocaleTimeString("fr-FR");
   } catch (e) {
     $("#updated").innerHTML = `<span class="err">${esc(e.message)}</span>`;
   }
 }
 
 // --- Exécution d'une commande labctl, sortie affichée au fil de l'eau
-async function run(args, confirmText) {
-  if (running) return;
-  if (confirmText && !confirm(confirmText)) return;
-  running = true; render();
+// confirmText : question posée avant (danger : bouton rouge). Le journal n'est pas ouvert d'office : l'action
+// en cours s'affiche à sa place (ligne de la VM, module), et une notification donne le résultat.
+async function run(args, confirmText, danger = false) {
+  if (running) return false;
+  if (confirmText && !(await ask({ title: "Confirmer", text: confirmText, ok: danger ? "Oui, continuer" : "Continuer", danger }))) return false;
+  running = true; current = args; render(); paintEditor();
   const log = $("#log-out");
-  $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer";
   const shown = `labctl ${args.join(" ")}`;
-  $("#log-status").innerHTML = `<span class="busy">en cours : ${esc(shown)}</span>`;
+  $("#log-status").innerHTML = `<span class="busy"><span class="spin"></span>${esc(shown)}</span>`;
   log.textContent += `\n$ ${shown}\n`;
+  let out = "", ok = false;
   try {
     const r = await api("/api/run", { method: "POST", body: JSON.stringify({ args }) });
     const reader = r.body.getReader(), dec = new TextDecoder();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      // Retire les codes couleur ANSI des scripts
-      log.textContent += dec.decode(value, { stream: true }).replace(/\x1b\[[0-9;]*m/g, "");
+      // Retire les codes couleur ANSI
+      const chunk = dec.decode(value, { stream: true }).replace(/\x1b\[[0-9;]*m/g, "");
+      out += chunk; log.textContent += chunk;
       log.scrollTop = log.scrollHeight;
     }
+    ok = out.trimEnd().endsWith("[terminé]");
     $("#log-status").textContent = "";
   } catch (e) {
+    out += e.message;
     log.textContent += `[erreur : ${e.message}]\n`;
     $("#log-status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
   } finally {
-    running = false; log.scrollTop = log.scrollHeight;
+    running = false; current = null; log.scrollTop = log.scrollHeight;
+    if (ok) toast(`${shown} : terminé`, false, true);
+    else {
+      // dernière ligne utile de la sortie, pour savoir tout de suite pourquoi
+      const why = out.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("[échec")).pop() || "";
+      toast(`${shown} : échec${why ? " — " + why : ""}`, true, true);
+    }
+    paintEditor();
     await load(true);
     if (tab === "core") await loadCore(true);
     if (tab === "pki") await loadPKI();
     if (tab === "config") await loadConfig();
   }
+  return ok;
 }
 
 async function console_(vm) {
   try { await api("/api/console", { method: "POST", body: JSON.stringify({ vm }) }); }
-  catch (e) { alert(e.message); }
+  catch (e) { toast(e.message, true); }
 }
+
+// L'action en cours concerne-t-elle ce module (et cette VM) ? Réponse : son verbe, sinon ""
+const verbLabel = { up: "construction", start: "démarrage", stop: "arrêt", snapshot: "snapshot", restore: "restauration", certs: "certificats",
+  destroy: "suppression", keyboard: "clavier", on: "ouverture d'Internet", off: "fermeture d'Internet" };
+function activeOn(m, vm, wideOnly = false) {
+  const a = current;
+  if (!a) return "";
+  let mod, vms, verb;
+  if (a[0] === "core" && a[1] === "internet") [verb, mod, vms] = [a[2], a[3], a.slice(4)];
+  else [mod, verb, vms] = [a[0], a[1], a.slice(2)];
+  if (mod !== m || (vm && vms.length && !vms.includes(vm)) || (wideOnly && vms.length)) return "";
+  return verbLabel[verb] || verb || "commande";
+}
+const doing = v => `<span class="doing"><span class="spin"></span>${esc(v)} en cours…</span>`;
 
 // --- Rendu
 function render() {
   if (!state) return;
   const gwUp = state.gateway.state === "running";
-  $("#gw").innerHTML = `<span class="dot ${gwUp ? "running" : ""}"></span>passerelle core-gw : ${esc(state.gateway.state)}`;
-  $("#gw-actions").innerHTML = gwUp
-    ? `<button data-run='["core","stop"]' data-confirm="Arrêter la passerelle ? Les modules perdent DHCP, DNS et Internet.">Arrêter</button>`
-    : `<button class="primary" data-run='["core","start"]'>Démarrer</button>`;
+  $("#gw").className = gwUp ? "" : "down";
+  $("#gw").innerHTML = `<span class="dot ${gwUp ? "running" : ""}"></span>passerelle ${esc(stLabel(state.gateway.state))}`;
 
   const mods = state.modules || [];
   const dis = running || !gwUp ? "disabled" : "";
   const busy = running ? "disabled" : "";
   let html = "";
+  // Sans passerelle, plus de DHCP, DNS ni Internet : on le dit en tête, avec de quoi la relancer
+  if (!gwUp) html += `<div class="banner down-banner"><strong>Passerelle core-gw ${esc(stLabel(state.gateway.state))}</strong>
+    <span class="meta">les modules n'ont plus de DHCP, de DNS ni d'Internet</span><span class="spacer"></span>
+    ${state.gateway.state === "absente" ? `<button data-tab="core">Onglet Core</button>` : `<button class="primary" ${busy} data-run='["core","start"]'>Démarrer la passerelle</button>`}</div>`;
   for (const m of mods) {
     const has = c => (m.commands || []).includes(c);
-    const openAll = m.internetAll;
+    const openAll = m.internetAll, vms = m.vms || [];
+    const anyUp = vms.some(v => v.state === "running"), anyDown = vms.some(v => v.state !== "running" && v.state !== "absente");
+    const anyMissing = vms.some(v => v.state === "absente");
+    const wide = activeOn(m.name, "", true);
     html += `<section class="card">
       <div class="card-head">
         <h2>${esc(m.name)}</h2>
         <span class="meta mono">${esc(m.subnet)}.0/24 · ${esc(m.domain)}</span>
         ${m.netActive ? "" : `<span class="pill never">réseau ${esc(m.net)} inactif</span>`}
         <span class="spacer"></span>
+        ${wide ? doing(wide) : `<span class="actions">
+          ${has("start") && anyDown ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "start"]))}'>Tout démarrer</button>` : ""}
+          ${has("stop") && anyUp ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "stop"]))}' data-confirm="Arrêter toutes les VMs du module ${esc(m.name)} ?">Tout arrêter</button>` : ""}
+          ${has("up") ? `<button ${busy} class="${anyMissing ? "primary" : ""}" data-run='${esc(JSON.stringify([m.name, "up"]))}'
+              data-confirm="Construire le module ${esc(m.name)} : réseau, CA et VMs manquantes. Les VMs existantes ne sont pas recréées."
+              title="labctl ${esc(m.name)} up : crée ce qui manque, vérifie le reste">${anyMissing ? "Construire" : "Vérifier (up)"}</button>` : ""}
+          ${has("up") ? `<button data-edit-module="${esc(m.name)}" title="Modifier modules/${esc(m.name)}/module.yaml">module.yaml</button>` : ""}
+        </span>`}
+      </div>
+      <div class="card-head" style="padding-top:8px;padding-bottom:8px">
+        <span class="meta">${esc(m.description)}</span>
+        <span class="spacer"></span>
         <span class="pill ${m.internet !== "fermé" ? "open" : ""}">Internet : ${esc(m.internet)}</span>
-        ${has("up") ? `<button data-edit-module="${esc(m.name)}" title="Modifier modules/${esc(m.name)}/module.yaml">module.yaml</button>` : ""}
         <span class="actions">
           ${openAll
             ? `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name]))}'>Fermer Internet</button>`
-            : `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "on", m.name]))}' data-confirm="Ouvrir Internet à tout le module ${esc(m.name)} (sauf VMs « jamais ») ?">Ouvrir à tout le module</button>
+            : `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "on", m.name]))}' data-confirm="Ouvrir Internet à tout le module ${esc(m.name)} (sauf les VMs « jamais ») ?">Ouvrir à tout le module</button>
                ${m.internet !== "fermé" ? `<button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name]))}'>Tout fermer</button>` : ""}`}
         </span>
       </div>
-      <div class="meta" style="padding:8px 16px;border-bottom:1px solid var(--line)">${esc(m.description)}</div>
       <table>
         <thead><tr><th>VM</th><th>IP</th><th>Snapshots</th><th>Internet</th><th>Actions</th></tr></thead>
         <tbody>`;
-    for (const v of m.vms || []) {
+    for (const v of vms) {
       const up = v.state === "running", exists = v.state !== "absente";
       const snaps = v.snapshots || [];
+      const act = wide ? "" : activeOn(m.name, v.name);
       let net;
-      if (v.noInternet) net = `<span class="pill never">jamais</span>`;
+      if (v.noInternet) net = `<span class="pill never" title="internet: never dans le module.yaml">jamais</span>`;
       else if (openAll) net = `<span class="pill open">ouvert (module)</span>`;
       else if (v.internet) net = `<span class="pill open">ouvert</span> <button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "off", m.name, v.name]))}'>Fermer</button>`;
       else net = `<span class="pill">fermé</span> <button ${dis} data-run='${esc(JSON.stringify(["core", "internet", "on", m.name, v.name]))}'>Ouvrir</button>`;
       html += `<tr>
-        <td><span class="dot ${esc(v.state.replace(" ", "-"))}"></span><strong>${esc(v.name)}</strong> <span class="meta">${esc(v.state)}</span></td>
+        <td><span class="dot ${esc(v.state.replace(" ", "-"))}"></span><strong>${esc(v.name)}</strong> <span class="meta">${esc(stLabel(v.state))}</span></td>
         <td class="mono">${esc(v.ip)}</td>
         <td class="meta">${snaps.length ? esc(snaps.join(", ")) : "—"}</td>
         <td>${net}</td>
-        <td><div class="actions">${!exists
+        <td><div class="actions">${act ? doing(act) : !exists
           ? (has("up") ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "up", v.name]))}'>Créer</button>`
             : has(v.name) ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, v.name]))}'>Créer</button>` : `<span class="meta">absente</span>`)
           : `${has("start") && !up ? `<button ${busy} data-run='${esc(JSON.stringify([m.name, "start", v.name]))}'>Démarrer</button>` : ""}
@@ -307,24 +425,26 @@ function render() {
              ${has("restore") && snaps.length ? `<button class="danger" ${busy} data-restore='${esc(JSON.stringify([m.name, v.name, snaps]))}'>Restaurer…</button>` : ""}`}
         </div></td></tr>`;
     }
-    if (!(m.vms || []).length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée</td></tr>`;
+    if (!vms.length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée</td></tr>`;
     html += `</tbody></table>
-      <div class="card-head" style="border-top:1px solid var(--line);border-bottom:0">
-        <span class="meta">Commande du module :</span>
-        <input class="mono" style="flex:1;min-width:200px" placeholder="ex. status  ·  kali  ·  snapshot msf2 avant-exploit" data-cmd="${esc(m.name)}">
-        <button ${busy} data-cmd-run="${esc(m.name)}">Lancer</button>
-      </div>
+      <details class="cmd" style="border-top:1px solid var(--line)" ${openCmd.has(m.name) ? "open" : ""} data-cmd-box="${esc(m.name)}">
+        <summary>Autre commande du module (labctl ${esc(m.name)} …)</summary>
+        <div class="card-head" style="border-bottom:0">
+          <input class="mono" style="flex:1;min-width:200px" placeholder="ex. status  ·  certs  ·  snapshot msf2 avant-exploit" data-cmd="${esc(m.name)}">
+          <button ${busy} data-cmd-run="${esc(m.name)}">Lancer</button>
+        </div>
+      </details>
     </section>`;
   }
 
-  if (!mods.length) html = `<div class="empty">Aucun module avec réseau (module.env).</div>`;
+  if (!mods.length) html += `<div class="empty">Aucun module : onglet module.yaml, « Nouveau module… ».</div>`;
 
   const focus = document.activeElement?.dataset?.cmd, val = focus ? document.activeElement.value : "";
   $("#main").innerHTML = html;
   if (focus) { const el = $(`[data-cmd="${CSS.escape(focus)}"]`); el.value = val; el.focus(); }
 }
 
-// --- Vue Configuration : core.conf de chaque module, changements en attente, application
+// --- Vue Configuration : section dns du module.yaml de chaque module, changements en attente, application
 function renderConfig() {
   const c = config, busy = running ? "disabled" : "";
   if (!c) return;
@@ -332,7 +452,7 @@ function renderConfig() {
   $("#pending-count").innerHTML = pending.length ? `<span class="count" title="fichiers à mettre à jour sur la passerelle">${pending.length}</span>` : "";
   let h = "";
   if (!gwUp) {
-    h += `<div class="banner"><span>Passerelle ${esc(c.gateway)} : les modifications sont enregistrées dans les core.conf et seront appliquées au prochain démarrage (Core → Appliquer la configuration).</span></div>`;
+    h += `<div class="banner"><span>Passerelle ${esc(stLabel(c.gateway))} : les modifications sont enregistrées dans les module.yaml et seront appliquées au prochain démarrage (onglet Core, « Appliquer la configuration »).</span></div>`;
   } else if (c.pendingError) {
     h += `<div class="banner"><span class="err">${esc(c.pendingError)}</span></div>`;
   } else if (pending.length) {
@@ -354,13 +474,13 @@ function renderConfig() {
     const aliases = Object.entries(m.aliases || {}).sort();
     const targets = (m.hosts || []).map(x => x.name);
     h += `<section class="card"><div class="card-head"><h2>${esc(m.name)}</h2>
-        <span class="meta mono">${esc(m.subnet)}.0/24 · ${esc(m.domain)} · core.conf</span></div>
+        <span class="meta mono">${esc(m.subnet)}.0/24 · ${esc(m.domain)} · section dns du module.yaml</span></div>
       <table><thead><tr><th>Réservation DHCP / nom DNS</th><th>IP</th><th>MAC</th><th>Source</th><th></th></tr></thead><tbody>
       ${(m.hosts || []).sort((a, b) => a.ip.localeCompare(b.ip, undefined, { numeric: true })).map(x => `<tr>
         <td><strong>${esc(x.name)}</strong><span class="meta">.${esc(m.domain)}</span></td><td class="mono">${esc(x.ip)}</td>
         <td class="mono meta">${esc(x.mac || "— (DNS seulement)")}</td>
-        <td class="meta">${esc(x.source)}</td>
-        <td>${x.source === "core.conf" ? `<button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "host-del", module: m.name, name: x.name }))}'>Retirer</button>` : ""}</td></tr>`).join("")}
+        <td class="meta">${x.source === "vm" ? "VM du module" : "réservation"}</td>
+        <td>${x.source === "reservation" ? `<button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "host-del", module: m.name, name: x.name }))}'>Retirer</button>` : ""}</td></tr>`).join("")}
       </tbody></table>
       <form class="inline" data-cfg-form="host" data-module="${esc(m.name)}">
         <label>Nom<input name="name" required pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" placeholder="dc01"></label>
@@ -404,7 +524,7 @@ function renderCore() {
   const up = c.state === "running", absent = c.state === "absente";
   let h = `<section class="card">
     <div class="card-head"><h2>Passerelle core-gw</h2>
-      <span class="pill"><span class="dot ${up ? "running" : ""}"></span>${esc(c.state)}</span>
+      <span class="pill"><span class="dot ${up ? "running" : ""}"></span>${esc(stLabel(c.state))}</span>
       <span class="spacer"></span>
       <span class="actions">${absent
         ? `<button class="primary" ${busy} data-run='["core","gw"]'>Créer la passerelle</button>`
@@ -468,12 +588,12 @@ function renderPKI() {
   const subs = p.cas.filter(c => c.kind === "sub-ca");
   const vmOpts = vms.map(v => `<option>${esc(v)}</option>`).join("");
   let h = `<section class="card"><div class="card-head"><h2>Autorités de certification</h2>
-      <span class="meta">les VMs créées par les scripts font confiance à la racine</span></div>
+      <span class="meta">les VMs créées par labctl font confiance à la racine</span></div>
     <table><thead><tr><th>CA</th><th>Type</th><th>Limites</th><th>Expire</th><th>Fichiers publics</th></tr></thead><tbody>
     ${p.cas.map(c => `<tr><td><strong>${esc(c.subject)}</strong>${c.issuer !== c.subject ? `<div class="meta">signée par ${esc(c.issuer)}</div>` : ""}</td>
       <td>${esc(kindLabel[c.kind] || c.kind)}</td>
-      <td class="tags">${(c.constraints || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("") || `<span class="meta">—</span>`}</td>
-      <td>${expiry(c)}</td><td class="actions">${files(c)}</td></tr>`).join("")}
+      <td><div class="tags">${(c.constraints || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("") || `<span class="meta">—</span>`}</div></td>
+      <td>${expiry(c)}</td><td><div class="actions">${files(c)}</div></td></tr>`).join("")}
     </tbody></table>
     <form class="inline" data-form="subca">
       <strong style="width:100%">Nouvelle CA dérivée</strong>
@@ -487,7 +607,7 @@ function renderPKI() {
   h += `<section class="card"><div class="card-head"><h2>Certificats émis</h2><span class="meta">${p.certs.length} certificat(s)</span></div>
     <table><thead><tr><th>Nom</th><th>Noms (SAN)</th><th>Émetteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody>
     ${p.certs.map(c => `<tr><td><strong>${esc(c.name)}</strong><div class="meta">${esc(kindLabel[c.kind] || c.kind)}${c.hasPfx ? " · .p12 dans pki/" : ""}</div></td>
-      <td class="tags">${(c.sans || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("")}</td>
+      <td><div class="tags">${(c.sans || []).map(x => `<span class="pill mono">${esc(x)}</span>`).join("")}</div></td>
       <td class="meta">${esc(c.issuer)}</td><td>${expiry(c)}</td>
       <td><div class="actions">${files(c)}
         <select data-deploy-vm="${esc(c.name)}"><option value="">déployer sur…</option>${vmOpts}</select></div></td></tr>`).join("")
@@ -533,7 +653,7 @@ function renderPKI() {
   $("#view-pki").innerHTML = h;
 }
 
-// Formulaires de configuration (core.conf)
+// Formulaires de configuration (section dns du module.yaml)
 document.addEventListener("submit", async e => {
   const f = e.target.closest("form[data-cfg-form]");
   if (!f) return;
@@ -580,6 +700,7 @@ document.addEventListener("change", e => {
 const ed = { want: "", modules: [], name: "", text: "", saved: "", hash: "", create: false, issues: [], timer: 0, seq: 0, msg: "" };
 const dirty = () => ed.name && ed.text !== ed.saved;
 addEventListener("beforeunload", e => { if (dirty()) e.preventDefault(); });
+const discard = text => ask({ title: "Modifications non enregistrées", text, ok: "Abandonner les modifications", danger: true });
 
 async function openEditor() {
   const name = ed.want; ed.want = "";
@@ -591,29 +712,31 @@ async function openEditor() {
 }
 
 async function loadModuleText(name) {
-  if (dirty() && !confirm(`Abandonner les modifications non enregistrées de ${ed.name} ?`)) return false;
+  if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return false;
   try {
     const d = await (await api("/api/module?name=" + encodeURIComponent(name))).json();
     Object.assign(ed, { name, text: d.text, saved: d.text, hash: d.hash, create: false, issues: d.issues, msg: "" });
     return true;
-  } catch (e) { alert(e.message); return false; }
+  } catch (e) { toast(e.message, true); return false; }
 }
 
 // Relit le fichier sur le disque (abandonne les modifications, après confirmation)
 async function reloadModule() {
-  if (dirty() && !confirm(`Abandonner les modifications et relire modules/${ed.name}/module.yaml ?`)) return;
+  if (dirty() && !(await discard(`Relire modules/${ed.name}/module.yaml depuis le disque : les modifications seront perdues.`))) return;
   const name = ed.name;
   ed.saved = ed.text; // la question vient d'être posée
   if (await loadModuleText(name)) renderEditor();
 }
 
 async function newModule() {
-  if (dirty() && !confirm(`Abandonner les modifications non enregistrées de ${ed.name} ?`)) return;
-  const name = (prompt("Nom du nouveau module (minuscules, chiffres, tirets ; 9 caractères au plus) :") || "").trim();
+  if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return;
+  const name = await ask({ title: "Nouveau module", text: "Nom : minuscules, chiffres et tirets, 9 caractères au plus.\nIl donne aussi le nom des VMs (<module>-<vm>).",
+    input: true, pattern: "[a-z0-9]([a-z0-9-]{0,7}[a-z0-9])?", hint: "minuscules, chiffres, tirets ; 9 caractères au plus", ok: "Créer le brouillon" });
   if (!name) return;
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(name) || name.length > 9) { alert("Nom invalide : minuscules, chiffres, tirets, 9 caractères au plus."); return; }
-  if (ed.modules.includes(name)) { alert(`Le module ${name} existe déjà.`); return; }
-  const d = await (await api("/api/module/skeleton?name=" + encodeURIComponent(name))).json();
+  if (ed.modules.includes(name)) { toast(`Le module ${name} existe déjà.`, true); return; }
+  let d;
+  try { d = await (await api("/api/module/skeleton?name=" + encodeURIComponent(name))).json(); }
+  catch (e) { toast(e.message, true); return; }
   Object.assign(ed, { name, text: d.text, saved: "", hash: "", create: true, issues: d.issues, msg: "nouveau module : enregistrer pour créer modules/" + name + "/" });
   renderEditor();
 }
@@ -682,7 +805,11 @@ function renderEditor() {
   $("#view-editor").innerHTML = `<section class="card">
     <div class="ed-bar">
       <select id="ed-module" ${ed.create ? "disabled" : ""}>${opts}</select>
-      <span class="meta mono">modules/${esc(ed.name)}/module.yaml</span>
+      <button id="ed-new">Nouveau module…</button>
+      <span class="sep"></span>
+      <button id="ed-save" class="primary" title="Ctrl+S">${ed.create ? "Créer le module" : "Enregistrer"}</button>
+      <button id="ed-revert" title="Abandonne les modifications et relit le fichier">Recharger</button>
+      <button id="ed-apply" title="labctl ${esc(ed.name)} up : crée ce qui manque (réseau, CA, VMs)">Appliquer (up)</button>
       <span class="spacer"></span>
       <span id="ed-state" class="state"></span>
     </div>
@@ -692,12 +819,9 @@ function renderEditor() {
     </div>
     <ul class="issues" id="ed-issues"></ul>
     <div class="ed-bar" style="border-top:1px solid var(--line);border-bottom:0">
-      <button id="ed-save" class="primary" title="Ctrl+S">${ed.create ? "Créer le module" : "Enregistrer"}</button>
-      <button id="ed-revert" title="Abandonne les modifications et relit le fichier">Recharger le fichier</button>
-      <button id="ed-apply" title="labctl ${esc(ed.name)} up">Appliquer (up)</button>
+      <span class="meta mono">modules/${esc(ed.name)}/module.yaml</span>
       <span class="spacer"></span>
-      <button id="ed-new">Nouveau module…</button>
-      <a class="meta" href="#" id="ed-help">Clés : docs/module-yaml.md</a>
+      <a class="meta" href="#" id="ed-help">Aide : clés et variables</a>
     </div>
   </section>`;
   const ta = $("#ed-text");
@@ -726,7 +850,7 @@ async function saveModule() {
     if (d.issues) ed.issues = d.issues;
     ed.msg = d.error || "erreur";
     paintEditor();
-    if (r.status === 409) alert(d.error);
+    toast(d.error || "enregistrement refusé", true);
     return;
   }
   const created = ed.create;
@@ -780,7 +904,7 @@ document.addEventListener("click", e => {
   else if (t.id === "ed-revert") reloadModule();
   else if (t.id === "ed-apply") applyModule();
   else if (t.id === "ed-new") newModule();
-  else if (t.id === "ed-help") { e.preventDefault(); alert("Référence complète des clés : docs/module-yaml.md (dans le dépôt Labs).\n\nVariables : ${module.name} ${module.domain} ${network.subnet} ${network.gateway} ${vm.name} ${vm.ip} ${vm.fqdn} ${vms.<vm>.ip} ${vms.<vm>.fqdn} ${keyboard}"); }
+  else if (t.id === "ed-help") { e.preventDefault(); ask({ title: "Aide module.yaml", cancel: false, ok: "Fermer", text: "Référence complète des clés : docs/module-yaml.md (dans le dépôt Labs).\n\nVariables : ${module.name} ${module.domain} ${network.subnet} ${network.gateway} ${vm.name} ${vm.ip} ${vm.fqdn} ${vms.<vm>.ip} ${vms.<vm>.fqdn} ${keyboard}" }); }
   else if (t.dataset.goto !== undefined) {
     const n = +t.dataset.goto, ta = $("#ed-text");
     if (!n || !ta) return;
@@ -799,25 +923,12 @@ document.addEventListener("click", e => {
   else if (t.dataset.download) download(t.dataset.download);
   else if (t.dataset.cfg) { e.preventDefault(); editConfig(JSON.parse(t.dataset.cfg)); }
   else if (t.dataset.toggleDiff !== undefined) { showDiff = !showDiff; renderConfig(); }
-  else if (t.dataset.rotateRoot !== undefined) {
-    const word = prompt("Régénérer TOUTE la chaîne : nouvelle racine, toutes les CA, tous les certificats (nouvelles clés).\n" +
-      "Les VMs ne feront plus confiance aux certificats tant qu'elles n'auront pas la nouvelle racine.\n" +
-      "L'ancienne PKI est archivée.\n\nTaper RACINE pour confirmer :");
-    if (word === "RACINE") run(["pki", "renew", "root", "--yes", ...($("#rotate-trust")?.checked ? ["--trust-vms"] : [])]);
-    else if (word !== null) alert("Confirmation incorrecte : rien n'a été modifié.");
-  }
-  else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm);
+  else if (t.dataset.rotateRoot !== undefined) rotateRoot();
+  else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm, t.classList.contains("danger"));
   else if (t.dataset.console) console_(t.dataset.console);
-  else if (t.dataset.snapshot) {
-    const [m, vm] = JSON.parse(t.dataset.snapshot);
-    const name = prompt(`Nom du snapshot de ${vm} (un snapshot existant du même nom est remplacé) :`, "clean");
-    if (name && /^[A-Za-z0-9._-]+$/.test(name)) run([m, "snapshot", vm, name]);
-    else if (name) alert("Nom invalide : lettres, chiffres, . _ - uniquement");
-  } else if (t.dataset.restore) {
-    const [m, vm, snaps] = JSON.parse(t.dataset.restore);
-    const name = snaps.length === 1 ? snaps[0] : prompt(`Snapshot à restaurer pour ${vm} (${snaps.join(", ")}) :`, snaps[0]);
-    if (name && snaps.includes(name)) run([m, "restore", vm, name], `Restaurer ${vm} au snapshot « ${name} » ? L'état actuel de la VM sera perdu.`);
-  } else if (t.dataset.link) {
+  else if (t.dataset.snapshot) snapshotVM(...JSON.parse(t.dataset.snapshot));
+  else if (t.dataset.restore) restoreVM(...JSON.parse(t.dataset.restore));
+  else if (t.dataset.link) {
     e.preventDefault();
     const [op, a, b] = JSON.parse(t.dataset.link);
     run(["core", op, a, b], op === "link" ? `Autoriser ${a} à joindre et résoudre ${b} ?` : `Retirer le lien ${a} → ${b} ?`);
@@ -826,10 +937,31 @@ document.addEventListener("click", e => {
     const words = input.value.trim().split(/\s+/).filter(Boolean);
     if (!words.length) return;
     const destructive = words[0] === "destroy";
-    run([t.dataset.cmdRun, ...words], destructive ? `« ${words.join(" ")} » supprime définitivement des VMs. Continuer ?` : null)
-      .then(() => { input.value = ""; });
+    run([t.dataset.cmdRun, ...words], destructive ? `« ${words.join(" ")} » supprime définitivement des VMs.` : null, destructive)
+      .then(done => { const el = $(`[data-cmd="${CSS.escape(t.dataset.cmdRun)}"]`); if (done !== false && el) el.value = ""; }); // champ recréé par le rendu
   }
 });
+async function rotateRoot() {
+  const word = await ask({ title: "Régénérer toute la chaîne", danger: true, ok: "Régénérer", input: true, pattern: "RACINE", hint: "taper RACINE en majuscules",
+    text: "Nouvelle racine, toutes les CA, tous les certificats (nouvelles clés).\nLes VMs ne feront plus confiance aux certificats tant qu'elles n'auront pas la nouvelle racine. L'ancienne PKI est archivée.\n\nTaper RACINE pour confirmer :" });
+  if (word === "RACINE") run(["pki", "renew", "root", "--yes", ...($("#rotate-trust")?.checked ? ["--trust-vms"] : [])]);
+}
+
+async function snapshotVM(m, vm) {
+  const name = await ask({ title: `Snapshot de ${vm}`, text: "Un snapshot existant du même nom est remplacé.\nNom : lettres, chiffres, . _ -",
+    input: true, value: "clean", pattern: "[A-Za-z0-9._\\-]+", hint: "lettres, chiffres, . _ - (sans espace)", ok: "Prendre le snapshot" });
+  if (name) run([m, "snapshot", vm, name]);
+}
+
+// Choix du snapshot et confirmation dans la même boîte
+async function restoreVM(m, vm, snaps) {
+  const text = `L'état actuel de ${vm} sera perdu.`;
+  const name = snaps.length === 1
+    ? (await ask({ title: `Restaurer ${vm} au snapshot « ${snaps[0]} » ?`, text, ok: "Restaurer", danger: true }) && snaps[0])
+    : await ask({ title: `Restaurer ${vm}`, text: text + "\nSnapshot :", options: snaps, value: snaps[0], ok: "Restaurer", danger: true });
+  if (name && snaps.includes(name)) run([m, "restore", vm, name]);
+}
+
 document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.dataset?.cmd) $(`[data-cmd-run="${CSS.escape(e.target.dataset.cmd)}"]`).click();
 });

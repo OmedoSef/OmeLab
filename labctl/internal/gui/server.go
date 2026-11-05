@@ -63,7 +63,12 @@ func Serve(l *lab.Lab, port int, openBrowser bool) error {
 
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(static, "static")
-	mux.Handle("GET /", http.FileServerFS(sub))
+	// La page est embarquée (sans date) : sans no-cache, le navigateur garde l'ancienne après une mise à jour de labctl
+	files := http.FileServerFS(sub)
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		files.ServeHTTP(w, r)
+	})
 	mux.HandleFunc("GET /api/state", s.api(s.handleState))
 	mux.HandleFunc("POST /api/run", s.api(s.handleRun))
 	mux.HandleFunc("POST /api/console", s.api(s.handleConsole))
@@ -171,12 +176,12 @@ func (s *server) handlePKIFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, p)
 }
 
-// Configuration éditable (core.conf) de chaque module, et changements en attente sur la passerelle.
+// Configuration éditable (section dns du module.yaml) de chaque module, et changements en attente sur la passerelle.
 type configHost struct {
 	Name   string `json:"name"`
 	IP     string `json:"ip"`
 	MAC    string `json:"mac"`
-	Source string `json:"source"` // module.env (lecture seule ici) ou core.conf
+	Source string `json:"source"` // vm (vms: du module, lecture seule ici) ou reservation (dns:)
 }
 
 type configModule struct {
@@ -201,10 +206,10 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		cm := configModule{Name: m.Name, Subnet: m.Env.Subnet, Domain: m.Env.Domain, Aliases: m.Conf.Aliases, Links: m.Conf.Links}
 		for _, vm := range m.Env.VMs() {
-			cm.Hosts = append(cm.Hosts, configHost{vm, m.Env.IP(vm), m.Env.Macs[vm], "module.env"})
+			cm.Hosts = append(cm.Hosts, configHost{vm, m.Env.IP(vm), m.Env.Macs[vm], "vm"})
 		}
 		for h, o := range m.Conf.Hosts {
-			cm.Hosts = append(cm.Hosts, configHost{h, fmt.Sprintf("%s.%d", m.Env.Subnet, o), m.Conf.HostMACs[h], "core.conf"})
+			cm.Hosts = append(cm.Hosts, configHost{h, fmt.Sprintf("%s.%d", m.Env.Subnet, o), m.Conf.HostMACs[h], "reservation"})
 		}
 		out = append(out, cm)
 	}
@@ -228,7 +233,7 @@ type configEdit struct {
 	Target string `json:"target"`
 }
 
-// handleConfigEdit modifie core.conf (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
+// handleConfigEdit modifie la section dns du module.yaml (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
 func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	var e configEdit
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<12)).Decode(&e); err != nil {

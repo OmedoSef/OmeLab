@@ -77,9 +77,9 @@ vérifie l'interopérabilité avec openssl dans les deux sens.
 `labctl gui` sert l'interface sur **127.0.0.1:8077** uniquement (`-p` pour un autre port, `--no-browser` pour ne
 pas ouvrir le navigateur). Trois onglets :
 
-- **Modules** : par module, état des VMs, IP, snapshots, accès Internet (module entier ou VM par VM) ; par VM :
-  démarrer, arrêter, console (virt-viewer), snapshot, restauration ; champ pour lancer n'importe quelle commande
-  d'un module.
+- **Modules** : par module, tout démarrer, tout arrêter, construire (`up`), état des VMs, IP, snapshots, accès
+  Internet (module entier ou VM par VM) ; par VM : démarrer, arrêter, console (virt-viewer), snapshot, restauration ;
+  champ repliable pour lancer n'importe quelle autre commande du module.
 - **Configuration** : par module, réservations DHCP (nom, IP, MAC), alias DNS et liens entre modules
   (section `dns` du `module.yaml`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
   un bandeau signale les changements en attente, montre exactement ce qui changera dans la configuration de la
@@ -95,7 +95,9 @@ pas ouvrir le navigateur). Trois onglets :
   privées ni des `.p12`, qui restent dans `pki/`) ; **maintenance de la chaîne** (renouveler l'intermédiaire, une
   CA dérivée, ou toute la chaîne : voir ci-dessous). `pki trust-host` (sudo) reste en ligne de commande.
 
-La sortie des commandes s'affiche en direct dans le journal en bas de page.
+L'action en cours s'affiche sur la ligne de la VM (ou du module) concernée, puis une notification donne le résultat
+(en cas d'échec, avec la dernière ligne d'erreur) ; la sortie complète est dans le journal en bas de page. La pastille
+« passerelle » de l'en-tête n'est qu'un indicateur : ses actions sont dans l'onglet Core.
 
 **Sécurité** : seul ton poste peut s'y connecter (127.0.0.1). Chaque lancement tire un jeton aléatoire, placé
 dans l'adresse ouverte (`#t=...`) et exigé pour chaque action, ce qui empêche un autre site web ouvert dans le

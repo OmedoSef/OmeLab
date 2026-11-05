@@ -133,9 +133,9 @@ func (l *Lab) ConfDelHost(module, name string) error {
 	}
 	if _, ok := m.Conf.Hosts[name]; !ok {
 		if _, env := m.Env.Hosts[name]; env {
-			return fmt.Errorf("%s est déclarée dans module.env : à modifier là", name)
+			return fmt.Errorf("%s est une VM du module (vms: du module.yaml) : à modifier là", name)
 		}
-		return fmt.Errorf("pas de réservation %s dans core.conf de %s", name, module)
+		return fmt.Errorf("pas de réservation %s dans le module.yaml de %s", name, module)
 	}
 	return saveEdit(m, func(y *mod.Module) { y.DelHost(name) }, "host", name, "")
 }
