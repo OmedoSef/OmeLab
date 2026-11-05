@@ -143,7 +143,6 @@ details.cmd[open] summary { padding-bottom: 0; }
   <h1>Labs</h1>
   <nav class="tabs">
     <button data-tab="modules">Modules</button>
-    <button data-tab="editor">module.yaml</button>
     <button data-tab="config">Configuration<span id="pending-count"></span></button>
     <button data-tab="core">Core</button>
     <button data-tab="pki">PKI</button>
@@ -238,7 +237,8 @@ async function api(path, opts = {}) {
 function showTab(t) {
   tab = ["modules", "editor", "config", "core", "pki"].includes(t) ? t : "modules";
   try { localStorage.setItem("labs-tab", tab); } catch {}
-  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  // L'éditeur est une sous-page de Modules (pas d'onglet à lui)
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === (tab === "editor" ? "modules" : tab)));
   $("#main").hidden = tab !== "modules";
   $("#view-core").hidden = tab !== "core";
   $("#view-config").hidden = tab !== "config";
@@ -366,6 +366,8 @@ function render() {
   if (!gwUp) html += `<div class="banner down-banner"><strong>Passerelle core-gw ${esc(stLabel(state.gateway.state))}</strong>
     <span class="meta">les modules n'ont plus de DHCP, de DNS ni d'Internet</span><span class="spacer"></span>
     ${state.gateway.state === "absente" ? `<button data-tab="core">Onglet Core</button>` : `<button class="primary" ${busy} data-run='["core","start"]'>Démarrer la passerelle</button>`}</div>`;
+  html += `<div class="card-head" style="padding:0;border:0"><span class="meta">${mods.length} module(s)</span><span class="spacer"></span>
+    <button data-new-module title="Ouvre l'éditeur sur le squelette d'un nouveau module.yaml">Nouveau module…</button></div>`;
   for (const m of mods) {
     const has = c => (m.commands || []).includes(c);
     const openAll = m.internetAll, vms = m.vms || [];
@@ -437,7 +439,7 @@ function render() {
     </section>`;
   }
 
-  if (!mods.length) html += `<div class="empty">Aucun module : onglet module.yaml, « Nouveau module… ».</div>`;
+  if (!mods.length) html += `<div class="empty">Aucun module : « Nouveau module… » pour en créer un.</div>`;
 
   const focus = document.activeElement?.dataset?.cmd, val = focus ? document.activeElement.value : "";
   $("#main").innerHTML = html;
@@ -702,13 +704,15 @@ const dirty = () => ed.name && ed.text !== ed.saved;
 addEventListener("beforeunload", e => { if (dirty()) e.preventDefault(); });
 const discard = text => ask({ title: "Modifications non enregistrées", text, ok: "Abandonner les modifications", danger: true });
 
+// ed.want : module à ouvrir, ou "+new" pour un nouveau module (bouton de l'onglet Modules)
 async function openEditor() {
-  const name = ed.want; ed.want = "";
+  const name = ed.want, fresh = name === "+new"; ed.want = "";
   try { ed.modules = (await (await api("/api/modules")).json()).modules; }
   catch (e) { $("#view-editor").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
-  if (name && name !== ed.name) { if (!(await loadModuleText(name))) return; }
+  if (!fresh && name && name !== ed.name) { if (!(await loadModuleText(name))) return; }
   else if (!ed.name && ed.modules.length) { if (!(await loadModuleText(ed.modules[0]))) return; }
   renderEditor();
+  if (fresh && !(await newModule())) showTab("modules"); // création annulée : retour à la liste
 }
 
 async function loadModuleText(name) {
@@ -729,16 +733,17 @@ async function reloadModule() {
 }
 
 async function newModule() {
-  if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return;
+  if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return false;
   const name = await ask({ title: "Nouveau module", text: "Nom : minuscules, chiffres et tirets, 9 caractères au plus.\nIl donne aussi le nom des VMs (<module>-<vm>).",
     input: true, pattern: "[a-z0-9]([a-z0-9-]{0,7}[a-z0-9])?", hint: "minuscules, chiffres, tirets ; 9 caractères au plus", ok: "Créer le brouillon" });
-  if (!name) return;
-  if (ed.modules.includes(name)) { toast(`Le module ${name} existe déjà.`, true); return; }
+  if (!name) return false;
+  if (ed.modules.includes(name)) { toast(`Le module ${name} existe déjà.`, true); return false; }
   let d;
   try { d = await (await api("/api/module/skeleton?name=" + encodeURIComponent(name))).json(); }
-  catch (e) { toast(e.message, true); return; }
+  catch (e) { toast(e.message, true); return false; }
   Object.assign(ed, { name, text: d.text, saved: "", hash: "", create: true, issues: d.issues, msg: "nouveau module : enregistrer pour créer modules/" + name + "/" });
   renderEditor();
+  return true;
 }
 
 // Coloration d'une ligne YAML (clés, chaînes, nombres, variables ${...}, commentaires)
@@ -804,6 +809,7 @@ function renderEditor() {
     (ed.create ? `<option selected>${esc(ed.name)} (nouveau)</option>` : "");
   $("#view-editor").innerHTML = `<section class="card">
     <div class="ed-bar">
+      <button data-tab="modules" title="Retour à la liste des modules (les modifications non enregistrées sont gardées)">← Modules</button>
       <select id="ed-module" ${ed.create ? "disabled" : ""}>${opts}</select>
       <button id="ed-new">Nouveau module…</button>
       <span class="sep"></span>
@@ -897,9 +903,10 @@ document.addEventListener("keydown", e => {
   }
 });
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-goto], #ed-save, #ed-revert, #ed-apply, #ed-new, #ed-help, [data-edit-module]");
+  const t = e.target.closest("[data-goto], #ed-save, #ed-revert, #ed-apply, #ed-new, #ed-help, [data-edit-module], [data-new-module]");
   if (!t) return;
   if (t.dataset.editModule) { ed.want = t.dataset.editModule; showTab("editor"); }
+  else if (t.dataset.newModule !== undefined) { ed.want = "+new"; showTab("editor"); }
   else if (t.id === "ed-save") saveModule();
   else if (t.id === "ed-revert") reloadModule();
   else if (t.id === "ed-apply") applyModule();

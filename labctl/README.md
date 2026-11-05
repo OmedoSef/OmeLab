@@ -75,11 +75,12 @@ vérifie l'interopérabilité avec openssl dans les deux sens.
 ## GUI
 
 `labctl gui` sert l'interface sur **127.0.0.1:8077** uniquement (`-p` pour un autre port, `--no-browser` pour ne
-pas ouvrir le navigateur). Trois onglets :
+pas ouvrir le navigateur). Quatre onglets :
 
 - **Modules** : par module, tout démarrer, tout arrêter, construire (`up`), état des VMs, IP, snapshots, accès
   Internet (module entier ou VM par VM) ; par VM : démarrer, arrêter, console (virt-viewer), snapshot, restauration ;
-  champ repliable pour lancer n'importe quelle autre commande du module.
+  champ repliable pour lancer n'importe quelle autre commande du module. Le bouton *module.yaml* d'un module ouvre
+  l'éditeur (coloration, validation à la volée, Ctrl+S) ; *Nouveau module…* part d'un squelette.
 - **Configuration** : par module, réservations DHCP (nom, IP, MAC), alias DNS et liens entre modules
   (section `dns` du `module.yaml`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
   un bandeau signale les changements en attente, montre exactement ce qui changera dans la configuration de la
