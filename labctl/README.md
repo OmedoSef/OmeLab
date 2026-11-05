@@ -83,11 +83,17 @@ Un panneau à gauche mène à toutes les pages ; la page courante est dans l'adr
 - **Vue d'ensemble** : un module par ligne (réseau, VMs démarrées, Internet, tout démarrer / arrêter, construire)
   et les liens entre modules (`→` un sens, `↔` les deux).
 - **Un module** (une entrée par module, avec ses VMs démarrées / déclarées) : en tête, ses actions et l'accès Internet
-  du module entier, puis trois onglets :
+  du module entier, puis quatre onglets :
   - **VMs** : état, IP, snapshots, Internet VM par VM ; démarrer, arrêter, console (virt-viewer), snapshot,
     restauration ; champ repliable pour lancer n'importe quelle autre commande du module ;
   - **module.yaml** : l'éditeur (coloration, validation à la volée, Ctrl+S, *Appliquer (up)*) ; un `●` signale des
     modifications non enregistrées ;
+  - **Fichiers** : contenu de `modules/<m>/files/` (copié dans les VMs par `files:`) : pour chaque fichier, les VMs
+    et destinations qui l'utilisent (⟨t⟩ = template), fichiers référencés mais absents ; envoi (bouton ou
+    glisser-déposer, 512 Mio au plus par fichier, remplacement après confirmation), nouveau fichier ou dossier,
+    édition des fichiers texte (1 Mio au plus), téléchargement, renommage, suppression. Rien ne sort de `files/` :
+    ni `..`, ni chemin absolu, ni lien symbolique suivi. Les fichiers sont copiés à la création d'une VM : une VM
+    existante ne reçoit pas les changements d'elle-même ;
   - **Réseau** : réservations DHCP (nom, IP, MAC), alias DNS, et liens avec les autres modules **dans les deux sens**
     (ce module peut joindre… / peut être joint par…, une case par sens).
 - **+ Nouveau module…** : nom demandé, puis l'éditeur sur un squelette (brouillon jusqu'au premier enregistrement).
