@@ -75,30 +75,37 @@ vérifie l'interopérabilité avec openssl dans les deux sens.
 ## GUI
 
 `labctl gui` sert l'interface sur **127.0.0.1:8077** uniquement (`-p` pour un autre port, `--no-browser` pour ne
-pas ouvrir le navigateur). Quatre onglets :
+pas ouvrir le navigateur). `labctl gui --app` l'ouvre dans une **fenêtre d'application** dédiée (Chromium, Chrome,
+Edge ou Brave, profil à part dans `~/.cache/labctl/gui-app`) : fermer la fenêtre arrête l'interface.
 
-- **Modules** : par module, tout démarrer, tout arrêter, construire (`up`), état des VMs, IP, snapshots, accès
-  Internet (module entier ou VM par VM) ; par VM : démarrer, arrêter, console (virt-viewer), snapshot, restauration ;
-  champ repliable pour lancer n'importe quelle autre commande du module. Le bouton *module.yaml* d'un module ouvre
-  l'éditeur (coloration, validation à la volée, Ctrl+S) ; *Nouveau module…* part d'un squelette.
-- **Configuration** : par module, réservations DHCP (nom, IP, MAC), alias DNS et liens entre modules
-  (section `dns` du `module.yaml`). Les modifications sont enregistrées tout de suite mais **appliquées seulement à la demande** :
-  un bandeau signale les changements en attente, montre exactement ce qui changera dans la configuration de la
-  passerelle (diff), et le bouton *Appliquer* la déploie. Mêmes validations que la ligne de commande
-  (IP ou MAC déjà prise, nom de VM, cible d'alias inconnue…). Les IP des VMs (`vms:` du module) sont affichées
-  en lecture seule.
-- **Core** : passerelle (créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console),
-  état des services (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et
-  bloquées dans le pare-feu.
+Un panneau à gauche mène à toutes les pages ; la page courante est dans l'adresse (rechargement, bouton précédent) :
+
+- **Vue d'ensemble** : un module par ligne (réseau, VMs démarrées, Internet, tout démarrer / arrêter, construire)
+  et les liens entre modules (`→` un sens, `↔` les deux).
+- **Un module** (une entrée par module, avec ses VMs démarrées / déclarées) : en tête, ses actions et l'accès Internet
+  du module entier, puis trois onglets :
+  - **VMs** : état, IP, snapshots, Internet VM par VM ; démarrer, arrêter, console (virt-viewer), snapshot,
+    restauration ; champ repliable pour lancer n'importe quelle autre commande du module ;
+  - **module.yaml** : l'éditeur (coloration, validation à la volée, Ctrl+S, *Appliquer (up)*) ; un `●` signale des
+    modifications non enregistrées ;
+  - **Réseau** : réservations DHCP (nom, IP, MAC), alias DNS, et liens avec les autres modules **dans les deux sens**
+    (ce module peut joindre… / peut être joint par…, une case par sens).
+- **+ Nouveau module…** : nom demandé, puis l'éditeur sur un squelette (brouillon jusqu'au premier enregistrement).
+- **Passerelle** : créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console ; état des services
+  (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et bloquées dans le pare-feu.
 - **PKI** : CA racine, intermédiaire et CA dérivées avec leurs limites (domaine, sous-réseau) et leur expiration ;
   certificats émis avec leurs noms ; création d'une CA dérivée, émission d'un certificat, déploiement sur une
   VM, installation de la CA racine dans une VM ; téléchargement des **certificats publics** (jamais des clés
   privées ni des `.p12`, qui restent dans `pki/`) ; **maintenance de la chaîne** (renouveler l'intermédiaire, une
   CA dérivée, ou toute la chaîne : voir ci-dessous). `pki trust-host` (sudo) reste en ligne de commande.
 
-L'action en cours s'affiche sur la ligne de la VM (ou du module) concernée, puis une notification donne le résultat
-(en cas d'échec, avec la dernière ligne d'erreur) ; la sortie complète est dans le journal en bas de page. La pastille
-« passerelle » de l'en-tête n'est qu'un indicateur : ses actions sont dans l'onglet Core.
+Les modifications de la section `dns` (réservations, alias, liens) sont enregistrées tout de suite dans le
+`module.yaml` mais **appliquées seulement à la demande** : un bandeau, en haut de toutes les pages, signale les
+changements en attente, montre exactement ce qui changera sur la passerelle (diff), et *Appliquer* les déploie.
+Mêmes validations que la ligne de commande (IP ou MAC déjà prise, nom de VM, cible d'alias inconnue…).
+
+L'action en cours s'affiche sur la ligne de la VM (ou sur le module) concernée, puis une notification donne le
+résultat (en cas d'échec, avec la dernière ligne d'erreur) ; la sortie complète est dans le journal en bas de page.
 
 **Sécurité** : seul ton poste peut s'y connecter (127.0.0.1). Chaque lancement tire un jeton aléatoire, placé
 dans l'adresse ouverte (`#t=...`) et exigé pour chaque action, ce qui empêche un autre site web ouvert dans le

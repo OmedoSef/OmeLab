@@ -103,7 +103,7 @@ func statusCmd(l *lab.Lab) *cobra.Command {
 
 func guiCmd(l *lab.Lab, verbose *bool) *cobra.Command {
 	var port int
-	var noBrowser bool
+	var noBrowser, app bool
 	c := &cobra.Command{
 		Use:     "gui",
 		Short:   "Ouvre l'interface graphique (servie sur 127.0.0.1 uniquement)",
@@ -111,11 +111,19 @@ func guiCmd(l *lab.Lab, verbose *bool) *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
 			l.Verbose = *verbose
-			return gui.Serve(l, port, !noBrowser)
+			open := gui.OpenBrowser
+			if noBrowser {
+				open = gui.OpenNone
+			} else if app {
+				open = gui.OpenApp
+			}
+			return gui.Serve(l, port, open)
 		},
 	}
 	c.Flags().IntVarP(&port, "port", "p", 8077, "port d'écoute sur 127.0.0.1")
 	c.Flags().BoolVar(&noBrowser, "no-browser", false, "ne pas ouvrir le navigateur")
+	c.Flags().BoolVar(&app, "app", false, "fenêtre d'application dédiée (Chromium, Chrome, Edge ou Brave) ; la fermer arrête l'interface")
+	c.MarkFlagsMutuallyExclusive("no-browser", "app")
 	return c
 }
 

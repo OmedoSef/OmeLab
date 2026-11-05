@@ -49,7 +49,50 @@ type server struct {
 }
 
 // Serve lance l'interface sur 127.0.0.1:port et ouvre le navigateur si demandé.
-func Serve(l *lab.Lab, port int, openBrowser bool) error {
+// Ouverture de l'interface au lancement de labctl gui
+type Open int
+
+const (
+	OpenBrowser Open = iota // navigateur par défaut (xdg-open)
+	OpenApp                 // fenêtre d'application dédiée ; sa fermeture arrête le serveur
+	OpenNone
+)
+
+// appBrowsers : navigateurs qui savent ouvrir une fenêtre sans barre d'adresse (--app)
+var appBrowsers = []string{"chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "microsoft-edge", "brave-browser"}
+
+// startApp ouvre url dans une fenêtre d'application. Un profil à part (dans le cache de l'utilisateur) fait du
+// navigateur un processus à lui : il se termine à la fermeture de la fenêtre, ce que signale done.
+func startApp(url string) (done <-chan struct{}, err error) {
+	bin := ""
+	for _, b := range appBrowsers {
+		if p, err := exec.LookPath(b); err == nil {
+			bin = p
+			break
+		}
+	}
+	if bin == "" {
+		return nil, fmt.Errorf("aucun navigateur compatible (%s)", strings.Join(appBrowsers, ", "))
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, err
+	}
+	profile := filepath.Join(cache, "labctl", "gui-app")
+	if err := os.MkdirAll(profile, 0o700); err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(bin, "--app="+url, "--user-data-dir="+profile, "--class=labctl", "--window-size=1320,880",
+		"--no-first-run", "--no-default-browser-check")
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	ch := make(chan struct{})
+	go func() { cmd.Wait(); close(ch) }()
+	return ch, nil
+}
+
+func Serve(l *lab.Lab, port int, open Open) error {
 	tok := make([]byte, 24)
 	if _, err := rand.Read(tok); err != nil {
 		return err
@@ -86,14 +129,21 @@ func Serve(l *lab.Lab, port int, openBrowser bool) error {
 	srv := &http.Server{Handler: s.checkHost(mux), ReadHeaderTimeout: 10 * time.Second}
 	url := fmt.Sprintf("http://%s/#t=%s", s.host, s.token)
 	fmt.Printf("Interface : %s\n(Ctrl+C pour arrêter ; l'adresse contient le jeton d'accès, ne la partage pas)\n", url)
-	if openBrowser {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	switch open {
+	case OpenBrowser:
 		if err := exec.Command("xdg-open", url).Start(); err != nil {
 			fmt.Fprintln(os.Stderr, "navigateur non ouvert :", err)
 		}
+	case OpenApp:
+		done, err := startApp(url)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fenêtre non ouverte :", err, "; ouvrir l'adresse ci-dessus dans un navigateur")
+			break
+		}
+		go func() { <-done; fmt.Println("fenêtre fermée : arrêt de l'interface"); stop() }()
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go func() {
 		<-ctx.Done()
 		shut, cancel := context.WithTimeout(context.Background(), 3*time.Second)
