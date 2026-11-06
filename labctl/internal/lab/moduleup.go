@@ -50,7 +50,7 @@ func (l *Lab) loadRun(name string, out io.Writer) (*run, error) {
 		}
 		return nil, fmt.Errorf("%s invalide (%d erreur(s)) :\n%s", module.FileName, n, strings.Join(msgs, "\n"))
 	}
-	l.injectLocalAttach(y)
+	// y vient de ValidateModule -> l.Module -> loadYAML, qui a déjà fusionné le câblage local : ne pas réinjecter.
 	return &run{l: l, y: y, out: out}, nil
 }
 
@@ -139,6 +139,110 @@ func (l *Lab) ModuleUp(name string, vms []string, o UpOptions) error {
 		return fmt.Errorf("échec pour : %s", strings.Join(failed, ", "))
 	}
 	r.logf("ok  module %s à jour (labctl module %s status)", r.y.Module, r.y.Module)
+	return nil
+}
+
+// ModulePlan affiche ce que « up » ferait, sans rien créer ni modifier (up --dry-run).
+func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
+	r, err := l.loadRun(name, out)
+	if err != nil {
+		return err
+	}
+	if vms, err = r.selectVMs(vms); err != nil {
+		return err
+	}
+	p := func(format string, a ...any) { fmt.Fprintf(out, "  "+format+"\n", a...) }
+	fmt.Fprintf(out, "Plan de « labctl %s up » — rien n'est créé (--dry-run) :\n", name)
+	v := virt.Shared()
+
+	// Réseau et branchement de la passerelle
+	switch {
+	case !r.y.Subnet().IsValid():
+		if sn, err := r.l.freeSubnet(name); err == nil {
+			p("réseau     : sous-réseau %s à choisir (écrit dans le module.yaml), réseau %s à créer", sn, r.y.NetworkName())
+		} else {
+			p("réseau     : sous-réseau à choisir — %v", err)
+		}
+	case !v.NetExists(r.y.NetworkName()):
+		p("réseau     : %s (%s) à créer", r.y.NetworkName(), r.y.Subnet())
+	case DomState(GatewayVM) == "absente":
+		p("réseau     : %s présent — pas de passerelle (ni DHCP, ni DNS, ni Internet)", r.y.NetworkName())
+	case !r.gatewayAttached():
+		p("réseau     : %s présent, passerelle à brancher dessus", r.y.NetworkName())
+	default:
+		p("réseau     : %s présent, passerelle branchée — à jour", r.y.NetworkName())
+	}
+
+	// CA dérivée
+	if r.y.PKI != nil {
+		if _, err := os.Stat(filepath.Join(r.l.PKIDir(), "sub-ca", r.y.PKI.CA, "ca.crt")); err == nil {
+			p("CA         : %s présente", r.y.PKI.CA)
+		} else {
+			p("CA         : %s à créer", r.y.PKI.CA)
+		}
+	}
+
+	// VMs
+	for _, vm := range vms {
+		e := r.eff(vm)
+		if DomState(r.libvirtName(vm)) == "absente" {
+			src := "image " + e.Image
+			if e.Source != nil {
+				src = "source éditeur"
+			} else if e.VM.Windows != nil {
+				src = "installation Windows"
+			}
+			p("VM %-9s: à créer (%s, %d vCPU, %d Mio, %d Gio)", vm, src, e.CPUs, e.Memory, e.Disk)
+			continue
+		}
+		diffs, err := r.diffs(vm)
+		switch {
+		case err != nil:
+			p("VM %-9s: %v", vm, err)
+		case len(diffs) == 0:
+			p("VM %-9s: présente, à jour", vm)
+		default:
+			var ds []string
+			for _, d := range diffs {
+				ds = append(ds, d.String())
+			}
+			p("VM %-9s: présente, écarts — %s", vm, strings.Join(ds, " ; "))
+		}
+	}
+
+	// VMs branchées d'autres modules (attach: + câblage local)
+	for _, a := range r.y.Attach {
+		owner, avm := a.Split()
+		lv := owner + "-" + avm
+		plugged := false
+		if a.MAC != "" {
+			ifs, _ := v.Interfaces(lv)
+			for _, it := range ifs {
+				plugged = plugged || strings.EqualFold(it.MAC, a.MAC)
+			}
+		}
+		switch {
+		case DomState(lv) == "absente":
+			p("branchée   : %s absente — à créer dans %s", a.VM, owner)
+		case plugged:
+			p("branchée   : %s déjà posée (.%d)", a.VM, a.IP)
+		default:
+			p("branchée   : %s à poser sur %s (.%d)", a.VM, r.y.NetworkName(), a.IP)
+		}
+	}
+
+	// Passerelle : configuration DHCP/DNS à appliquer
+	if DomState(GatewayVM) == "running" {
+		if ch, err := r.l.PendingCoreChanges(); err == nil && len(ch) > 0 {
+			var files []string
+			for _, c := range ch {
+				files = append(files, c.File)
+			}
+			p("passerelle : %d fichier(s) de configuration à appliquer (%s)", len(ch), strings.Join(files, ", "))
+		} else {
+			p("passerelle : configuration à jour")
+		}
+	}
 	return nil
 }
 

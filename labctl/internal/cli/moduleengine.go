@@ -36,20 +36,26 @@ func engineCmd(l *lab.Lab, name string, group string) *cobra.Command {
 		return vmNames(cmd, args, s)
 	}
 
-	var apply bool
+	var apply, dryRun bool
 	up := &cobra.Command{
 		Use:   "up [VM...]",
 		Short: "Crée ce qui manque : réseau, passerelle, CA, VMs, certificats, snapshots (VMs existantes reprises)",
 		Long: `Crée ce qui manque d'après le module.yaml : réseau isolé (sous-réseau choisi et écrit au premier up),
 branchement à la passerelle core, CA dérivée, VMs absentes (MAC écrite dans le YAML pour une IP fixe),
 certificats, snapshot de référence. Les VMs existantes ne sont jamais recréées : leurs écarts avec le YAML
-sont signalés, et appliqués avec --apply-changes (vCPU et mémoire ; arrêt puis redémarrage de la VM).`,
+sont signalés, et appliqués avec --apply-changes (vCPU et mémoire ; arrêt puis redémarrage de la VM).
+
+--dry-run affiche ce qui serait fait (réseau, CA, VMs, branchements, passerelle) sans rien créer ni modifier.`,
 		ValidArgsFunction: vmNames,
 		RunE: func(_ *cobra.Command, args []string) error {
+			if dryRun {
+				return l.ModulePlan(name, args, os.Stdout)
+			}
 			return l.ModuleUp(name, args, lab.UpOptions{ApplyChanges: apply, Out: os.Stdout})
 		},
 	}
 	up.Flags().BoolVar(&apply, "apply-changes", false, "applique les écarts de ressources (redémarre les VMs concernées)")
+	up.Flags().BoolVar(&dryRun, "dry-run", false, "montre ce que up ferait, sans rien créer ni modifier")
 
 	status := &cobra.Command{
 		Use:   "status",

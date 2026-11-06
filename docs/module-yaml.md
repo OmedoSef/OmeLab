@@ -368,7 +368,7 @@ vms:
 | `labctl module list` | modules et leur état |
 | `labctl module validate [MODULE]` | contrôle sans rien créer (code de sortie ≠ 0 en cas d'erreur) |
 | `labctl <m> check` | prérequis de l'hôte pour ce module (KVM, libvirt, outils, clé SSH, PKI, passerelle, disque) |
-| `labctl <m> up [VM...] [--apply-changes]` | crée ce qui manque : réseau, branchement à la passerelle, CA, VMs, certificats, snapshots |
+| `labctl <m> up [VM...] [--apply-changes] [--dry-run]` | crée ce qui manque : réseau, branchement à la passerelle, CA, VMs, certificats, snapshots ; `--dry-run` montre le plan sans rien créer |
 | `labctl <m> status` | VMs, IP, snapshots, écarts entre le YAML et la réalité |
 | `labctl <m> start` / `stop [--force]` [VM...] | démarre / arrête (isolation vérifiée avant tout démarrage) |
 | `labctl <m> snapshot VM [NOM]` / `restore VM [SNAPSHOT]` | snapshot ; retour au snapshot (défaut : celui de `snapshot:`) |
