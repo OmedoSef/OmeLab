@@ -459,8 +459,8 @@ function moduleActions(m, busy) {
     ${has(m, "start") && anyDown ? `<button ${busy} ${runAttr([m.name, "start"])}>Tout démarrer</button>` : ""}
     ${has(m, "stop") && anyUp ? `<button ${busy} ${runAttr([m.name, "stop"])} data-confirm="Arrêter toutes les VMs du module ${esc(m.name)} ?">Tout arrêter</button>` : ""}
     ${has(m, "up") ? `<button ${busy} class="${anyMissing ? "primary" : ""}" ${runAttr([m.name, "up"])}
-        data-confirm="Construire le module ${esc(m.name)} : réseau, CA et VMs manquantes. Les VMs existantes ne sont pas recréées."
-        title="labctl ${esc(m.name)} up : crée ce qui manque, vérifie le reste">${anyMissing ? "Construire" : "Vérifier (up)"}</button>` : ""}
+        data-confirm="${anyMissing ? `Construire le module ${esc(m.name)} : réseau, CA et VMs manquantes (les VMs existantes ne sont pas recréées).` : `Mettre à jour le module ${esc(m.name)} : réconcilie réseau, CA, certificats et cartes branchées avec le module.yaml.`}"
+        title="labctl ${esc(m.name)} up : crée ce qui manque, réconcilie le reste">${anyMissing ? "Construire" : "Mettre à jour"}</button>` : ""}
   </span>`;
 }
 
@@ -600,7 +600,7 @@ function renderModule(m, name, sub, down, gwUp, busy) {
       <td class="mono">${esc(a.ip)}</td><td class="meta">—</td><td><span class="meta">via ${esc(owner)}</span></td>
       <td><div class="actions">${a.state === "absente" ? `<span class="meta">à créer dans ${esc(owner)}</span>`
         : a.plugged ? `<span class="pill on">carte branchée</span>`
-        : `<button ${busy} ${runAttr([m.name, "up"])} title="labctl ${esc(m.name)} up : branche la carte">Brancher</button>`} ${detach}</div></td></tr>`;
+        : `<button ${busy} ${runAttr([m.name, "up"])} title="labctl ${esc(m.name)} up : pose la carte de cette VM sur le réseau du module">Poser la carte</button>`} ${detach}</div></td></tr>`;
   }
   html += `<tr><td colspan="5"><button ${busy} data-attach-add="${esc(m.name)}">+ Brancher une VM d'un autre module…</button></td></tr>`;
   html += `</tbody></table>
