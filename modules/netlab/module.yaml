@@ -1,0 +1,49 @@
+# Module netlab : un poste client pour éprouver les fonctions réseau de la passerelle core — pare-feu par
+# connexion, portail captif et proxy transparent. Isolé comme tout module. Voir README.md pour les recettes de test.
+module: netlab
+description: "Poste client pour tester les fonctions réseau de la passerelle : pare-feu, portail captif, proxy"
+
+network:
+  name: netlab-lab
+  subnet: 10.73.73.0/24
+
+# Accès Internet du poste, à FAIRE VARIER pour tester chaque mécanisme (une seule forme active à la fois).
+# Édite ce bloc, ou l'onglet Réseau → Connexions de la GUI, puis applique (labctl core apply / bouton Appliquer).
+# Rappels :
+#   - « direct » et « proxy » n'ouvrent rien par eux-mêmes → labctl core internet on netlab poste
+#   - « portal » remplace l'ouverture manuelle : il garde l'accès derrière l'authentification
+connections:
+  # 1) Pare-feu par connexion : HTTPS et DNS autorisés, HTTP (port 80) bloqué — pour voir le filtrage par port.
+  - to: internet
+    from: [poste]
+    ports: [tcp/443, udp/53]
+    via: direct
+
+  # 2) Portail captif : le poste est capté tant qu'il ne s'est pas authentifié (mot de passe « labs »).
+  #    Décommente ce bloc, commente le précédent, applique. Pas besoin de « core internet on ».
+  # - to: internet
+  #   from: [poste]
+  #   ports: [tcp/80, tcp/443, udp/53]
+  #   via: portal
+  #   portal: {auth: password, password: "labs", duration: 30m, title: "Wi-Fi du lab"}
+
+  # 3) Proxy transparent : le HTTP(S) du poste passe par mitmproxy (page Trafic / labctl core proxy).
+  #    Décommente, applique, puis labctl core internet on netlab poste.
+  # - to: internet
+  #   from: [poste]
+  #   ports: [tcp/80, tcp/443, udp/53]
+  #   via: proxy
+  #   proxy: {mode: log}                                   # journal seul (HTTPS non déchiffré)
+  #   # proxy: {mode: filter, allow: ["*.debian.org", "example.com"]}   # ne laisse passer que ces domaines
+  #   # proxy: {mode: intercept}                           # déchiffre le HTTPS : labctl pki trust-vm --interception netlab-poste
+
+vms:
+  poste:
+    role: client
+    ip: 20
+    image: ubuntu2404
+    cpus: 2
+    memory: 2048
+    internet: install        # Internet le temps d'installer les outils ; ensuite gouverné par connections: ci-dessus
+    packages: [curl, ca-certificates, dnsutils, w3m]   # curl/dig pour tester, w3m (navigateur texte) pour le portail
+    snapshot: clean

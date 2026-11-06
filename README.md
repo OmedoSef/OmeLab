@@ -25,7 +25,8 @@ Labs/
 │   ├── attacker/     postes d'attaque : Kali, Parrot (branchés sur les labs cibles)
 │   ├── pentest/      lab de pentest : Metasploitable 2, DVWA + Juice Shop
 │   ├── pjpt/         lab Active Directory d'entraînement (préparation PJPT)
-│   └── sample/       exemple complet et commenté, à lire et à copier
+│   ├── sample/       exemple complet et commenté, à lire et à copier
+│   └── netlab/       poste client pour tester la passerelle (pare-feu, portail, proxy)
 ├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
 ├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
 └── .vscode/          configuration de débogage de labctl
@@ -38,6 +39,7 @@ Labs/
 | `pentest` | Lab d'entraînement au pentest, isolé | [modules/pentest](modules/pentest/README.md) |
 | `pjpt` | Lab Active Directory d'entraînement (préparation PJPT), isolé | [modules/pjpt](modules/pjpt/README.md) |
 | `sample` | Exemple complet et commenté, à lire et à copier | [modules/sample](modules/sample/README.md) |
+| `netlab` | Poste client pour tester les fonctions de la passerelle (pare-feu, portail captif, proxy) | [modules/netlab](modules/netlab/README.md) |
 
 VMs hors module, réseaux, images et PKI : [docs/vms.md](docs/vms.md).
 
