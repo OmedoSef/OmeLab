@@ -390,9 +390,11 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 			b = []byte(text)
 		}
 		dest := strings.ReplaceAll(f.Dest, "/", `\`)
-		script := fmt.Sprintf("New-Item -ItemType Directory -Force (Split-Path '%s') | Out-Null; [IO.File]::WriteAllBytes('%s', [Convert]::FromBase64String([Console]::In.ReadToEnd()))",
-			psQuote(dest), psQuote(dest))
-		if err := r.winSSH(target, script, strings.NewReader(base64.StdEncoding.EncodeToString(b))); err != nil {
+		// Le base64 est intégré au script (pas lu sur l'entrée standard) : lire [Console]::In.ReadToEnd() par SSH
+		// attend parfois indéfiniment l'EOF et bloque. Les fichiers de module sont petits (scripts, config).
+		script := fmt.Sprintf("New-Item -ItemType Directory -Force (Split-Path '%s') | Out-Null; [IO.File]::WriteAllBytes('%s', [Convert]::FromBase64String('%s'))",
+			psQuote(dest), psQuote(dest), base64.StdEncoding.EncodeToString(b))
+		if err := r.winSSH(target, script); err != nil {
 			return fmt.Errorf("fichier %s : %w", f.Dest, err)
 		}
 		r.logf("ok  %s -> %s", f.Src, f.Dest)
@@ -414,7 +416,7 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 			continue
 		}
 		r.logf("==> %s", firstLine(cmd))
-		if err := r.winSSH(target, cmd, nil); err != nil {
+		if err := r.winSSH(target, cmd); err != nil {
 			return fmt.Errorf("run « %s » : %w", firstLine(cmd), err)
 		}
 	}
@@ -422,7 +424,7 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 }
 
 // winSSH lance un script PowerShell par SSH (encodé : pas de souci de guillemets) ; sortie dans le journal.
-func (r *run) winSSH(target, script string, stdin *strings.Reader) error {
+func (r *run) winSSH(target, script string) error {
 	u := utf16.Encode([]rune("$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'\n" + script))
 	b := make([]byte, 2*len(u))
 	for i, c := range u {
@@ -430,9 +432,6 @@ func (r *run) winSSH(target, script string, stdin *strings.Reader) error {
 	}
 	cmd := exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target,
 		"powershell -NoProfile -NonInteractive -EncodedCommand "+base64.StdEncoding.EncodeToString(b))...)
-	if stdin != nil {
-		cmd.Stdin = stdin
-	}
 	cmd.Stdout, cmd.Stderr = r.out, r.out
 	return cmd.Run()
 }
