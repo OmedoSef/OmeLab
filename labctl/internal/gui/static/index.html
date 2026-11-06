@@ -591,7 +591,8 @@ function renderModule(m, name, sub, down, gwUp, busy) {
            ${has(m, "stop") && up ? `<button ${busy} ${runAttr([m.name, "stop", v.name])}>Arrêter</button>` : ""}
            ${up ? `<button data-console="${esc(v.libvirt)}">Console</button>` : ""}
            ${has(m, "snapshot") ? `<button ${busy} data-snapshot='${esc(JSON.stringify([m.name, v.name]))}'>Snapshot</button>` : ""}
-           ${has(m, "restore") && snaps.length ? `<button class="danger" ${busy} data-restore='${esc(JSON.stringify([m.name, v.name, snaps]))}'>Restaurer…</button>` : ""}`}
+           ${has(m, "restore") && snaps.length ? `<button class="danger" ${busy} data-restore='${esc(JSON.stringify([m.name, v.name, snaps]))}'>Restaurer…</button>` : ""}
+           ${has(m, "destroy") ? `<button class="danger" ${busy} ${runAttr([m.name, "destroy", v.name])} data-confirm="Supprimer ${esc(v.name)} : la VM, son disque et ses snapshots seront définitivement effacés. Irréversible.">Supprimer</button>` : ""}`}
       </div></td></tr>`;
   }
   if (!vms.length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée : onglet module.yaml</td></tr>`;
