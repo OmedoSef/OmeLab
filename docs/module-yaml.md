@@ -148,6 +148,9 @@ attach:
   - {on: pjpt,    vm: attacker/kali, ip: 50}
 ```
 
+En ligne de commande comme à la souris : `labctl pentest attach attacker/kali` (adresse libre choisie) et
+`labctl pentest detach attacker/kali`. La complétion propose les VMs branchables, puis celles à débrancher.
+
 **Possible aussi : `attach:` dans le `module.yaml`** du module cible, pour un bundle volontairement autonome. Même
 forme, sans `on` (le module cible est celui du fichier). Une cible ou une VM absente est alors **tolérée** (simple
 avertissement au `up`), pour qu'un lab distribué fonctionne même sans le module d'attaque attendu.
@@ -372,6 +375,8 @@ vms:
 | `labctl <m> certs [--renew]` | (ré)émet et réinstalle les certificats déclarés : réémis d'office s'ils viennent d'une autre CA (PKI renouvelée), si leurs noms ont changé ou s'ils expirent dans 30 jours |
 | `labctl <m> keyboard VM [DISPOSITION]` | clavier d'une VM (SSH, sinon agent invité), puis redémarrage |
 | `labctl <m> ssh VM [cmd]` | shell SSH (images cloud) |
+| `labctl <m> attach MODULE/VM [IP]` | branche une VM d'un autre module sur ce réseau (câblage local ; adresse libre si omise) |
+| `labctl <m> detach MODULE/VM` | débranche une VM d'un autre module (retire la carte et le câblage local) |
 | `labctl <m> destroy [VM...]` | supprime (confirmation) ; sans VM : tout le module, sauf le `module.yaml`, la CA et les sources téléchargées |
 
 Les mêmes commandes existent sous `labctl module <m> …`.

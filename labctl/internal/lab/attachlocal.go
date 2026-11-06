@@ -56,6 +56,38 @@ func (l *Lab) injectLocalAttach(y *module.Module) {
 	}
 }
 
+// LocalAttachRefs renvoie les <module>/<vm> branchés localement sur le module donné (pour l'autocomplétion).
+func (l *Lab) LocalAttachRefs(on string) []string {
+	var out []string
+	for _, a := range l.localAttachFor(on) {
+		out = append(out, a.VM)
+	}
+	return out
+}
+
+// AttachCandidates renvoie les <module>/<vm> à IP fixe des autres modules, branchables sur `on` et pas déjà
+// branchés (pour l'autocomplétion de `labctl <module> attach`).
+func (l *Lab) AttachCandidates(on string) []string {
+	already := map[string]bool{}
+	for _, r := range l.LocalAttachRefs(on) {
+		already[strings.ToLower(r)] = true
+	}
+	mods, _ := l.Modules()
+	var out []string
+	for _, m := range mods {
+		if m.Name == on || m.Env == nil {
+			continue
+		}
+		for vm := range m.Env.Hosts {
+			ref := m.Name + "/" + vm
+			if !already[strings.ToLower(ref)] {
+				out = append(out, ref)
+			}
+		}
+	}
+	return out
+}
+
 // localAttachFor renvoie les branchements locaux visant le module donné.
 func (l *Lab) localAttachFor(module string) []localAttach {
 	all, _ := l.loadLocalAttach()

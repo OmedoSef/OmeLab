@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -181,7 +182,45 @@ les VMs démarrées s'ils diffèrent de ceux en place, et lance leur commande re
 		Args: cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(*cobra.Command, []string) error { return l.ModuleCheck(name, os.Stdout) },
 	}
-	c.AddCommand(check, up, status, start, stop, snapshot, restore, certs, keyboard, ssh, destroy, show, validate)
+	attach := &cobra.Command{
+		Use:   "attach MODULE/VM [IP]",
+		Short: "Branche une VM d'un autre module sur ce réseau (câblage local, non distribué)",
+		Long: `Branche une VM d'un autre module sur le réseau de ce module, comme un attaquant sur le LAN des cibles.
+Le câblage est enregistré dans attach.local.yaml (racine, non distribué), pas dans le module.yaml. Sans IP,
+une adresse libre est choisie. La carte est posée à chaud si la VM tourne ; la VM reste gérée dans son module.`,
+		Args: cobra.RangeArgs(1, 2),
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return l.AttachCandidates(name), cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			ip := 0
+			if len(args) == 2 {
+				n, err := strconv.Atoi(args[1])
+				if err != nil || n < 2 || n > 99 {
+					return fmt.Errorf("IP : dernier octet entre 2 et 99 (ex. 50)")
+				}
+				ip = n
+			}
+			return l.AttachVM(name, args[0], ip, os.Stdout)
+		},
+	}
+	detach := &cobra.Command{
+		Use:   "detach MODULE/VM",
+		Short: "Débranche une VM d'un autre module de ce réseau (câblage local)",
+		Args:  cobra.ExactArgs(1),
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if len(args) > 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return l.LocalAttachRefs(name), cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(_ *cobra.Command, args []string) error { return l.DetachVM(name, args[0], os.Stdout) },
+	}
+
+	c.AddCommand(check, up, status, start, stop, snapshot, restore, certs, keyboard, ssh, destroy, show, validate, attach, detach)
 	return c
 }
 

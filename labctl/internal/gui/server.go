@@ -346,7 +346,7 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	case "link", "unlink":
 		err = s.lab.ConfLink(e.Module, e.Target, e.Op == "link")
 	case "attach-add":
-		err = s.attachAdd(e.Module, e.Target, e.Octet)
+		err = s.lab.AttachVM(e.Module, e.Target, e.Octet, io.Discard)
 	case "attach-del":
 		err = s.lab.DetachVM(e.Module, e.Target, io.Discard)
 	default:
@@ -359,61 +359,6 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	log.Printf("configuration : %s %s %s %s", e.Op, e.Module, e.Name, e.Target)
 	s.invalidate()
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// attachAdd valide puis branche <module>/<vm> (ref) sur le module cible (on) à l'adresse .ip.
-func (s *server) attachAdd(on, ref string, ip int) error {
-	mod, vm, ok := strings.Cut(ref, "/")
-	if !ok || mod == "" || vm == "" {
-		return fmt.Errorf("vm attendue sous la forme <module>/<vm>")
-	}
-	if mod == on {
-		return fmt.Errorf("%s est déjà une VM de %s", vm, on)
-	}
-	mods, err := s.lab.Modules()
-	if err != nil {
-		return err
-	}
-	var host, target *lab.Module
-	for _, m := range mods {
-		switch m.Name {
-		case on:
-			host = m
-		case mod:
-			target = m
-		}
-	}
-	if host == nil || host.Env == nil {
-		return fmt.Errorf("module cible inconnu ou sans réseau : %s", on)
-	}
-	if target == nil || target.Env == nil {
-		return fmt.Errorf("module inconnu ou sans réseau : %s", mod)
-	}
-	if _, fixed := target.Env.Hosts[vm]; !fixed {
-		return fmt.Errorf("%s n'est pas une VM à IP fixe de %s", vm, mod)
-	}
-	if ip < 2 || ip > 99 {
-		return fmt.Errorf("adresse hors plage (2 à 99)")
-	}
-	used := func(m *lab.Module) error {
-		for _, o := range m.Env.Hosts {
-			if o == ip {
-				return fmt.Errorf(".%d est déjà pris sur %s", ip, on)
-			}
-		}
-		if m.Conf != nil {
-			for _, o := range m.Conf.Hosts {
-				if o == ip {
-					return fmt.Errorf(".%d est déjà pris sur %s", ip, on)
-				}
-			}
-		}
-		return nil
-	}
-	if err := used(host); err != nil {
-		return err
-	}
-	return s.lab.AttachVM(on, ref, ip, io.Discard)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
