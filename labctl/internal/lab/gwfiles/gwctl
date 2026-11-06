@@ -137,7 +137,13 @@ $(rules "$SETS")
 
   chain forward {
     type filter hook forward priority filter; policy drop;
-    ct state established,related accept
+    # Établies : fast-path pour le RETOUR d'Internet et le trafic entre modules. Le trafic SORTANT vers
+    # Internet (oifname $WAN) n'est volontairement PAS accepté ici : il est ré-évalué à chaque paquet par
+    # les règles ci-dessous, pour qu'une révocation (fermeture, connexion retirée, session de portail
+    # expirée) coupe aussi les flux DÉJÀ ouverts — notamment les sessions QUIC/UDP qu'un navigateur
+    # maintient en vie et que « ct state established accept » laisserait filer indéfiniment.
+    iifname "$WAN" ct state established,related accept
+    ct state established,related oifname != "$WAN" accept
     ct state invalid drop
     iifname "$WAN" drop
     ip saddr @blocked reject with icmpx admin-prohibited
