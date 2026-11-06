@@ -11,7 +11,8 @@ import (
 func ctx() Context {
 	return Context{
 		RootDomain: "omedo.lab", Images: []string{"debian13", "ubuntu2404"}, Modules: []string{"pentest", "demo"},
-		Used: []NetInfo{{Owner: "module demo", Name: "demo-lab", Subnet: netip.MustParsePrefix("10.70.70.0/24"), Domain: "demo-lab.omedo.lab"}},
+		Targets: map[string][]string{"demo": {"srv"}},
+		Used:    []NetInfo{{Owner: "module demo", Name: "demo-lab", Subnet: netip.MustParsePrefix("10.70.70.0/24"), Domain: "demo-lab.omedo.lab"}},
 	}
 }
 
@@ -63,6 +64,13 @@ func TestValidateErrors(t *testing.T) {
 		{"certificat hors domaine", "dns: [dvwa, juice]", "dns: [dvwa, www.google.com]", "hors du domaine"},
 		{"internet invalide", "internet: install", "internet: parfois", "valeur \"parfois\" invalide"},
 		{"nom du module", "module: pentest", "module: autre", "celui du dossier"},
+		{"connexion : port", "dns:\n", "connections:\n  - {to: demo, ports: [tcp/99999]}\ndns:\n", "port invalide"},
+		{"connexion : cible", "dns:\n", "connections:\n  - {to: absent}\ndns:\n", "module inconnu"},
+		{"connexion : soi-même", "dns:\n", "connections:\n  - {to: pentest}\ndns:\n", "relié à lui-même"},
+		{"connexion : VM cible", "dns:\n", "connections:\n  - {to: demo/zz}\ndns:\n", "pas une VM à IP fixe"},
+		{"connexion : source", "dns:\n", "connections:\n  - {to: internet, from: [nope]}\ndns:\n", "ni une VM ni une réservation"},
+		{"connexion : via", "dns:\n", "connections:\n  - {to: internet, via: portal}\ndns:\n", "pas encore disponible"},
+		{"connexion et lien", "dns:\n", "connections:\n  - {to: demo, ports: [tcp/80]}\ndns:\n  links: [demo]\n", "déjà dans dns.links"},
 	}
 	for _, c := range cases {
 		errs := issuesFor(t, func(s string) string {

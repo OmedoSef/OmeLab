@@ -1,7 +1,8 @@
 // Package coreconf génère la configuration de la passerelle core-gw à partir de la description des
 // modules : adresse .254 de la passerelle sur chaque réseau (systemd-networkd), DHCP commun, deux
 // instances DNS par module (open : relais Internet ; closed : noms du lab seulement), liens entre
-// modules et VMs bloquées pour le pare-feu (lus par gwctl).
+// modules et VMs bloquées pour le pare-feu (lus par gwctl), règles des liens et connexions (insérées par gwctl
+// dans le pare-feu nftables).
 //
 // Fonctions pures : la description en entrée, le contenu des fichiers en sortie, sans accès système.
 package coreconf
@@ -11,6 +12,8 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+
+	"labs/labctl/internal/module"
 )
 
 const (
@@ -23,13 +26,14 @@ const (
 // Module décrit un module tel que la passerelle le voit.
 type Module struct {
 	Name       string
-	Subnet     string            // trois premiers octets, ex. 10.66.66
-	Domain     string            // domaine DNS du module
-	Hosts      map[string]int    // VM -> dernier octet (module.env + réservations de core.conf)
-	MACs       map[string]string // VM -> MAC (VMs sans MAC : DNS seulement, pas de réservation DHCP)
-	NoInternet []string          // VMs bloquées comme source (Internet et modules liés)
-	Aliases    map[string]string // alias -> cible (VM du module ou nom complet)
-	Links      []string          // modules que celui-ci peut joindre et résoudre
+	Subnet     string              // trois premiers octets, ex. 10.66.66
+	Domain     string              // domaine DNS du module
+	Hosts      map[string]int      // VM -> dernier octet (module.env + réservations de core.conf)
+	MACs       map[string]string   // VM -> MAC (VMs sans MAC : DNS seulement, pas de réservation DHCP)
+	NoInternet []string            // VMs bloquées comme source (Internet et modules liés)
+	Aliases    map[string]string   // alias -> cible (VM du module ou nom complet)
+	Links      []string            // modules que celui-ci peut joindre et résoudre (tout, tous ports)
+	Conns      []module.Connection // connexions restreintes (vers un module, une VM, ou Internet)
 }
 
 // Input est l'ensemble de ce qu'il faut pour générer la configuration.
@@ -94,6 +98,8 @@ func Render(in Input) (Files, error) {
 
 	f := Files{}
 	var modules, links, blocked strings.Builder
+	fwMods := []string{"# Généré par labctl core-config : liens et connexions entre modules (chaîne forward)"}
+	fwNet := []string{"# Généré par labctl core-config : ce que permet un accès Internet ouvert (chaîne forward)"}
 	for i, m := range order {
 		closed := firstDNSPort + 2*i
 		fmt.Fprintf(&modules, "%s.0/24 %d %d %s %s\n", m.Subnet, closed, closed+1, m.Name, m.Domain)
@@ -103,7 +109,16 @@ func Render(in Input) (Files, error) {
 		for _, other := range m.Links {
 			if o, ok := byName[other]; ok && attached[other] {
 				fmt.Fprintf(&links, "%s.0/24 %s.0/24\n", m.Subnet, o.Subnet)
+				fwMods = append(fwMods, fmt.Sprintf("# lien %s -> %s (tout)", m.Name, o.Name),
+					fmt.Sprintf(`oifname != "eth0" ip saddr %s.0/24 ip daddr %s.0/24 accept`, m.Subnet, o.Subnet))
 			}
+		}
+		for _, cn := range m.Conns {
+			mr, nr, err := connRules(m, cn, byName, attached)
+			if err != nil {
+				return nil, fmt.Errorf("module %s, connexion vers %s : %w", m.Name, cn.To, err)
+			}
+			fwMods, fwNet = append(fwMods, mr...), append(fwNet, nr...)
 		}
 		for _, vm := range m.NoInternet {
 			if _, ok := m.Hosts[vm]; !ok {
@@ -114,6 +129,8 @@ func Render(in Input) (Files, error) {
 	}
 	f["gwdns/modules"] = modules.String()
 	f["gwdns/links"] = links.String()
+	f["gwdns/forward-modules.nft"] = strings.Join(fwMods, "\n") + "\n"
+	f["gwdns/forward-internet.nft"] = strings.Join(fwNet, "\n") + "\n"
 	f["gwdns/blocked"] = blocked.String()
 	f["gwdns/dhcp.conf"] = dhcp(order)
 	return f, nil
@@ -174,6 +191,11 @@ func dns(in Input, m *Module, port int, open bool, attached map[string]bool) str
 	for _, l := range m.Links {
 		visible[l] = true
 	}
+	for _, cn := range m.Conns {
+		if mod, _ := cn.Target(); mod != "" {
+			visible[mod] = true
+		}
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, `# Généré par labctl core-config : DNS du module %s, instance %s
 port=%d
@@ -220,4 +242,101 @@ local=/%s/
 		fmt.Fprintf(&b, "# Relais Internet (VMs autorisées par la passerelle)\nserver=%s\n", in.Upstream)
 	}
 	return b.String()
+}
+
+// connRules traduit une connexion en règles nftables : pour les modules (mods), des acceptations ; pour
+// Internet (internet), des acceptations limitées aux sources autorisées, puis un refus du reste pour ces
+// sources (sans quoi la règle générale « autorisé : tout Internet » les laisserait passer).
+func connRules(m *Module, cn module.Connection, byName map[string]*Module, attached map[string]bool) (mods, internet []string, err error) {
+	src := m.Subnet + ".0/24"
+	if len(cn.From) > 0 {
+		ips := make([]string, 0, len(cn.From))
+		for _, f := range cn.From {
+			if _, ok := m.Hosts[f]; !ok {
+				return nil, nil, fmt.Errorf("source %s sans IP fixe", f)
+			}
+			ips = append(ips, m.IP(f))
+		}
+		src = "{ " + strings.Join(ips, ", ") + " }"
+	}
+	matches, err := portMatches(cn.Ports)
+	if err != nil {
+		return nil, nil, err
+	}
+	desc := fmt.Sprintf("# connexion %s%s -> %s%s", m.Name, fromDesc(cn.From), cn.To, portsDesc(cn.Ports))
+	if cn.To == module.Internet {
+		internet = append(internet, desc)
+		for _, pm := range matches {
+			internet = append(internet, fmt.Sprintf("ip saddr %s ip saddr @allowed ip daddr != @private %saccept", src, pm))
+		}
+		internet = append(internet, fmt.Sprintf("ip saddr %s reject with icmpx admin-prohibited", src))
+		return nil, internet, nil
+	}
+	mod, vm := cn.Target()
+	o, ok := byName[mod]
+	if !ok {
+		return nil, nil, fmt.Errorf("module inconnu")
+	}
+	if !attached[mod] {
+		return []string{desc + " : module non branché, ignorée"}, nil, nil
+	}
+	dst := o.Subnet + ".0/24"
+	if vm != "" {
+		if _, ok := o.Hosts[vm]; !ok {
+			return nil, nil, fmt.Errorf("%s n'a pas d'IP fixe dans %s", vm, mod)
+		}
+		dst = o.IP(vm)
+	}
+	mods = append(mods, desc)
+	for _, pm := range matches {
+		mods = append(mods, fmt.Sprintf(`oifname != "eth0" ip saddr %s ip daddr %s %saccept`, src, dst, pm))
+	}
+	return mods, nil, nil
+}
+
+// portMatches regroupe les ports par protocole : une condition nftables par protocole (« » = tout).
+func portMatches(ports []string) ([]string, error) {
+	if len(ports) == 0 {
+		return []string{""}, nil
+	}
+	by := map[string][]string{}
+	icmp := false
+	for _, s := range ports {
+		p, err := module.ParsePort(s)
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case p.Proto == "icmp":
+			icmp = true
+		case p.Lo == p.Hi:
+			by[p.Proto] = append(by[p.Proto], fmt.Sprint(p.Lo))
+		default:
+			by[p.Proto] = append(by[p.Proto], fmt.Sprintf("%d-%d", p.Lo, p.Hi))
+		}
+	}
+	var out []string
+	for _, proto := range []string{"tcp", "udp"} {
+		if len(by[proto]) > 0 {
+			out = append(out, fmt.Sprintf("%s dport { %s } ", proto, strings.Join(by[proto], ", ")))
+		}
+	}
+	if icmp {
+		out = append(out, "meta l4proto icmp ")
+	}
+	return out, nil
+}
+
+func fromDesc(from []string) string {
+	if len(from) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(from, ",") + "]"
+}
+
+func portsDesc(ports []string) string {
+	if len(ports) == 0 {
+		return " (tous ports)"
+	}
+	return " (" + strings.Join(ports, " ") + ")"
 }

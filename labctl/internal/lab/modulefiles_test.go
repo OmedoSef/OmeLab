@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/module"
 )
 
 func TestModuleFiles(t *testing.T) {
@@ -118,5 +120,43 @@ func TestModuleFiles(t *testing.T) {
 	}
 	if len(fl.Missing) != 1 || fl.Missing[0].Src != "files/index.html" || !fl.Missing[0].Template {
 		t.Errorf("absents : %+v", fl.Missing)
+	}
+}
+
+func TestConnectionEdits(t *testing.T) {
+	l := testLab(t)
+	sk := strings.Replace(ModuleSkeleton("cnx"), "# network:", "network:", 1)
+	sk = strings.Replace(sk, "#   subnet: 10.70.70.0/24", "  subnet: 10.70.70.0/24", 1)
+	if _, _, err := l.SaveModuleText("cnx", sk, "", true); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(l.Root, "modules", "cnx", "module.yaml")
+	before, _ := os.ReadFile(path)
+	if err := l.ConfAddConnection("cnx", module.Connection{To: "pentest/kali", From: []string{"srv"}, Ports: []string{"tcp/99999"}}); err == nil {
+		t.Error("port invalide accepté")
+	}
+	if after, _ := os.ReadFile(path); string(after) != string(before) {
+		t.Error("fichier modifié malgré le refus")
+	}
+	if err := l.ConfAddConnection("cnx", module.Connection{To: "pentest/kali", From: []string{"srv"}, Ports: []string{"tcp/22", "icmp"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.ConfAddConnection("cnx", module.Connection{To: "internet", Ports: []string{"tcp/443"}}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	if !strings.Contains(string(b), "connections:\n  - {to: pentest/kali, from: [srv], ports: [tcp/22, icmp]}\n  - {to: internet, ports: [tcp/443]}\n") ||
+		!strings.Contains(string(b), "# connections:") {
+		t.Errorf("module.yaml :\n%s", b)
+	}
+	if err := l.ConfDelConnection("cnx", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.ConfDelConnection("cnx", 5); err == nil {
+		t.Error("retrait d'une connexion inexistante accepté")
+	}
+	l.ConfDelConnection("cnx", 0)
+	if b, _ := os.ReadFile(path); strings.Contains(string(b), "\nconnections:") {
+		t.Errorf("clé connections: restée vide :\n%s", b)
 	}
 }

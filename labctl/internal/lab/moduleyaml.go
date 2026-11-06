@@ -71,6 +71,15 @@ func (l *Lab) ModuleContext(name string) module.Context {
 			continue
 		}
 		ctx.Modules = append(ctx.Modules, m.Name)
+		if ctx.Targets == nil {
+			ctx.Targets = map[string][]string{}
+		}
+		for h := range m.Env.Hosts {
+			ctx.Targets[m.Name] = append(ctx.Targets[m.Name], h)
+		}
+		for h := range m.Conf.Hosts {
+			ctx.Targets[m.Name] = append(ctx.Targets[m.Name], h)
+		}
 		moduleNets[m.Env.Net] = true
 		if m.Name == name {
 			continue

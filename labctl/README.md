@@ -94,8 +94,10 @@ Un panneau à gauche mène à toutes les pages ; la page courante est dans l'adr
     édition des fichiers texte (1 Mio au plus), téléchargement, renommage, suppression. Rien ne sort de `files/` :
     ni `..`, ni chemin absolu, ni lien symbolique suivi. Les fichiers sont copiés à la création d'une VM : une VM
     existante ne reçoit pas les changements d'elle-même ;
-  - **Réseau** : réservations DHCP (nom, IP, MAC), alias DNS, et liens avec les autres modules **dans les deux sens**
-    (ce module peut joindre… / peut être joint par…, une case par sens).
+  - **Réseau** : réservations DHCP (nom, IP, MAC), alias DNS, liens avec les autres modules **dans les deux sens**
+    (ce module peut joindre… / peut être joint par…, une case par sens), et **connexions restreintes**
+    (`connections:` : vers un module, une VM ou Internet, depuis certaines VMs, sur certains ports ; voir
+    [docs/module-yaml.md](../docs/module-yaml.md)) avec celles que d'autres modules déclarent vers celui-ci.
 - **+ Nouveau module…** : nom demandé, puis l'éditeur sur un squelette (brouillon jusqu'au premier enregistrement).
 - **Passerelle** : créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console ; état des services
   (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et bloquées dans le pare-feu.

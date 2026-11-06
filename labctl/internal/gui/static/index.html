@@ -578,6 +578,44 @@ function renderPending() {
   $("#pending").innerHTML = h;
 }
 
+// Connexions restreintes (connections: du module.yaml) : celles du module, et celles qui arrivent vers lui
+function connCard(m, mods, busy) {
+  const fixed = mod => (mods.find(x => x.name === mod)?.hosts || []).filter(x => x.ip).map(x => x.name).sort();
+  const desc = c => `${(c.from || []).length ? esc(c.from.join(", ")) : `<span class="meta">tout le module</span>`}`;
+  const ports = c => (c.ports || []).length ? `<div class="tags">${c.ports.map(p => `<span class="pill mono">${esc(p)}</span>`).join("")}</div>` : `<span class="meta">tous</span>`;
+  const out = m.connections || [];
+  const incoming = [];
+  for (const o of mods) if (o.name !== m.name) (o.connections || []).forEach(c => {
+    if (c.to === m.name || c.to.startsWith(m.name + "/")) incoming.push({ ...c, src: o.name });
+  });
+  const targets = [["internet", "Internet (quand il est ouvert)"]];
+  for (const o of mods) if (o.name !== m.name) {
+    targets.push([o.name, `${o.name} (tout le module)`]);
+    for (const vm of fixed(o.name)) targets.push([`${o.name}/${vm}`, `${o.name} / ${vm}`]);
+  }
+  return `<section class="card"><div class="card-head"><h2>Connexions restreintes</h2>
+      <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet ; un lien de la carte précédente, lui, ouvre tout</span></div>
+    <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th></th></tr></thead><tbody>
+    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}</td><td>${desc(c)}</td><td>${ports(c)}</td>
+      <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
+      || `<tr><td colspan="4" class="empty">Aucune</td></tr>`}
+    </tbody></table>
+    <form class="inline" data-cfg-form="conn" data-module="${esc(m.name)}" style="border-top:1px solid var(--line)">
+      <strong style="width:100%">Ajouter une connexion</strong>
+      <label>Vers<select name="target" required>${targets.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select></label>
+      <span style="display:grid;gap:3px;font-size:12px;color:var(--muted)">Depuis (aucune case : tout le module)<span style="display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:4px">
+        ${fixed(m.name).map(n => `<label class="check"><input type="checkbox" name="from" value="${esc(n)}"> ${esc(n)}</label>`).join("") || `<span class="meta">aucune VM à IP fixe</span>`}</span></span>
+      <label>Ports (vide : tous)<input name="ports" class="mono" placeholder="tcp/80 tcp/443 udp/53 icmp" style="min-width:240px"></label>
+      <button ${busy}>Ajouter</button>
+    </form>
+    ${incoming.length ? `<div class="card-head" style="border-top:1px solid var(--line);border-bottom:0;display:block">
+      <strong>Vers ${esc(m.name)}, déclarées par d'autres modules</strong> <span class="meta">(à modifier dans le module source)</span>
+      ${incoming.map(c => `<div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <span class="mono">${esc(c.src)}${(c.from || []).length ? "[" + esc(c.from.join(",")) + "]" : ""} → ${esc(c.to)}</span> ${ports(c)}
+        <button class="linkbtn" style="font-weight:400" data-go="m/${esc(c.src)}/net">ouvrir ${esc(c.src)}</button></div>`).join("")}</div>` : ""}
+  </section>`;
+}
+
 // --- Onglet Réseau d'un module : réservations DHCP, alias DNS, liens dans les deux sens (section dns du module.yaml)
 function renderNet() {
   const [name, sub] = modPage();
@@ -628,8 +666,9 @@ function renderNet() {
   const others = mods.filter(x => x.name !== m.name);
   const box = (from, to) => {
     const on = (mods.find(x => x.name === from)?.links || []).includes(to);
+    const restricted = !on && (mods.find(x => x.name === from)?.connections || []).some(c => c.to === to || c.to.startsWith(to + "/"));
     return `<label class="check" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" ${on ? "checked" : ""} ${busy}
-      data-cfg='${esc(JSON.stringify({ op: on ? "unlink" : "link", module: from, target: to }))}'> ${on ? "oui" : "non"}</label>`;
+      data-cfg='${esc(JSON.stringify({ op: on ? "unlink" : "link", module: from, target: to }))}'> ${on ? "oui (tout)" : restricted ? "restreint (voir connexions)" : "non"}</label>`;
   };
   h += `<section class="card"><div class="card-head"><h2>Liens avec les autres modules</h2>
       <span class="meta">joindre = ouvrir des connexions et résoudre les noms DNS ; les réponses reviennent toujours. Chaque sens se règle à part.</span></div>
@@ -637,6 +676,7 @@ function renderNet() {
       ${others.map(o => `<tr><td><strong>${esc(o.name)}</strong><div class="meta mono">${esc(o.subnet)}.0/24 · ${esc(o.domain)}</div></td>
         <td>${box(m.name, o.name)}</td><td>${box(o.name, m.name)}</td></tr>`).join("")}
     </tbody></table>` : `<div class="empty">Aucun autre module.</div>`}</section>`;
+  h += connCard(m, mods, busy);
   $("#mod-net").innerHTML = h;
 }
 
@@ -995,11 +1035,12 @@ document.addEventListener("submit", async e => {
   const f = e.target.closest("form[data-cfg-form]");
   if (!f) return;
   e.preventDefault();
-  const v = Object.fromEntries(new FormData(f)), module = f.dataset.module;
-  const body = f.dataset.cfgForm === "host"
-    ? { op: "host-add", module, name: v.name, octet: Number(v.octet), mac: v.mac }
+  const fd = new FormData(f), v = Object.fromEntries(fd), module = f.dataset.module;
+  const kind = f.dataset.cfgForm;
+  const body = kind === "host" ? { op: "host-add", module, name: v.name, octet: Number(v.octet), mac: v.mac }
+    : kind === "conn" ? { op: "conn-add", module, target: v.target, from: fd.getAll("from"), ports: (v.ports || "").split(/[\s,]+/).filter(Boolean) }
     : { op: "alias-add", module, name: v.name, target: v.target };
-  await editConfig(body);
+  if (await editConfig(body) && kind === "conn") toast("Connexion ajoutée : « Appliquer sur la passerelle » pour l'activer");
 });
 
 // Formulaires PKI -> arguments de labctl pki

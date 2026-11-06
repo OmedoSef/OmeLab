@@ -241,12 +241,13 @@ type configHost struct {
 }
 
 type configModule struct {
-	Name    string            `json:"name"`
-	Subnet  string            `json:"subnet"`
-	Domain  string            `json:"domain"`
-	Hosts   []configHost      `json:"hosts"`
-	Aliases map[string]string `json:"aliases"`
-	Links   []string          `json:"links"`
+	Name    string              `json:"name"`
+	Subnet  string              `json:"subnet"`
+	Domain  string              `json:"domain"`
+	Hosts   []configHost        `json:"hosts"`
+	Aliases map[string]string   `json:"aliases"`
+	Links   []string            `json:"links"`
+	Conns   []module.Connection `json:"connections"` // connections: du module.yaml, dans l'ordre du fichier
 }
 
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -260,7 +261,11 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		if m.Env == nil {
 			continue
 		}
-		cm := configModule{Name: m.Name, Subnet: m.Env.Subnet, Domain: m.Env.Domain, Aliases: m.Conf.Aliases, Links: m.Conf.Links}
+		cm := configModule{Name: m.Name, Subnet: m.Env.Subnet, Domain: m.Env.Domain, Aliases: m.Conf.Aliases, Links: m.Conf.Links,
+			Conns: []module.Connection{}}
+		if m.YAML != nil && m.YAML.Connections != nil {
+			cm.Conns = m.YAML.Connections
+		}
 		for _, vm := range m.Env.VMs() {
 			cm.Hosts = append(cm.Hosts, configHost{vm, m.Env.IP(vm), m.Env.Macs[vm], "vm"})
 		}
@@ -281,12 +286,15 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type configEdit struct {
-	Op     string `json:"op"` // host-add, host-del, alias-add, alias-del, link, unlink
-	Module string `json:"module"`
-	Name   string `json:"name"`
-	Octet  int    `json:"octet"`
-	MAC    string `json:"mac"`
-	Target string `json:"target"`
+	Op     string   `json:"op"` // host-add, host-del, alias-add, alias-del, link, unlink, conn-add, conn-del
+	Module string   `json:"module"`
+	Name   string   `json:"name"`
+	Octet  int      `json:"octet"`
+	MAC    string   `json:"mac"`
+	Target string   `json:"target"`
+	From   []string `json:"from"`  // conn-add
+	Ports  []string `json:"ports"` // conn-add
+	Index  int      `json:"index"` // conn-del
 }
 
 // handleConfigEdit modifie la section dns du module.yaml (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
@@ -307,6 +315,10 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 		err = s.lab.ConfAddHost(e.Module, e.Name, e.Octet, e.MAC)
 	case "host-del":
 		err = s.lab.ConfDelHost(e.Module, e.Name)
+	case "conn-add":
+		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports})
+	case "conn-del":
+		err = s.lab.ConfDelConnection(e.Module, e.Index)
 	case "alias-add":
 		err = s.lab.ConfAddAlias(e.Module, e.Name, e.Target)
 	case "alias-del":

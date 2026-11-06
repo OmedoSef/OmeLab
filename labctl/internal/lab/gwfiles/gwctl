@@ -22,7 +22,8 @@ set -euo pipefail
 WAN=eth0
 STATE=/run/gw
 DNS_MODULES=/etc/gwdns/modules   # lignes : SOUS-RESEAU/24 PORT_FERME PORT_OUVERT MODULE DOMAINE
-LINKS=/etc/gwdns/links           # lignes : SOUS-RESEAU_SOURCE SOUS-RESEAU_DESTINATION (liens entre modules)
+FWD_MODULES=/etc/gwdns/forward-modules.nft    # règles des liens et connexions entre modules (générées par labctl)
+FWD_INTERNET=/etc/gwdns/forward-internet.nft  # restrictions de ports d'un accès Internet ouvert (générées par labctl)
 BLOCKED=/etc/gwdns/blocked       # VMs NO_INTERNET des modules, bloquées en permanence comme source
 mkdir -p "$STATE"; touch "$STATE"/{allowed,blocked}
 
@@ -83,14 +84,8 @@ prune_leases() {
 
 elements() { local e; e=$(cat "$@" 2>/dev/null | grep -v '^$' | paste -sd,); [[ -n $e ]] && echo "elements = { $e }"; true; }
 
-link_rules() {
-  local src dst
-  [[ -f $LINKS ]] || return 0
-  while read -r src dst; do
-    [[ -n $src && $src != \#* ]] && echo "    oifname != \"$WAN\" ip saddr $src ip daddr $dst accept"
-  done <"$LINKS"
-  true
-}
+# rules FICHIER : règles générées, indentées (commentaires gardés pour la lisibilité de « nft list ruleset »)
+rules() { [[ -f $1 ]] && sed 's/^/    /' "$1"; true; }
 
 # Redirections DNS : bloqué ou non autorisé -> instance fermée ; autorisé -> instance ouverte
 dns_rules() {
@@ -135,9 +130,11 @@ table inet gw {
     ct state invalid drop
     iifname "$WAN" drop
     ip saddr @blocked reject with icmpx admin-prohibited
-    # Liens entre modules (./lab.sh core link) ; tout autre trafic entre modules est refusé
-$(link_rules)
+    # Liens et connexions entre modules (module.yaml) ; tout autre trafic entre modules est refusé
+$(rules "$FWD_MODULES")
     oifname != "$WAN" reject with icmpx admin-prohibited
+    # Accès Internet ouvert : restrictions de ports des connexions « internet », puis tout pour les autres
+$(rules "$FWD_INTERNET")
     ip saddr @allowed ip daddr != @private accept
     # Refus explicite côté modules : l'échec est immédiat et lisible (« administratively prohibited »)
     reject with icmpx admin-prohibited

@@ -3,6 +3,8 @@ package coreconf
 import (
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/module"
 )
 
 func input() Input {
@@ -161,5 +163,37 @@ func TestGatewayMAC(t *testing.T) {
 		if got := GatewayMAC(subnet); got != want {
 			t.Errorf("GatewayMAC(%s) = %s, attendu %s", subnet, got, want)
 		}
+	}
+}
+
+func TestConnections(t *testing.T) {
+	in := input()
+	in.Modules[0].Conns = []module.Connection{ // demo
+		{To: "pentest/web", From: []string{"srv"}, Ports: []string{"tcp/80", "tcp/8000-8100", "udp/53", "icmp"}},
+		{To: "internet", From: []string{"dc01"}, Ports: []string{"tcp/443"}},
+		{To: "dormant"}, // non branché : ignorée
+	}
+	f := render(t, in)
+	fm, fi := "gwdns/forward-modules.nft", "gwdns/forward-internet.nft"
+	// Lien existant (pentest -> demo) gardé, connexion restreinte : un accept par protocole
+	has(t, f, fm, `oifname != "eth0" ip saddr 10.66.66.0/24 ip daddr 10.77.77.0/24 accept`)
+	has(t, f, fm, `oifname != "eth0" ip saddr { 10.77.77.10 } ip daddr 10.66.66.30 tcp dport { 80, 8000-8100 } accept`)
+	has(t, f, fm, `oifname != "eth0" ip saddr { 10.77.77.10 } ip daddr 10.66.66.30 udp dport { 53 } accept`)
+	has(t, f, fm, `oifname != "eth0" ip saddr { 10.77.77.10 } ip daddr 10.66.66.30 meta l4proto icmp accept`)
+	has(t, f, fm, "# connexion demo -> dormant (tous ports) : module non branché, ignorée")
+	// Internet : seulement les ports déclarés quand c'est ouvert, puis refus pour cette source
+	has(t, f, fi, "ip saddr { 10.77.77.40 } ip saddr @allowed ip daddr != @private tcp dport { 443 } accept")
+	has(t, f, fi, "ip saddr { 10.77.77.40 } reject with icmpx admin-prohibited")
+	// La cible devient résolvable (pentest visible depuis demo)
+	has(t, f, "gwdns/demo-open.conf", "# module pentest (pentest-lab.omedo.lab) : visible")
+
+	// Source ou cible sans IP fixe : erreur
+	in.Modules[0].Conns = []module.Connection{{To: "pentest", From: []string{"inconnue"}}}
+	if _, err := Render(in); err == nil {
+		t.Error("source sans IP fixe acceptée")
+	}
+	in.Modules[0].Conns = []module.Connection{{To: "pentest/absente"}}
+	if _, err := Render(in); err == nil {
+		t.Error("VM cible inconnue acceptée")
 	}
 }

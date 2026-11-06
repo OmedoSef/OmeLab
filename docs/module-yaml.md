@@ -122,7 +122,39 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `network.name` / `subnet` / `domain` | non | pour les fixer soi-même ; `subnet` en `/24` |
 | `defaults` | non | valeurs communes aux VMs du module (`image`, `cpus`, `memory`, `disk`, `hardware`, `internet`, `snapshot`…) |
 | `pki.ca` | non | crée une CA dérivée limitée au domaine et au sous-réseau du module |
-| `dns.aliases` / `hosts` / `links` | non | ce que contient aujourd'hui `core.conf` |
+| `dns.aliases` / `hosts` | non | alias DNS, réservations DHCP de machines hors `vms:` |
+| `dns.links` | non | modules que celui-ci peut joindre et résoudre : **tout**, tous ports, du module entier vers le module entier |
+| `connections` | non | accès **restreints** (voir ci-dessous) |
+
+### Connexions (`connections:`)
+
+Une connexion autorise une partie du module à joindre une cible, sur certains ports seulement :
+
+```yaml
+connections:
+  - {to: pentest/web, from: [srv], ports: [tcp/80, tcp/443]}   # srv -> la VM web de pentest, HTTP(S) seulement
+  - {to: pentest, ports: [icmp]}                               # tout le module -> tout pentest, ping seulement
+  - {to: internet, from: [kali], ports: [tcp/443, udp/53]}     # quand Internet est ouvert à kali : HTTPS et DNS
+```
+
+| Clé | Obligatoire | Description |
+|---|---|---|
+| `to` | oui | un module, `module/vm` (VM à IP fixe ou réservation), ou `internet` |
+| `from` | non | VMs à IP fixe ou réservations de ce module ; défaut : tout le module |
+| `ports` | non | `tcp/80`, `udp/53`, plages `tcp/8000-8100`, `icmp` ; défaut : tous |
+| `via` | non | `direct` (défaut) ; `portal` et `proxy` sont à venir (refusés pour l'instant) |
+
+- **Vers un module** : seul ce qui est déclaré passe, dans ce sens-là ; les réponses reviennent, le sens inverse
+  reste fermé (il se déclare dans l'autre module). Les noms de la cible deviennent résolvables, pour le module
+  entier (une instance DNS par module) : c'est le pare-feu qui filtre par VM et par port.
+- **Vers `internet`** : n'ouvre rien. Internet reste ouvert ou fermé à la demande (`labctl core internet`) ; la
+  connexion dit ce qui est permis **quand c'est ouvert**. Une VM sans connexion `internet` garde l'accès complet
+  une fois ouverte.
+- Une cible ne peut pas être à la fois dans `dns.links` et dans `connections` (ambigu : retirer l'un des deux).
+- Inchangé : les VMs `internet: never` ne sortent jamais (ni vers Internet, ni vers les modules liés), le LAN reste
+  injoignable, rien n'entre depuis le WAN.
+- Comme le reste de la section réseau : enregistré tout de suite, appliqué sur la passerelle avec
+  `labctl core apply` (ou le bandeau *Appliquer* de la GUI).
 
 ### VM (`vms.<nom>`)
 
@@ -191,6 +223,8 @@ Ce que fait `up`, dans l'ordre :
 - `image` absente du catalogue ; `source` sans empreinte ; `image` et `source` à la fois ;
 - `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ;
 - alias vers une VM inexistante ; lien vers un module inexistant ; certificat dont un nom sort du domaine de la CA ;
+- connexion : cible inconnue (module, VM sans IP fixe), source qui n'est ni une VM à IP fixe ni une réservation,
+  port mal formé, cible déjà dans `dns.links`, `via` inconnu ou pas encore disponible ;
 - variable `${...}` inconnue ; `internet: never` + une VM qui doit installer des paquets ;
 - `internet: never` sans `ip` (la passerelle bloque par adresse) ;
 - nom de module de plus de 9 caractères (pont `virbr-<module>`) ou réservé (`list`, `validate`, `core`…).
@@ -214,14 +248,15 @@ modules/pentest/module.yaml
 
 ## GUI
 
-- Onglet **module.yaml** (ou bouton *module.yaml* sur la carte d'un module) : éditeur avec coloration,
+- Onglet **module.yaml** de la page d'un module : éditeur avec coloration,
   numéros de ligne, **validation à la volée** (erreurs et avertissements à leur ligne, cliquables).
   - *Enregistrer* (Ctrl+S) : refusé tant qu'il reste une erreur, ou si le fichier a été modifié ailleurs
     depuis son ouverture (*Recharger le fichier* pour repartir de la version sur le disque).
   - *Appliquer (up)* : construit le module enregistré ; le fichier est relu ensuite (sous-réseau, MAC ajoutés).
   - *Nouveau module…* : squelette commenté, valide tel quel ; *Créer le module* crée `modules/<nom>/` et `files/`.
-- Onglet Configuration : alias, réservations et liens écrits dans le `module.yaml` en **préservant les
-  commentaires** et la mise en forme.
+- Onglet **Réseau** de la page d'un module : alias, réservations, liens (une case par sens) et connexions
+  restreintes, écrits dans le `module.yaml` en **préservant les commentaires** et la mise en forme ; une
+  connexion refusée par le validateur n'est pas écrite.
 
 ## Valeurs par défaut
 

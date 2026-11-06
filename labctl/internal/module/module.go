@@ -24,6 +24,7 @@ type Module struct {
 	Network     *Network       `yaml:"network,omitempty"`
 	PKI         *PKI           `yaml:"pki,omitempty"`
 	DNS         DNS            `yaml:"dns,omitempty"`
+	Connections []Connection   `yaml:"connections,omitempty"`
 	Defaults    VMSettings     `yaml:"defaults,omitempty"`
 	VMs         map[string]*VM `yaml:"vms"`
 

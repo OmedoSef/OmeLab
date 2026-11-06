@@ -28,6 +28,9 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 			Hosts: map[string]int{}, MACs: map[string]string{},
 			NoInternet: m.Env.NoInternet, Aliases: m.Conf.Aliases, Links: m.Conf.Links,
 		}
+		if m.YAML != nil {
+			cm.Conns = m.YAML.Connections
+		}
 		for vm, o := range m.Env.Hosts {
 			cm.Hosts[vm] = o
 			if mac := m.Env.Macs[vm]; mac != "" {

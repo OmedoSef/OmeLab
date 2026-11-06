@@ -37,6 +37,7 @@ labctl core link pentest autre               # pentest peut joindre et résoudre
 labctl core link pentest autre --both        # dans les deux sens
 labctl core unlink pentest autre [--both]
 labctl core links
+# accès restreints (ports, VMs précises, Internet) : section connections: du module.yaml (docs/module-yaml.md)
 
 labctl core dhcp list [MODULE]               # réservations (IP fixes)
 labctl core dhcp leases [MODULE]             # baux en cours
@@ -117,7 +118,10 @@ l'envoie sur la passerelle (`labctl core config` l'affiche sans rien appliquer, 
 - l'adresse `.254` de la passerelle sur chaque réseau (`/etc/systemd/network/50-gw-<module>.network`) ;
 - le DHCP (`/etc/gwdns/dhcp.conf`) ;
 - les deux instances DNS de chaque module (`/etc/gwdns/<module>-{open,closed}.conf`) ;
-- les liens et les VMs bloquées (`/etc/gwdns/links`, `/etc/gwdns/blocked`).
+- les VMs bloquées (`/etc/gwdns/blocked`) ;
+- les règles des liens et des connexions restreintes (`/etc/gwdns/forward-modules.nft`), et les restrictions de
+  ports d'un accès Internet ouvert (`/etc/gwdns/forward-internet.nft`) : générées par labctl, insérées par `gwctl`
+  dans la chaîne `forward` (`/etc/gwdns/links` reste écrit pour information).
 
 Chaque requête DNS d'une VM est redirigée par nftables vers l'instance `open` de son module si la VM a le droit
 de sortir, sinon vers l'instance `closed`, qui ne connaît que les noms du lab.

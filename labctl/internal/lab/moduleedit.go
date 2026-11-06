@@ -138,7 +138,11 @@ description: À décrire
 # dns:
 #   aliases:                  # <alias>.<domaine> -> VM du module
 #     www: srv
-#   links: [pentest]          # modules que celui-ci peut joindre et résoudre
+#   links: [pentest]          # modules que celui-ci peut joindre et résoudre (tout, tous ports)
+
+# connections:                # accès restreints : vers un module, module/vm, ou internet (quand il est ouvert)
+#   - {to: pentest/web, from: [srv], ports: [tcp/80, tcp/443]}
+#   - {to: internet, ports: [tcp/443, udp/53]}
 
 vms:
   srv:                        # VM NAME-srv, nom DNS srv.<domaine>

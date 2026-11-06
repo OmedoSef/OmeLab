@@ -21,10 +21,11 @@ type NetInfo struct {
 // Context : ce que la validation doit connaître hors du fichier.
 type Context struct {
 	RootDomain string
-	Images     []string  // catalogue des images cloud
-	Modules    []string  // modules existants (pour les liens)
-	Used       []NetInfo // réseaux et domaines déjà pris par d'autres
-	HostRAM    int       // Mio (0 = inconnu)
+	Images     []string            // catalogue des images cloud
+	Modules    []string            // modules existants (pour les liens)
+	Targets    map[string][]string // module -> VMs à IP fixe et réservations (cibles de connections:)
+	Used       []NetInfo           // réseaux et domaines déjà pris par d'autres
+	HostRAM    int                 // Mio (0 = inconnu)
 	Settings   Settings
 }
 
@@ -212,6 +213,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 			c.err(p, "module inconnu %q", l)
 		}
 	}
+	c.checkConnections(ctx)
 
 	sort.SliceStable(c.issues, func(i, j int) bool { return c.issues[i].Line < c.issues[j].Line })
 	return c.issues
