@@ -4,11 +4,13 @@ Un **poste client** (`poste`) pour éprouver les trois fonctions réseau de la p
 **pare-feu par connexion**, **portail captif** et **proxy transparent**. Réseau isolé. Décrit par
 [module.yaml](module.yaml), où un seul bloc `connections:` se décommente selon le mécanisme à tester.
 
-Le poste embarque `curl`, `dig` et `w3m` (navigateur texte, pour remplir la page du portail). Un seul outil
-en jeu côté VM : tout le reste se règle sur la passerelle.
+Le poste est un **bureau graphique léger** (Debian + XFCE, connexion automatique), avec **Firefox** pour voir
+le portail et la navigation, plus `curl`/`dig` pour les tests en ligne de commande. Tout le reste se règle sur
+la passerelle.
 
 ```bash
-labctl netlab up                 # réseau, poste (outils installés), snapshot « clean »
+labctl netlab up                 # réseau, poste (bureau installé), snapshot « clean » — compter quelques minutes
+labctl netlab console poste      # ouvre le bureau (session XFCE de « lab », Firefox) sur la console SPICE
 labctl netlab ssh poste          # shell sur le poste ; ou  labctl netlab ssh poste 'commande'
 ```
 
@@ -36,17 +38,15 @@ le portail garde l'accès derrière l'authentification (mot de passe « labs »)
 labctl core apply
 # Avant authentification : le HTTP est redirigé vers le portail de la passerelle
 labctl netlab ssh poste 'curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}\n" http://example.com'   # 302 -> http://10.73.73.254:8800/
-
-# S'authentifier depuis le poste (navigateur texte) :
-labctl netlab ssh poste
-#   w3m http://example.com        → page du portail ; saisir « labs », valider
-#   curl https://example.com      → passe, jusqu'à expiration de la session (30 min)
-
-labctl core portal               # sessions en cours ; labctl core portal kick N IP pour en fermer une
 ```
 
-Pour le voir dans un vrai navigateur, branche Kali sur ce réseau : `labctl netlab attach attacker/kali`,
-puis navigue depuis Kali (page du portail, puis accès).
+Puis ouvre le bureau et **navigue dans Firefox** — c'est le plus parlant pour un portail captif :
+
+```bash
+labctl netlab console poste      # dans Firefox : va sur http://example.com → la page du portail s'affiche
+                                 # saisis « labs », valide ; ensuite la navigation passe jusqu'à expiration (30 min)
+labctl core portal               # sessions en cours ; labctl core portal kick N IP pour en fermer une
+```
 
 ## 3. Proxy transparent (`via: proxy`)
 

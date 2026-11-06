@@ -41,9 +41,18 @@ vms:
   poste:
     role: client
     ip: 20
-    image: ubuntu2404
+    mac: 52:54:00:a9:08:de
+    image: debian13
     cpus: 2
-    memory: 2048
-    internet: install        # Internet le temps d'installer les outils ; ensuite gouverné par connections: ci-dessus
-    packages: [curl, ca-certificates, dnsutils, w3m]   # curl/dig pour tester, w3m (navigateur texte) pour le portail
+    memory: 4096
+    disk: 25
+    internet: install        # Internet le temps d'installer le bureau ; ensuite gouverné par connections: ci-dessus
+    hardware: {graphics: spice, video: qxl}            # bureau fluide sur la console (labctl netlab console poste)
+    packages: [xfce4, xfce4-terminal, lightdm, firefox-esr, dbus-x11, curl, dnsutils]  # bureau léger + navigateur + outils de test
+    files:
+      - {src: files/autologin.conf, dest: /etc/lightdm/lightdm.conf.d/10-autologin.conf}
+    run:
+      - systemctl set-default graphical.target         # démarrer en mode graphique
+      - groupadd -f autologin && usermod -aG autologin lab
+      - systemctl enable lightdm && systemctl restart lightdm   # ouvre la session XFCE de « lab » automatiquement
     snapshot: clean
