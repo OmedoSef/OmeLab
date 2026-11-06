@@ -41,7 +41,7 @@ var (
 	enums      = map[string][]string{
 		"internet": {"off", "install", "never"}, "hardware.machine": {"q35", "pc"},
 		"hardware.disk_bus": {"virtio", "sata", "ide"}, "hardware.nic_model": {"virtio", "e1000"},
-		"hardware.graphics": {"spice", "vnc", "none"}, "hardware.video": {"virtio", "vga", "qxl", "cirrus"},
+		"hardware.firmware": {"bios", "efi"}, "hardware.graphics": {"spice", "vnc", "none"}, "hardware.video": {"virtio", "vga", "qxl", "cirrus"},
 	}
 )
 
@@ -187,6 +187,27 @@ func (m *Module) Validate(ctx Context) []Issue {
 		}
 		claim(p, p, h.IP, h.MAC)
 	}
+	for i, a := range m.Attach {
+		p := fmt.Sprintf("attach.%d", i)
+		mod, vm := a.Split()
+		switch {
+		case mod == "" || vm == "" || strings.Contains(vm, "/"):
+			c.err(p+".vm", "attendu <module>/<vm> (ex. attacker/kali), pas %q", a.VM)
+		case mod == m.Module:
+			c.err(p+".vm", "%s est déjà une VM de ce module", vm)
+		case !contains(ctx.Modules, mod):
+			c.err(p+".vm", "module inconnu %q", mod)
+		case ctx.Targets != nil && !contains(ctx.Targets[mod], vm):
+			c.err(p+".vm", "%s n'est pas une VM à IP fixe du module %s", vm, mod)
+		}
+		if _, isVM := m.VMs[vm]; isVM || m.hasHost(vm) {
+			c.err(p+".vm", "le nom %s est déjà pris dans ce module (VM ou réservation) : il servirait deux fois dans le DNS", vm)
+		}
+		if a.IP == 0 {
+			c.err(p+".ip", "ip obligatoire (dernier octet réservé sur le réseau de ce module)")
+		}
+		claim(p, p, a.IP, a.MAC)
+	}
 	if ctx.HostRAM > 0 && totalMem > ctx.HostRAM {
 		c.warn("vms", "mémoire totale des VMs (%d Mio) supérieure à celle de l'hôte (%d Mio)", totalMem, ctx.HostRAM)
 	}
@@ -280,8 +301,12 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 	for _, f := range []struct{ path, val string }{
 		{"internet", vm.Internet}, {"hardware.machine", vm.Hardware.Machine}, {"hardware.disk_bus", vm.Hardware.DiskBus},
 		{"hardware.nic_model", vm.Hardware.NICModel}, {"hardware.graphics", vm.Hardware.Graphics}, {"hardware.video", vm.Hardware.Video},
+		{"hardware.firmware", vm.Hardware.Firmware},
 	} {
 		c.enum(p+"."+f.path, f.path, f.val)
+	}
+	if hw := m.Effective(name, ctx.Settings).Hardware; hw.SecureBoot && (hw.Firmware != "efi" || hw.Machine != "q35") {
+		c.err(p+".hardware.secure_boot", "Secure Boot demande firmware: efi (et machine q35)")
 	}
 	if vm.CPUs < 0 || vm.Memory < 0 || vm.Disk < 0 {
 		c.err(p, "ressources négatives")

@@ -21,10 +21,13 @@
 
 ## Le module pentest en YAML
 
+> Exemple d'origine : Kali est depuis passée dans le module `attacker`, branchée sur `pentest` par `attach:`
+> (voir [modules/pentest/module.yaml](../modules/pentest/module.yaml) et [modules/attacker](../modules/attacker/module.yaml)).
+
 ```yaml
 # modules/pentest/module.yaml
 module: pentest
-description: Lab isolé — Kali (attaquant), Metasploitable 2 et une cible web (DVWA + Juice Shop)
+description: Lab isolé — Metasploitable 2 et une cible web (DVWA + Juice Shop)
 
 network:
   name: pentest-lab               # réseau libvirt isolé, bridge virbr-pentest
@@ -125,6 +128,34 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `dns.aliases` / `hosts` | non | alias DNS, réservations DHCP de machines hors `vms:` |
 | `dns.links` | non | modules que celui-ci peut joindre et résoudre : **tout**, tous ports, du module entier vers le module entier |
 | `connections` | non | accès **restreints** (voir ci-dessous) |
+| `attach` | non | VMs d'autres modules branchées sur le réseau de celui-ci (voir *VMs branchées*) |
+
+### VMs branchées (`attach:`)
+
+Un module cible accueille une VM d'un autre module, typiquement un poste d'attaque du module `attacker`, qui
+reçoit alors une carte de plus **sur le réseau des cibles**, comme un attaquant branché sur le LAN :
+
+```yaml
+attach:
+  - {vm: attacker/kali, ip: 10}      # attacker-kali reçoit une carte sur ce réseau, IP .10 réservée
+  - {vm: attacker/parrot, ip: 11}
+```
+
+| Clé | Obligatoire | Description |
+|---|---|---|
+| `vm` | oui | `<module>/<vm>` : une VM à IP fixe d'un autre module |
+| `ip` | oui | dernier octet réservé sur le réseau de ce module (2-99) |
+| `mac` | non | générée et écrite au premier `up` |
+
+- `labctl <module> up` branche les cartes (à chaud si la VM tourne) ; `destroy` du module les retire. La VM se
+  crée et se gère dans son propre module (ex. `labctl attacker up kali`).
+- Sur ce réseau, la carte reçoit son IP par DHCP **sans route par défaut ni DNS** : Internet et le DNS restent ceux
+  de la carte principale (module d'origine), dont le DNS résout alors aussi les noms de ce module
+  (`<vm>.<domaine de ce module>`, ex. `kali.pentest-lab.omedo.lab`).
+- La VM est sur le même réseau local que les cibles : attaques de réseau local (LLMNR/NBT-NS, relais SMB, mitm6…)
+  possibles, sans règle de pare-feu à écrire. Elle ne route pas d'un réseau à l'autre (transfert IP désactivé,
+  défaut des distributions) : les modules restent isolés entre eux et les cibles n'atteignent pas Internet.
+- Le nom (`kali`) ne doit pas déjà être une VM ou une réservation du module.
 
 ### Connexions (`connections:`)
 
@@ -235,7 +266,7 @@ connections:
 | `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2 |
 | `cpus` / `memory` / `disk` | 1 vCPU, 2048 Mio, 20 Gio (voir *Valeurs par défaut*) | ressources (Mio, Gio) ; `disk` agrandit le disque des images cloud |
 | `image` (si ni `image` ni `source`) | `debian13` | image cloud par défaut |
-| `hardware` | q35, virtio, spice | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo` |
+| `hardware` | q35, virtio, spice, bios | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
 | `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
 | `packages`, `files`, `run` | — | images cloud seulement (cloud-init) ; `files[].template: true` remplace les `${...}` |

@@ -42,6 +42,8 @@ type Module struct {
 	Aliases    map[string]string   // alias -> cible (VM du module ou nom complet)
 	Links      []string            // modules que celui-ci peut joindre et résoudre (tout, tous ports)
 	Conns      []module.Connection // connexions restreintes (vers un module, une VM, ou Internet)
+	NoRoute    map[string]bool     // cartes de VMs d'autres modules (attach:) : DHCP sans route ni DNS
+	Sees       []string            // modules dont ce module résout les noms (ses VMs y sont branchées)
 }
 
 // Input est l'ensemble de ce qu'il faut pour générer la configuration.
@@ -196,15 +198,22 @@ dhcp-scriptuser=root
 		gw := fmt.Sprintf("%s.%d", m.Subnet, GatewayOctet)
 		fmt.Fprintf(&b, "\n# module %s (%s)\n", m.Name, m.Domain)
 		fmt.Fprintf(&b, "dhcp-range=set:%s,%s.%d,%s.%d,255.255.255.0,12h\n", m.Name, m.Subnet, DHCPRangeStart, m.Subnet, DHCPRangeEnd)
-		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:router,%s\n", m.Name, gw)
-		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:dns-server,%s\n", m.Name, gw)
+		// Carte d'une VM branchée depuis un autre module (tag attached) : ni route par défaut ni DNS, sa carte
+		// principale (dans son module) les fournit déjà
+		fmt.Fprintf(&b, "dhcp-option=tag:%s,tag:!attached,option:router,%s\n", m.Name, gw)
+		fmt.Fprintf(&b, "dhcp-option=tag:%s,tag:!attached,option:dns-server,%s\n", m.Name, gw)
+		// sans valeur : option non envoyée (sinon dnsmasq annonce d'office sa propre adresse comme routeur et DNS)
+		fmt.Fprintf(&b, "dhcp-option=tag:%s,tag:attached,option:router\n", m.Name)
+		fmt.Fprintf(&b, "dhcp-option=tag:%s,tag:attached,option:dns-server\n", m.Name)
 		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:domain-name,%s\n", m.Name, m.Domain)
 		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:domain-search,%s\n", m.Name, m.Domain)
 		if u := api[m.Name]; u != "" { // RFC 8910 : annonce du portail captif
 			fmt.Fprintf(&b, "dhcp-option-force=tag:%s,114,\"%s\"\n", m.Name, u)
 		}
 		for _, vm := range m.vmsByIP() {
-			if mac := m.MACs[vm]; mac != "" {
+			if mac := m.MACs[vm]; mac != "" && m.NoRoute[vm] {
+				fmt.Fprintf(&b, "dhcp-host=%s,set:attached,%s,%s\n", mac, m.IP(vm), vm)
+			} else if mac != "" {
 				fmt.Fprintf(&b, "dhcp-host=%s,%s,%s\n", mac, m.IP(vm), vm)
 			}
 		}
@@ -221,6 +230,9 @@ func dns(in Input, m *Module, port int, open bool, attached map[string]bool) str
 	}
 	visible := map[string]bool{m.Name: true}
 	for _, l := range m.Links {
+		visible[l] = true
+	}
+	for _, l := range m.Sees {
 		visible[l] = true
 	}
 	for _, cn := range m.Conns {

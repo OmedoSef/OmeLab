@@ -126,6 +126,10 @@ func (l *Lab) ModuleUp(name string, vms []string, o UpOptions) error {
 			failed = append(failed, vm)
 		}
 	}
+	if err := r.ensureAttach(); err != nil {
+		r.logf("ERREUR branchements : %v", err)
+		failed = append(failed, "attach")
+	}
 	if err := r.applyCore(); err != nil {
 		return err
 	}
@@ -268,11 +272,22 @@ func (r *run) diffs(vm string) ([]Diff, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Isolation : une carte sur le réseau du module, plus celles que d'autres modules demandent (attach:)
+	extra := map[string]string{}
+	for _, a := range r.l.attachmentsOf(r.y.Module, vm) {
+		extra[a.MAC] = a.Network
+	}
+	own := ifs[:0:0]
 	for _, i := range ifs {
-		if i.Type != "network" || i.Network != r.y.NetworkName() {
+		switch {
+		case i.Type == "network" && i.Network == r.y.NetworkName():
+			own = append(own, i)
+		case i.Type == "network" && extra[strings.ToLower(i.MAC)] == i.Network:
+		default:
 			return nil, fmt.Errorf("%s a une carte hors de %s (%s %s) : refus de continuer", lv, r.y.NetworkName(), i.Type, i.Network+i.MAC)
 		}
 	}
+	ifs = own
 	var out []Diff
 	cpus, mem, err := v.Resources(lv)
 	if err != nil {
@@ -369,7 +384,7 @@ func (r *run) adoptVM(vm string, apply bool) error {
 }
 
 func (r *run) createVM(vm string) (err error) {
-	v, lv, e := virt.Shared(), r.libvirtName(vm), r.eff(vm)
+	lv, e := r.libvirtName(vm), r.eff(vm)
 	if DomState(GatewayVM) != "running" {
 		return fmt.Errorf("la passerelle %s doit tourner (DHCP du module) : labctl core start", GatewayVM)
 	}
@@ -397,7 +412,7 @@ func (r *run) createVM(vm string) (err error) {
 		Nets: []NetSpec{{Network: r.y.NetworkName(), MAC: e.MAC}},
 		Lab:  r.y.Module, Role: e.Role, NoAgent: !e.Agent,
 		HW: Hardware{Machine: e.Hardware.Machine, DiskBus: e.Hardware.DiskBus, NICModel: e.Hardware.NICModel,
-			Graphics: e.Hardware.Graphics, Video: e.Hardware.Video, OSInfo: e.Hardware.OSInfo},
+			Graphics: e.Hardware.Graphics, Video: e.Hardware.Video, OSInfo: e.Hardware.OSInfo, Firmware: e.Hardware.Firmware, SecureBoot: e.Hardware.SecureBoot, TPM: e.Hardware.TPM},
 	}
 	if e.Source != nil {
 		if s.Base, err = r.l.EnsureSource(r.y.Module, vm, e.Source, r.out); err != nil {
@@ -443,7 +458,7 @@ func (r *run) createVM(vm string) (err error) {
 		if err := closeInternet(); err != nil { // l'état de référence est pris Internet fermé
 			return err
 		}
-		if err := v.CreateSnapshot(lv, e.Snapshot, "état initial (labctl module up)"); err != nil {
+		if err := r.takeSnapshot(vm, e.Snapshot, "état initial (labctl module up)", true); err != nil {
 			return fmt.Errorf("snapshot %s : %w", e.Snapshot, err)
 		}
 		r.logf("ok  snapshot %s de %s", e.Snapshot, vm)
@@ -763,6 +778,14 @@ func (l *Lab) ModuleStart(name string, vms []string, out io.Writer) error {
 		if _, err := r.diffs(vm); err != nil { // isolation vérifiée avant tout démarrage
 			return err
 		}
+		// Réseaux des modules où la VM est branchée : actifs avant son démarrage (sinon libvirt refuse)
+		for _, a := range r.l.attachmentsOf(r.y.Module, vm) {
+			if v.NetExists(a.Network) {
+				if err := v.StartNetwork(a.Network); err != nil {
+					return fmt.Errorf("réseau %s (carte de %s) : %w", a.Network, vm, err)
+				}
+			}
+		}
 		if err := v.StartDomain(lv); err != nil {
 			return fmt.Errorf("%s : %w", vm, err)
 		}
@@ -839,8 +862,21 @@ func (l *Lab) ModuleRestore(name, vm, snap string, out io.Writer) error {
 	if err := virt.Shared().StartNetwork(r.y.NetworkName()); err != nil {
 		return err
 	}
+	// UEFI : snapshot pris VM arrêtée ; la VM est coupée (son état est abandonné de toute façon), restaurée,
+	// puis redémarrée si elle tournait
+	efiRunning := virt.Shared().IsEFI(lv) && DomState(lv) == "running"
+	if efiRunning {
+		if err := virt.Shared().DestroyDomain(lv); err != nil {
+			return err
+		}
+	}
 	if err := virt.Shared().RevertSnapshot(lv, snap); err != nil {
 		return err
+	}
+	if efiRunning {
+		if err := virt.Shared().StartDomain(lv); err != nil {
+			return err
+		}
 	}
 	if _, err := r.diffs(vm); err != nil {
 		return err
@@ -876,11 +912,28 @@ func (l *Lab) ModuleSnapshot(name, vm, snap string, replace bool, out io.Writer)
 			return err
 		}
 	}
-	if err := v.CreateSnapshot(lv, snap, ""); err != nil {
+	if err := r.takeSnapshot(vm, snap, "", false); err != nil {
 		return err
 	}
 	r.logf("ok  snapshot %s de %s", snap, vm)
 	return nil
+}
+
+// takeSnapshot prend un snapshot interne. Avec un firmware UEFI (pflash), libvirt ne le permet que VM arrêtée :
+// la VM est alors arrêtée (ACPI ; coupure si force), photographiée, puis redémarrée.
+func (r *run) takeSnapshot(vm, snap, desc string, force bool) error {
+	lv, v := r.libvirtName(vm), virt.Shared()
+	if !v.IsEFI(lv) || DomState(lv) != "running" {
+		return v.CreateSnapshot(lv, snap, desc)
+	}
+	r.logf("==> %s (UEFI) arrêtée le temps du snapshot", vm)
+	if err := r.stopVM(vm, force); err != nil {
+		return err
+	}
+	if err := v.CreateSnapshot(lv, snap, desc); err != nil {
+		return err
+	}
+	return v.StartDomain(lv)
 }
 
 // ModuleKeyboard règle le clavier d'une VM (layout vide : celui des labs).
@@ -924,6 +977,9 @@ func (l *Lab) ModuleDestroy(name string, vms []string, out io.Writer) error {
 	v, net := virt.Shared(), r.y.NetworkName()
 	if !v.NetExists(net) {
 		return nil
+	}
+	if err := r.detachAll(); err != nil {
+		return err
 	}
 	if DomState(GatewayVM) != "absente" && r.gatewayAttached() {
 		if err := r.l.Gateway(r.out).Detach(name); err != nil {

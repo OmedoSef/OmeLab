@@ -10,8 +10,8 @@ import (
 
 func ctx() Context {
 	return Context{
-		RootDomain: "omedo.lab", Images: []string{"debian13", "ubuntu2404"}, Modules: []string{"pentest", "demo"},
-		Targets: map[string][]string{"demo": {"srv"}},
+		RootDomain: "omedo.lab", Images: []string{"debian13", "ubuntu2404"}, Modules: []string{"pentest", "demo", "attacker"},
+		Targets: map[string][]string{"demo": {"srv", "web"}, "attacker": {"kali", "parrot"}},
 		Used:    []NetInfo{{Owner: "module demo", Name: "demo-lab", Subnet: netip.MustParsePrefix("10.70.70.0/24"), Domain: "demo-lab.omedo.lab"}},
 	}
 }
@@ -45,8 +45,8 @@ func TestValidateErrors(t *testing.T) {
 	cases := []struct {
 		name, from, to, want string
 	}{
-		{"clé inconnue", "    cpus: 4\n", "    cpu: 4\n", "LECTURE: ligne"},
-		{"type", "    cpus: 4\n", "    cpus: quatre\n", "LECTURE: ligne"},
+		{"clé inconnue", "    cpus: 2\n", "    cpu: 2\n", "LECTURE: ligne"},
+		{"type", "    cpus: 2\n", "    cpus: quatre\n", "LECTURE: ligne"},
 		{"ip en double", "    ip: 30\n", "    ip: 20\n", "vms.web.ip : 20 déjà utilisé"},
 		{"ip hors plage", "    ip: 30\n", "    ip: 150\n", "entre 2 et 99"},
 		{"mac en double", "mac: 52:54:00:66:66:30", "mac: 52:54:00:66:66:20", "MAC déjà utilisée"},
@@ -75,6 +75,13 @@ func TestValidateErrors(t *testing.T) {
 		{"proxy : allow sans filtre", "dns:\n", "connections:\n  - {to: internet, via: proxy, proxy: {allow: [a.com]}}\ndns:\n", "demandent mode: filter"},
 		{"proxy : domaine", "dns:\n", "connections:\n  - {to: internet, via: proxy, proxy: {mode: filter, allow: ['http://x']}}\ndns:\n", "domaine invalide"},
 		{"proxy : port", "dns:\n", "connections:\n  - {to: internet, via: proxy, proxy: {ports: [udp/53]}}\ndns:\n", "port TCP attendu"},
+		{"attach : format", "  - {vm: attacker/parrot, ip: 11", "  - {vm: kali, ip: 50", "attendu <module>/<vm>"},
+		{"attach : module", "  - {vm: attacker/parrot, ip: 11", "  - {vm: absent/kali, ip: 50", "module inconnu"},
+		{"attach : VM", "  - {vm: attacker/parrot, ip: 11", "  - {vm: demo/zz, ip: 50", "pas une VM à IP fixe"},
+		{"attach : IP prise", "  - {vm: attacker/parrot, ip: 11", "  - {vm: demo/srv, ip: 20", "20 déjà utilisé"},
+		{"attach : nom pris", "  - {vm: attacker/parrot, ip: 11", "  - {vm: demo/web, ip: 50", "déjà pris dans ce module"},
+		{"attach : sans ip", "  - {vm: attacker/parrot, ip: 11", "  - {vm: demo/srv", "ip obligatoire"},
+		{"efi : secure boot", "    image: ubuntu2404\n", "    image: ubuntu2404\n    hardware: {secure_boot: true}\n", "Secure Boot demande firmware: efi"},
 		{"proxy sans via", "dns:\n", "connections:\n  - {to: internet, proxy: {mode: log}}\ndns:\n", "sans via: proxy"},
 		{"portail : auth", "dns:\n", "connections:\n  - {to: internet, via: portal, portal: {auth: sms}}\ndns:\n", "auth inconnu"},
 		{"portail : mot de passe", "dns:\n", "connections:\n  - {to: internet, via: portal, portal: {auth: password}}\ndns:\n", "demande un password"},

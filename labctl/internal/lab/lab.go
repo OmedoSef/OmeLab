@@ -115,6 +115,7 @@ type CoreConf struct {
 	HostMACs map[string]string // réservations en plus : nom -> MAC
 	Aliases  map[string]string
 	Links    []string
+	Attached map[string]string // VMs d'autres modules branchées ici (attach:) : nom -> <module>/<vm>
 }
 
 // LibvirtName donne le nom libvirt d'une VM de module (convention <module>-<vm>).

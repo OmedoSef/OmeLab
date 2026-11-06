@@ -3,6 +3,8 @@ package lab
 import (
 	"labs/labctl/internal/coreconf"
 	"labs/labctl/internal/virt"
+	"slices"
+	"strings"
 )
 
 // CoreInput rassemble ce qu'il faut pour générer la configuration de la passerelle : les modules
@@ -31,6 +33,12 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		if m.YAML != nil {
 			cm.Conns = m.YAML.Connections
 		}
+		for h := range m.Conf.Attached {
+			if cm.NoRoute == nil {
+				cm.NoRoute = map[string]bool{}
+			}
+			cm.NoRoute[h] = true
+		}
 		for vm, o := range m.Env.Hosts {
 			cm.Hosts[vm] = o
 			if mac := m.Env.Macs[vm]; mac != "" {
@@ -47,6 +55,22 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		in.Modules = append(in.Modules, cm)
 		if gwMACs[coreconf.GatewayMAC(m.Env.Subnet)] {
 			in.Attached = append(in.Attached, m.Name)
+		}
+	}
+	// Un module dont une VM est branchée ailleurs voit les noms de ce module-là (DNS de sa carte principale)
+	byName := map[string]int{}
+	for i, m := range in.Modules {
+		byName[m.Name] = i
+	}
+	for _, m := range mods {
+		if m.Conf == nil {
+			continue
+		}
+		for _, ref := range m.Conf.Attached {
+			owner, _, _ := strings.Cut(ref, "/")
+			if i, ok := byName[owner]; ok && !slices.Contains(in.Modules[i].Sees, m.Name) {
+				in.Modules[i].Sees = append(in.Modules[i].Sees, m.Name)
+			}
 		}
 	}
 	// DNS amont des instances open : l'hôte sur le réseau NAT libvirt « default »

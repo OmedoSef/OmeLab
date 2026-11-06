@@ -22,7 +22,8 @@ Labs/
 ├── docs/             documentation : modules déclaratifs, passerelle core, VMs/réseaux/PKI
 ├── labctl/           outil de pilotage en Go : CLI avec complétion + GUI web locale
 ├── modules/
-│   └── pentest/      lab de pentest : Kali, Metasploitable 2, DVWA + Juice Shop
+│   ├── attacker/     postes d'attaque : Kali, Parrot (branchés sur les labs cibles)
+│   └── pentest/      lab de pentest : Metasploitable 2, DVWA + Juice Shop
 ├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
 ├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
 └── .vscode/          configuration de débogage de labctl
@@ -31,6 +32,7 @@ Labs/
 | Module | Rôle | Doc |
 |---|---|---|
 | `core` | Passerelle Internet activable par module ou par VM, DHCP et DNS de tous les modules, liens entre modules | [docs/core.md](docs/core.md) |
+| `attacker` | Postes d'attaque (Kali, Parrot), branchés sur les réseaux des labs cibles (`attach:`) | [modules/attacker](modules/attacker/README.md) |
 | `pentest` | Lab d'entraînement au pentest, isolé | [modules/pentest](modules/pentest/README.md) |
 
 VMs hors module, réseaux, images et PKI : [docs/vms.md](docs/vms.md).
@@ -44,7 +46,7 @@ VMs hors module, réseaux, images et PKI : [docs/vms.md](docs/vms.md).
   d'adresses : `labctl core start` d'abord.
 - **Internet est fermé par défaut**, et toujours refermé au redémarrage de la passerelle :
   ```bash
-  labctl core internet on pentest kali     # Kali seule
+  labctl core internet on attacker kali    # Kali seule
   labctl core internet off pentest
   ```
   Même ouverte, la passerelle ne laisse sortir que vers Internet. Ton LAN et les autres réseaux privés

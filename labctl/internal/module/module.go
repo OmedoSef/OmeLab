@@ -25,6 +25,7 @@ type Module struct {
 	PKI         *PKI           `yaml:"pki,omitempty"`
 	DNS         DNS            `yaml:"dns,omitempty"`
 	Connections []Connection   `yaml:"connections,omitempty"`
+	Attach      []Attach       `yaml:"attach,omitempty"`
 	Defaults    VMSettings     `yaml:"defaults,omitempty"`
 	VMs         map[string]*VM `yaml:"vms"`
 
@@ -53,6 +54,21 @@ type DNS struct {
 	Aliases map[string]string `yaml:"aliases,omitempty"`
 	Hosts   []Host            `yaml:"hosts,omitempty"`
 	Links   []string          `yaml:"links,omitempty"`
+}
+
+// Attach : VM d'un autre module branchée sur le réseau de celui-ci (ex. l'attaquante du module attacker sur le
+// réseau des cibles). Elle y reçoit une carte de plus, avec IP réservée, sans route par défaut ni DNS (sa carte
+// principale reste celle de son module).
+type Attach struct {
+	VM  string `yaml:"vm" json:"vm"`                       // <module>/<vm>
+	IP  int    `yaml:"ip" json:"ip"`                       // dernier octet sur le réseau de ce module
+	MAC string `yaml:"mac,omitempty" json:"mac,omitempty"` // générée au premier up
+}
+
+// Split renvoie le module et la VM d'un attach.
+func (a Attach) Split() (mod, vm string) {
+	mod, vm, _ = strings.Cut(a.VM, "/")
+	return mod, vm
 }
 
 // Host est une réservation DHCP/DNS pour une machine hors des VMs du module.
@@ -89,12 +105,15 @@ type VM struct {
 
 // Hardware : matériel virtuel (vide = défaut q35/virtio/spice).
 type Hardware struct {
-	Machine  string `yaml:"machine,omitempty"`   // q35 | pc
-	DiskBus  string `yaml:"disk_bus,omitempty"`  // virtio | sata | ide
-	NICModel string `yaml:"nic_model,omitempty"` // virtio | e1000
-	Graphics string `yaml:"graphics,omitempty"`  // spice | vnc | none
-	Video    string `yaml:"video,omitempty"`     // virtio | vga | qxl
-	OSInfo   string `yaml:"osinfo,omitempty"`
+	Machine    string `yaml:"machine,omitempty"`   // q35 | pc
+	DiskBus    string `yaml:"disk_bus,omitempty"`  // virtio | sata | ide
+	NICModel   string `yaml:"nic_model,omitempty"` // virtio | e1000
+	Graphics   string `yaml:"graphics,omitempty"`  // spice | vnc | none
+	Video      string `yaml:"video,omitempty"`     // virtio | vga | qxl
+	OSInfo     string `yaml:"osinfo,omitempty"`
+	Firmware   string `yaml:"firmware,omitempty"`    // bios (SeaBIOS) | efi (OVMF)
+	SecureBoot bool   `yaml:"secure_boot,omitempty"` // efi : Secure Boot, clés Microsoft enrôlées
+	TPM        bool   `yaml:"tpm,omitempty"`         // TPM 2.0 émulé (swtpm), ex. Windows 11
 }
 
 // Guest : intégration avec la VM.

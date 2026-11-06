@@ -283,7 +283,11 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			cm.Hosts = append(cm.Hosts, configHost{vm, m.Env.IP(vm), m.Env.Macs[vm], "vm"})
 		}
 		for h, o := range m.Conf.Hosts {
-			cm.Hosts = append(cm.Hosts, configHost{h, fmt.Sprintf("%s.%d", m.Env.Subnet, o), m.Conf.HostMACs[h], "reservation"})
+			src := "reservation"
+			if m.Conf.Attached[h] != "" {
+				src = "attach:" + m.Conf.Attached[h] // VM d'un autre module branchée ici (attach: du module.yaml)
+			}
+			cm.Hosts = append(cm.Hosts, configHost{h, fmt.Sprintf("%s.%d", m.Env.Subnet, o), m.Conf.HostMACs[h], src})
 		}
 		out = append(out, cm)
 	}

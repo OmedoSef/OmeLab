@@ -2,6 +2,7 @@ package lab
 
 import (
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +44,7 @@ func (l *Lab) VMs(module string) []string {
 	}
 	vms := m.Env.VMs()
 	for h := range m.Conf.Hosts {
-		if !contains(vms, h) {
+		if !contains(vms, h) && m.Conf.Attached[h] == "" { // VM branchée : elle appartient à son module
 			vms = append(vms, h)
 		}
 	}
@@ -67,17 +68,28 @@ type GatewayState struct {
 }
 
 type ModuleState struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Net         string    `json:"net"`
-	Subnet      string    `json:"subnet"`
-	Domain      string    `json:"domain"`
-	NetActive   bool      `json:"netActive"`
-	Internet    string    `json:"internet"`    // texte brut de « core internet status »
-	InternetAll bool      `json:"internetAll"` // ouvert pour tout le module
-	Links       []string  `json:"links"`       // modules que celui-ci peut joindre
-	Commands    []string  `json:"commands"`    // commandes de premier niveau du module
-	VMs         []VMState `json:"vms"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Net         string          `json:"net"`
+	Subnet      string          `json:"subnet"`
+	Domain      string          `json:"domain"`
+	NetActive   bool            `json:"netActive"`
+	Internet    string          `json:"internet"`    // texte brut de « core internet status »
+	InternetAll bool            `json:"internetAll"` // ouvert pour tout le module
+	Links       []string        `json:"links"`       // modules que celui-ci peut joindre
+	Commands    []string        `json:"commands"`    // commandes de premier niveau du module
+	VMs         []VMState       `json:"vms"`
+	Attached    []AttachedState `json:"attached"` // VMs d'autres modules branchées sur ce réseau (attach:)
+}
+
+// AttachedState : une VM d'un autre module branchée sur le réseau du module.
+type AttachedState struct {
+	Name    string `json:"name"`    // nom dans ce module (DNS)
+	From    string `json:"from"`    // <module>/<vm>
+	Libvirt string `json:"libvirt"` // <module>-<vm>
+	IP      string `json:"ip"`
+	State   string `json:"state"`
+	Plugged bool   `json:"plugged"` // carte présente sur ce réseau
 }
 
 type VMState struct {
@@ -149,6 +161,17 @@ func (l *Lab) Status() (*State, error) {
 			}()
 		}
 		wg.Wait()
+		for name, ref := range m.Conf.Attached {
+			lv := strings.Replace(ref, "/", "-", 1)
+			a := AttachedState{Name: name, From: ref, Libvirt: lv, IP: m.Env.Subnet + "." + strconv.Itoa(m.Conf.Hosts[name]), State: DomState(lv)}
+			if ifs, err := virt.Shared().Interfaces(lv); err == nil && m.Conf.HostMACs[name] != "" {
+				for _, it := range ifs {
+					a.Plugged = a.Plugged || strings.EqualFold(it.MAC, m.Conf.HostMACs[name])
+				}
+			}
+			ms.Attached = append(ms.Attached, a)
+		}
+		sort.Slice(ms.Attached, func(i, j int) bool { return ms.Attached[i].Name < ms.Attached[j].Name })
 		st.Modules = append(st.Modules, ms)
 	}
 	return st, nil

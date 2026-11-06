@@ -260,3 +260,26 @@ func TestProxy(t *testing.T) {
 		t.Errorf("proxy 1 : %+v", p)
 	}
 }
+
+func TestAttached(t *testing.T) {
+	in := input()
+	// demo/srv branchée sur pentest sous le nom srv (IP .50) ; demo voit donc les noms de pentest
+	p := &in.Modules[2]
+	p.Hosts["srv"], p.MACs["srv"] = 50, "52:54:00:12:34:56"
+	p.NoRoute = map[string]bool{"srv": true}
+	in.Modules[0].Sees = []string{"pentest"}
+	f := render(t, in)
+	d := "gwdns/dhcp.conf"
+	has(t, f, d, "dhcp-host=52:54:00:12:34:56,set:attached,10.66.66.50,srv")
+	has(t, f, d, "dhcp-host=52:54:00:66:66:10,10.66.66.10,kali")
+	has(t, f, d, "dhcp-option=tag:pentest,tag:!attached,option:router,10.66.66.254")
+	has(t, f, d, "dhcp-option=tag:pentest,tag:!attached,option:dns-server,10.66.66.254")
+	has(t, f, d, "dhcp-option=tag:pentest,tag:attached,option:router")
+	has(t, f, d, "dhcp-option=tag:pentest,tag:attached,option:dns-server")
+	has(t, f, "gwdns/pentest-open.conf", "host-record=srv.pentest-lab.omedo.lab,10.66.66.50")
+	has(t, f, "gwdns/demo-open.conf", "# module pentest (pentest-lab.omedo.lab) : visible")
+	// sans lien, aucune règle de pare-feu : la carte est sur le réseau local des cibles
+	if strings.Contains(f["gwdns/forward-modules.nft"], "10.77.77") && strings.Contains(f["gwdns/forward-modules.nft"], "10.66.66.50") {
+		t.Error("une carte branchée ne doit pas créer de règle de routage")
+	}
+}

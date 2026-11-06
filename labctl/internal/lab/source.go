@@ -41,18 +41,24 @@ func resolveSource(s *module.Source) (url, algo, want string, err error) {
 	if resp.StatusCode != http.StatusOK {
 		return "", "", "", fmt.Errorf("empreintes %s : %s", s.Sums, resp.Status)
 	}
+	// Un fichier d'empreintes peut en donner plusieurs pour le même fichier (md5 puis sha256… chez Parrot) :
+	// la plus forte est retenue
 	sc := bufio.NewScanner(resp.Body)
+	name := ""
 	for sc.Scan() {
 		m := reSumLine.FindStringSubmatch(strings.TrimSpace(sc.Text()))
 		if m == nil {
 			continue
 		}
-		if ok, _ := path.Match(s.File, m[2]); ok {
+		if ok, _ := path.Match(s.File, m[2]); ok && (name == "" || name == m[2]) && len(m[1]) > len(want) {
+			name, want = m[2], strings.ToLower(m[1])
 			algo = map[int]string{32: "md5", 40: "sha1", 64: "sha256", 128: "sha512"}[len(m[1])]
-			return strings.TrimSuffix(s.Sums, path.Base(s.Sums)) + m[2], algo, strings.ToLower(m[1]), nil
 		}
 	}
-	return "", "", "", fmt.Errorf("aucun fichier %q dans %s", s.File, s.Sums)
+	if name == "" {
+		return "", "", "", fmt.Errorf("aucun fichier %q dans %s", s.File, s.Sums)
+	}
+	return strings.TrimSuffix(s.Sums, path.Base(s.Sums)) + name, algo, want, nil
 }
 
 func newHash(algo string) hash.Hash {

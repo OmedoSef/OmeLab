@@ -155,6 +155,13 @@ func (c *Conn) RebootDomain(name string) error {
 	})
 }
 
+// IsEFI : la VM démarre-t-elle sur un firmware UEFI (pflash) ? Ses snapshots internes se prennent alors
+// VM arrêtée (limite de libvirt).
+func (c *Conn) IsEFI(name string) bool {
+	x, err := c.DomainXML(name, true)
+	return err == nil && (strings.Contains(x, "firmware='efi'") || strings.Contains(x, "<loader"))
+}
+
 // DomainXML renvoie la définition d'une VM : celle du prochain démarrage (inactive) ou celle en cours.
 func (c *Conn) DomainXML(name string, inactive bool) (string, error) {
 	var x string

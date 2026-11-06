@@ -1,0 +1,38 @@
+# Module attacker : postes d'attaque, branchés sur les modules cibles qui les accueillent (attach: côté cible).
+# Voir docs/module-yaml.md pour toutes les clés.
+module: attacker
+description: Postes d'attaque (Kali, Parrot), branchés sur les réseaux des labs cibles
+
+network:
+  name: attacker-lab
+  subnet: 10.68.68.0/24
+# network: sans section, un /24 libre est choisi au premier « up » ; Internet à la demande (core internet on)
+
+vms:
+  kali:
+    role: attacker
+    ip: 10
+    mac: 52:54:00:b4:85:33
+    cpus: 4
+    memory: 4096
+    source:                       # image QEMU officielle, dernière version publiée
+      sums: https://cdimage.kali.org/current/SHA256SUMS
+      file: kali-linux-*-qemu-amd64.7z
+      extract: "*.qcow2"
+    hardware: {osinfo: debiantesting, graphics: spice}
+    guest: {agent: true}          # clavier réglé depuis l'hôte (pas de cloud-init)
+    snapshot: clean
+
+  parrot:
+    role: attacker
+    ip: 11
+    mac: 52:54:00:ab:b6:c5
+    cpus: 4
+    memory: 4096
+    source:                       # image QEMU officielle de Parrot Security (empreinte la plus forte : SHA-512)
+      sums: https://deb.parrot.sh/parrot/iso/7.4/signed-hashes.txt
+      file: Parrot-security-7.4_amd64.qcow2.xz
+      extract: "*.qcow2"
+    hardware: {osinfo: debiantesting, graphics: spice, firmware: efi}   # image UEFI seulement
+    guest: {agent: false}         # pas d'agent invité QEMU dans l'image : clavier à régler dans Parrot
+    snapshot: clean

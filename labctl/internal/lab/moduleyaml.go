@@ -51,7 +51,12 @@ func (l *Lab) loadYAML(m *Module) {
 		}
 	}
 	m.Env = env
-	conf := &CoreConf{Hosts: map[string]int{}, HostMACs: map[string]string{}, Aliases: map[string]string{}, Links: y.DNS.Links}
+	conf := &CoreConf{Hosts: map[string]int{}, HostMACs: map[string]string{}, Aliases: map[string]string{}, Links: y.DNS.Links, Attached: map[string]string{}}
+	// VMs branchées depuis d'autres modules : réservation (sans route ni DNS, voir coreconf) et nom dans ce module
+	for _, a := range y.Attach {
+		_, vm := a.Split()
+		conf.Hosts[vm], conf.HostMACs[vm], conf.Attached[vm] = a.IP, strings.ToLower(a.MAC), a.VM
+	}
 	for _, h := range y.DNS.Hosts {
 		conf.Hosts[h.Name], conf.HostMACs[h.Name] = h.IP, strings.ToLower(h.MAC)
 	}
@@ -78,7 +83,9 @@ func (l *Lab) ModuleContext(name string) module.Context {
 			ctx.Targets[m.Name] = append(ctx.Targets[m.Name], h)
 		}
 		for h := range m.Conf.Hosts {
-			ctx.Targets[m.Name] = append(ctx.Targets[m.Name], h)
+			if m.Conf.Attached[h] == "" { // une VM branchée appartient à son module, pas à celui-ci
+				ctx.Targets[m.Name] = append(ctx.Targets[m.Name], h)
+			}
 		}
 		moduleNets[m.Env.Net] = true
 		if m.Name == name {

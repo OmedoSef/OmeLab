@@ -163,6 +163,16 @@ func (m *Module) SetVMValue(vm, key, value string) error {
 	return nil
 }
 
+// SetAttachMAC fixe attach.<i>.mac (MAC générée au premier branchement).
+func (m *Module) SetAttachMAC(i int, mac string) error {
+	seq := mapValue(m.doc(), "attach")
+	if seq == nil || seq.Kind != yaml.SequenceNode || i < 0 || i >= len(seq.Content) {
+		return fmt.Errorf("pas d'attach n° %d", i)
+	}
+	setKey(seq.Content[i], "mac", scalar(mac))
+	return nil
+}
+
 // SetNetwork écrit la section network (sous-réseau choisi au premier up).
 func (m *Module) SetNetwork(name, subnet string) {
 	if mapValue(m.doc(), "network") == nil { // nouvelle section : avant vms:, là où on la cherche

@@ -159,12 +159,15 @@ func (m *Module) Effective(name string, set Settings) Effective {
 	e.Snapshot = pickStr("snapshot", vm.Snapshot, d.Snapshot, "")
 	h, dh := vm.Hardware, d.Hardware
 	e.Hardware = Hardware{
-		Machine:  pickStr("hardware.machine", h.Machine, dh.Machine, "q35"),
-		DiskBus:  pickStr("hardware.disk_bus", h.DiskBus, dh.DiskBus, "virtio"),
-		NICModel: pickStr("hardware.nic_model", h.NICModel, dh.NICModel, "virtio"),
-		Graphics: pickStr("hardware.graphics", h.Graphics, dh.Graphics, "spice"),
-		Video:    pickStr("hardware.video", h.Video, dh.Video, "virtio"),
-		OSInfo:   pickStr("hardware.osinfo", h.OSInfo, dh.OSInfo, ""),
+		Machine:    pickStr("hardware.machine", h.Machine, dh.Machine, "q35"),
+		DiskBus:    pickStr("hardware.disk_bus", h.DiskBus, dh.DiskBus, "virtio"),
+		NICModel:   pickStr("hardware.nic_model", h.NICModel, dh.NICModel, "virtio"),
+		Graphics:   pickStr("hardware.graphics", h.Graphics, dh.Graphics, "spice"),
+		Video:      pickStr("hardware.video", h.Video, dh.Video, "virtio"),
+		OSInfo:     pickStr("hardware.osinfo", h.OSInfo, dh.OSInfo, ""),
+		Firmware:   pickStr("hardware.firmware", h.Firmware, dh.Firmware, "bios"),
+		SecureBoot: h.SecureBoot || dh.SecureBoot,
+		TPM:        h.TPM || dh.TPM,
 	}
 	switch {
 	case vm.Guest.Agent != nil:

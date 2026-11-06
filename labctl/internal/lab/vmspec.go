@@ -37,12 +37,15 @@ type VMSpec struct {
 
 // Hardware : matériel virtuel d'une VM ; une valeur vide prend le défaut indiqué.
 type Hardware struct {
-	Machine  string // q35 | pc
-	DiskBus  string // virtio | sata | ide
-	NICModel string // virtio | e1000
-	Graphics string // spice | vnc | none
-	Video    string // virtio | vga | qxl | cirrus
-	OSInfo   string // identifiant libosinfo (défaut : celui de l'image)
+	Machine    string // q35 | pc
+	DiskBus    string // virtio | sata | ide
+	NICModel   string // virtio | e1000
+	Graphics   string // spice | vnc | none
+	Video      string // virtio | vga | qxl | cirrus
+	OSInfo     string // identifiant libosinfo (défaut : celui de l'image)
+	Firmware   string // bios (défaut) | efi
+	SecureBoot bool   // efi : Secure Boot (clés Microsoft enrôlées)
+	TPM        bool   // TPM 2.0 émulé (swtpm)
 }
 
 func or(v, def string) string {
@@ -248,8 +251,18 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", xmlEsc(osinfoURI(osinfo)))
 	}
 	fmt.Fprintf(&b, "  <memory unit='MiB'>%d</memory>\n  <currentMemory unit='MiB'>%d</currentMemory>\n  <vcpu placement='static'>%d</vcpu>\n", s.MemoryMiB, s.MemoryMiB, s.CPUs)
-	fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine))
-	b.WriteString(`  <features><acpi/><apic/><vmport state='off'/></features>
+	if hw.Firmware == "efi" {
+		// OVMF choisi par libvirt (descripteurs de firmware)
+		sb := map[bool]string{true: "yes", false: "no"}[hw.SecureBoot]
+		fmt.Fprintf(&b, "  <os firmware='efi'>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <firmware>\n      <feature enabled='%s' name='secure-boot'/>\n      <feature enabled='%s' name='enrolled-keys'/>\n    </firmware>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine), sb, sb)
+	} else {
+		fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine))
+	}
+	smm := ""
+	if hw.SecureBoot {
+		smm = "<smm state='on'/>"
+	}
+	b.WriteString(`  <features><acpi/><apic/><vmport state='off'/>` + smm + `</features>
   <cpu mode='host-passthrough' check='none' migratable='on'/>
   <clock offset='utc'>
     <timer name='rtc' tickpolicy='catchup'/>
@@ -290,6 +303,9 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 	}
 	if graphics != "none" {
 		fmt.Fprintf(&b, "    <video><model type='%s' heads='1' primary='yes'/></video>\n", xmlEsc(video))
+	}
+	if hw.TPM {
+		b.WriteString("    <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>\n")
 	}
 	b.WriteString(`    <rng model='virtio'><backend model='random'>/dev/urandom</backend></rng>
     <memballoon model='virtio'/>

@@ -552,6 +552,17 @@ function renderModule(m, name, sub, down, gwUp, busy) {
       </div></td></tr>`;
   }
   if (!vms.length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée : onglet module.yaml</td></tr>`;
+  // VMs d'autres modules branchées sur ce réseau (attach:) : gérées dans leur module
+  for (const a of m.attached || []) {
+    const [owner] = a.from.split("/");
+    html += `<tr>
+      <td><span class="dot ${esc(a.state.replace(" ", "-"))}"></span><strong>${esc(a.name)}</strong> <span class="meta">${esc(stLabel(a.state))}</span>
+        <div class="meta">branchée depuis <button class="linkbtn" style="font-weight:400" data-go="m/${esc(owner)}/vms">${esc(a.from)}</button></div></td>
+      <td class="mono">${esc(a.ip)}</td><td class="meta">—</td><td><span class="meta">via ${esc(owner)}</span></td>
+      <td>${a.state === "absente" ? `<span class="meta">à créer dans ${esc(owner)}</span>`
+        : a.plugged ? `<span class="pill on">carte branchée</span>`
+        : `<button ${busy} ${runAttr([m.name, "up"])} title="labctl ${esc(m.name)} up : branche la carte">Brancher</button>`}</td></tr>`;
+  }
   html += `</tbody></table>
     <details class="cmd" style="border-top:1px solid var(--line)" ${openCmd.has(m.name) ? "open" : ""} data-cmd-box="${esc(m.name)}">
       <summary>Autre commande du module (labctl ${esc(m.name)} …)</summary>
@@ -667,7 +678,7 @@ function renderNet() {
     ${(m.hosts || []).sort((a, b) => a.ip.localeCompare(b.ip, undefined, { numeric: true })).map(x => `<tr>
       <td><strong>${esc(x.name)}</strong><span class="meta">.${esc(m.domain)}</span></td><td class="mono">${esc(x.ip)}</td>
       <td class="mono meta">${esc(x.mac || "— (DNS seulement)")}</td>
-      <td class="meta">${x.source === "vm" ? "VM du module" : "réservation"}</td>
+      <td class="meta">${x.source === "vm" ? "VM du module" : x.source.startsWith("attach:") ? `branchée (${esc(x.source.slice(7))})` : "réservation"}</td>
       <td>${x.source === "reservation" ? `<button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "host-del", module: m.name, name: x.name }))}'>Retirer</button>` : ""}</td></tr>`).join("")
       || `<tr><td colspan="5" class="empty">Aucune</td></tr>`}
     </tbody></table>
