@@ -27,12 +27,18 @@ type VMSpec struct {
 	Role      string    // rôle (description libvirt « role=... »)
 	Packages  []string  // paquets en plus de qemu-guest-agent
 	Files     []FileSpec
-	Run       []string // commandes shell lancées en fin d'installation, dans l'ordre
-	UserData  string   // fichier cloud-config remplaçant celui généré
-	NoCA      bool     // ne pas injecter la CA racine des labs
-	Base      string   // disque fourni (qcow2) à la place d'une image cloud : pas de cloud-init
-	HW        Hardware // matériel virtuel (vide = q35, virtio, spice)
-	NoAgent   bool     // pas de canal d'agent invité
+	Run       []string     // commandes shell lancées en fin d'installation, dans l'ordre
+	UserData  string       // fichier cloud-config remplaçant celui généré
+	NoCA      bool         // ne pas injecter la CA racine des labs
+	Base      string       // disque fourni (qcow2) à la place d'une image cloud : pas de cloud-init
+	HW        Hardware     // matériel virtuel (vide = q35, virtio, spice)
+	NoAgent   bool         // pas de canal d'agent invité
+	Install   *InstallSpec // installation depuis des ISO (Windows) : disque vierge, démarrage sur le 1er ISO
+}
+
+// InstallSpec : installation depuis des ISO (ex. Windows, pilotes virtio, réponses), sans cloud-init.
+type InstallSpec struct {
+	ISOs []string // lecteurs, dans l'ordre ; le premier est amorçable
 }
 
 // Hardware : matériel virtuel d'une VM ; une valeur vide prend le défaut indiqué.
@@ -95,7 +101,7 @@ func (s *VMSpec) Validate() error {
 	switch {
 	case !reVMName.MatchString(s.Name):
 		return fmt.Errorf("nom invalide (lettres, chiffres, tirets) : %q", s.Name)
-	case s.Base == "" && Images[s.Image].URL == "":
+	case s.Base == "" && s.Install == nil && Images[s.Image].URL == "":
 		return fmt.Errorf("image inconnue : %q (%s)", s.Image, strings.Join(ImageNames(), ", "))
 	case s.CPUs < 1 || s.MemoryMiB < 256 || s.DiskGiB < 1:
 		return fmt.Errorf("ressources invalides : %d vCPU, %d Mio, %d Gio", s.CPUs, s.MemoryMiB, s.DiskGiB)
@@ -251,12 +257,16 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", xmlEsc(osinfoURI(osinfo)))
 	}
 	fmt.Fprintf(&b, "  <memory unit='MiB'>%d</memory>\n  <currentMemory unit='MiB'>%d</currentMemory>\n  <vcpu placement='static'>%d</vcpu>\n", s.MemoryMiB, s.MemoryMiB, s.CPUs)
+	bootCD := ""
+	if s.Install != nil {
+		bootCD = "<boot dev='cdrom'/>\n    "
+	}
 	if hw.Firmware == "efi" {
 		// OVMF choisi par libvirt (descripteurs de firmware)
 		sb := map[bool]string{true: "yes", false: "no"}[hw.SecureBoot]
-		fmt.Fprintf(&b, "  <os firmware='efi'>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <firmware>\n      <feature enabled='%s' name='secure-boot'/>\n      <feature enabled='%s' name='enrolled-keys'/>\n    </firmware>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine), sb, sb)
+		fmt.Fprintf(&b, "  <os firmware='efi'>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <firmware>\n      <feature enabled='%s' name='secure-boot'/>\n      <feature enabled='%s' name='enrolled-keys'/>\n    </firmware>\n    %s<boot dev='hd'/>\n  </os>\n", xmlEsc(machine), sb, sb, bootCD)
 	} else {
-		fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <boot dev='hd'/>\n  </os>\n", xmlEsc(machine))
+		fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    %s<boot dev='hd'/>\n  </os>\n", xmlEsc(machine), bootCD)
 	}
 	smm := ""
 	if hw.SecureBoot {
@@ -277,6 +287,11 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 `)
 	dev := map[string]string{"virtio": "vda", "sata": "sda", "ide": "hda"}[bus]
 	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", xmlEsc(disk), dev, bus)
+	if s.Install != nil { // lecteurs SATA (q35) : ISO d'installation amorçable, puis les autres
+		for i, iso := range s.Install.ISOs {
+			fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='sd%c' bus='sata'/>\n      <readonly/>\n    </disk>\n", xmlEsc(iso), 'a'+i)
+		}
+	}
 	if seed != "" {
 		cdBus, cdDev := "sata", "sdb"
 		if bus == "virtio" {

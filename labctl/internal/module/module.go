@@ -97,6 +97,7 @@ type VM struct {
 	IP           int      `yaml:"ip,omitempty"` // dernier octet ; 0 = DHCP libre
 	MAC          string   `yaml:"mac,omitempty"`
 	Source       *Source  `yaml:"source,omitempty"`
+	Windows      *Windows `yaml:"windows,omitempty"`
 	Packages     []string `yaml:"packages,omitempty"`
 	Files        []File   `yaml:"files,omitempty"`
 	Run          []string `yaml:"run,omitempty"`

@@ -283,3 +283,27 @@ func (c *Conn) deviceOp(name, x string, live, attach bool) error {
 		return lv.DomainDetachDeviceFlags(d, x, uint32(flags))
 	})
 }
+
+// SendKey envoie une touche (code Linux, ex. 28 = Entrée) à la VM.
+func (c *Conn) SendKey(name string, code uint32) error {
+	return c.do(func(lv *libvirt.Libvirt) error {
+		d, err := lv.DomainLookupByName(name)
+		if err != nil {
+			return err
+		}
+		return lv.DomainSendKey(d, 0, 100, []uint32{code}, 0)
+	})
+}
+
+var reCDROM = regexp.MustCompile(`(?s)\s*<disk type='file' device='cdrom'>.*?</disk>`)
+
+// RemoveCDROMs retire de la définition (VM arrêtée) les lecteurs de CD et le démarrage sur CD.
+func (c *Conn) RemoveCDROMs(name string) error {
+	x, err := c.DomainXML(name, true)
+	if err != nil {
+		return err
+	}
+	x = reCDROM.ReplaceAllString(x, "")
+	x = regexp.MustCompile(`\s*<boot dev='cdrom'/>`).ReplaceAllString(x, "")
+	return c.DefineDomain(x)
+}

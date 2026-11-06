@@ -260,7 +260,7 @@ connections:
 | `ip` | — : adresse dans la plage DHCP libre (.100-.199), nom DNS par le bail | IP fixe : dernier octet, entre 2 et 99, unique dans le module |
 | `mac` | avec `ip` : générée et **ajoutée au YAML** ; sans `ip` : générée à la création, non écrite | MAC de la carte (sert à la réservation DHCP quand `ip` est donnée) |
 | `role` | — | `attacker`, `target`, `server`… (affichage, filtres de la GUI) |
-| `image` *ou* `source` | — (un des deux) | image cloud du catalogue (cloud-init) *ou* disque fourni |
+| `image`, `source` *ou* `windows` | — (un des trois) | image cloud du catalogue (cloud-init), disque fourni, *ou* installation de Windows depuis un ISO (voir *Windows*) |
 | `source.url` + `checksum` | — | téléchargement à empreinte figée (`sha256:`, `sha512:`, `md5:`) |
 | `source.sums` + `file` | — | empreinte lue dans le fichier publié ; `file` peut contenir `*` (dernière version) |
 | `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2 |
@@ -269,9 +269,57 @@ connections:
 | `hardware` | q35, virtio, spice, bios | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
 | `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
-| `packages`, `files`, `run` | — | images cloud seulement (cloud-init) ; `files[].template: true` remplace les `${...}` |
+| `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}` |
 | `certificates` | — | certificats émis par la CA du module et **installés dans la VM** (par SSH) ; `reload` relancé après |
 | `snapshot` | — | nom du snapshot pris une fois la VM prête (ex. `clean`) |
+
+### Windows (`vms.<nom>.windows`)
+
+Installation **sans intervention** depuis l'ISO de Microsoft (Evaluation Center : formulaire d'inscription, donc
+jamais téléchargé par labctl ; le déposer dans `~/Virtualisation/kvm/images/sources/`) :
+
+```yaml
+vms:
+  dc01:
+    ip: 10
+    cpus: 2
+    memory: 4096
+    disk: 60
+    windows:
+      iso: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
+      checksum: sha256:3e4fa6d8507b554856fc9ca6079cc402df11a8b79344871669f0251535255325
+      edition: Windows Server 2022 SERVERSTANDARD      # nom de l'image dans install.wim
+      password: Labs-Omedo1!                          # Administrateur et compte lab
+    files:
+      - {src: files/setup.ps1, dest: C:/labs/setup.ps1}
+    run:
+      - Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+      - reboot                                        # redémarre la VM et attend son retour
+    snapshot: clean
+```
+
+| Clé | Défaut | Description |
+|---|---|---|
+| `iso` | — | chemin de l'ISO (`~` accepté) |
+| `checksum` | — (avertissement) | `sha256:…` : vérifiée une fois par ISO (mémorisée à côté, `<iso>.verified`) |
+| `edition` | — | image à installer (ex. `Windows Server 2022 SERVERSTANDARD` = avec bureau, `Windows 11 Enterprise Evaluation`) |
+| `drivers` | déduit de l'édition | dossier des pilotes virtio-win : `2k22`, `2k19`, `w11`… |
+| `password` | — | mot de passe de l'Administrateur et du compte `lab` (en clair : mot de passe de lab) |
+| `timezone` | `Romance Standard Time` | fuseau horaire Windows |
+
+Déroulé (`labctl <module> up`) :
+
+1. ISO vérifié ; **virtio-win** (pilotes, outils invités, agent QEMU ; Fedora, version figée) et **OpenSSH**
+   (Win32-OpenSSH de Microsoft, version figée) téléchargés en cache, empreintes vérifiées.
+2. labctl génère `autounattend.xml` (partitions UEFI, édition, langue anglaise et **clavier de ton poste**, nom de
+   machine, comptes, bureau à distance) et un script de fin, sur un petit ISO de réponses, puis démarre la VM sur
+   les trois ISO (UEFI par défaut ; Windows 11 : `hardware: {tpm: true, secure_boot: true}`).
+3. Setup s'installe seul (15 à 40 min) ; première session (compte `lab`) : outils invités virtio, agent QEMU,
+   **OpenSSH Server** (ta clé SSH pour les administrateurs, PowerShell par défaut), réseau privé, ping, RDP ; arrêt.
+4. labctl retire les ISO (l'ISO de réponses, qui contient le mot de passe, est supprimé), redémarre la VM, attend
+   SSH (`lab@<ip>`), copie `files` (chemins `C:/…`), lance `run` en PowerShell, puis prend le snapshot.
+
+`labctl <module> ssh <vm>` ouvre une session PowerShell ; la console graphique est dans virt-manager/virt-viewer.
 
 ### Variables (`${...}`)
 

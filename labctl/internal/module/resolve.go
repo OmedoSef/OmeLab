@@ -142,7 +142,7 @@ func (m *Module) Effective(name string, set Settings) Effective {
 		return builtin
 	}
 
-	if vm.Source == nil {
+	if vm.Source == nil && vm.Windows == nil {
 		e.Image = pickStr("image", vm.Image, d.Image, "")
 		if e.Image == "" {
 			if set != nil && set("LABS_DEFAULT_IMAGE", "") != "" {
@@ -165,7 +165,7 @@ func (m *Module) Effective(name string, set Settings) Effective {
 		Graphics:   pickStr("hardware.graphics", h.Graphics, dh.Graphics, "spice"),
 		Video:      pickStr("hardware.video", h.Video, dh.Video, "virtio"),
 		OSInfo:     pickStr("hardware.osinfo", h.OSInfo, dh.OSInfo, ""),
-		Firmware:   pickStr("hardware.firmware", h.Firmware, dh.Firmware, "bios"),
+		Firmware:   pickStr("hardware.firmware", h.Firmware, dh.Firmware, map[bool]string{true: "efi", false: "bios"}[vm.Windows != nil]),
 		SecureBoot: h.SecureBoot || dh.SecureBoot,
 		TPM:        h.TPM || dh.TPM,
 	}
@@ -174,8 +174,8 @@ func (m *Module) Effective(name string, set Settings) Effective {
 		e.Agent, e.Origins["guest.agent"] = *vm.Guest.Agent, FromVM
 	case d.Guest.Agent != nil:
 		e.Agent, e.Origins["guest.agent"] = *d.Guest.Agent, FromDefaults
-	default: // images cloud : agent installé par cloud-init
-		e.Agent, e.Origins["guest.agent"] = e.Image != "", FromBuiltin
+	default: // images cloud (cloud-init) et Windows (installé à la fin de l'installation) : agent présent
+		e.Agent, e.Origins["guest.agent"] = e.Image != "" || vm.Windows != nil, FromBuiltin
 	}
 	return e
 }

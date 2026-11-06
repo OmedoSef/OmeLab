@@ -123,7 +123,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			env.Gateway = n.HostIP
 		}
 	}
-	cloud := s.Base == "" // image cloud : cloud-init ; sinon disque fourni, démarré tel quel
+	cloud := s.Base == "" && s.Install == nil // image cloud : cloud-init ; sinon disque fourni ou installation depuis ISO
 	keyPath := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
 	key, err := os.ReadFile(keyPath)
 	if err != nil && cloud {
@@ -200,13 +200,19 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	}()
 
 	what := fmt.Sprintf("%s, %d vCPU, %d Mio, %d Gio", s.Image, s.CPUs, s.MemoryMiB, s.DiskGiB)
-	if !cloud {
+	switch {
+	case s.Install != nil:
+		what = fmt.Sprintf("installation depuis %s, %d vCPU, %d Mio, %d Gio", filepath.Base(s.Install.ISOs[0]), s.CPUs, s.MemoryMiB, s.DiskGiB)
+	case !cloud:
 		what = fmt.Sprintf("disque fourni, %d vCPU, %d Mio", s.CPUs, s.MemoryMiB)
 	}
 	fmt.Fprintf(out, "==> Création de %s (%s)\n", s.Name, what)
-	// Disque lié à l'image de base (un disque fourni garde sa taille d'origine)
+	// Disque lié à l'image de base (un disque fourni garde sa taille d'origine) ; installation : disque vierge
 	args := []string{"create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", base, disk}
-	if cloud {
+	switch {
+	case s.Install != nil:
+		args = []string{"create", "-q", "-f", "qcow2", disk, fmt.Sprintf("%dG", s.DiskGiB)}
+	case cloud:
 		args = append(args, fmt.Sprintf("%dG", s.DiskGiB))
 	}
 	if b, err := exec.Command("qemu-img", args...).CombinedOutput(); err != nil {

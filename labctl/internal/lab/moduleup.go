@@ -414,10 +414,20 @@ func (r *run) createVM(vm string) (err error) {
 		HW: Hardware{Machine: e.Hardware.Machine, DiskBus: e.Hardware.DiskBus, NICModel: e.Hardware.NICModel,
 			Graphics: e.Hardware.Graphics, Video: e.Hardware.Video, OSInfo: e.Hardware.OSInfo, Firmware: e.Hardware.Firmware, SecureBoot: e.Hardware.SecureBoot, TPM: e.Hardware.TPM},
 	}
+	win := e.VM.Windows
 	if e.Source != nil {
 		if s.Base, err = r.l.EnsureSource(r.y.Module, vm, e.Source, r.out); err != nil {
 			return err
 		}
+	} else if win != nil {
+		if err := r.windowsMedia(vm, e, &s); err != nil {
+			return err
+		}
+		defer func() { // ISO de réponses (mot de passe) : jamais laissé derrière une installation ratée
+			if err != nil {
+				_ = os.Remove(filepath.Join(r.l.ImagesDir(), "sources", "cache", "answers", lv+".iso"))
+			}
+		}()
 	} else {
 		tmp, err := os.MkdirTemp("", "labctl-"+lv+"-")
 		if err != nil {
@@ -448,11 +458,16 @@ func (r *run) createVM(vm string) (err error) {
 			}
 		}()
 	}
-	if err := r.l.CreateVM(s, CreateOptions{Wait: e.Source == nil, Out: r.out}); err != nil {
+	if err := r.l.CreateVM(s, CreateOptions{Wait: e.Source == nil && win == nil, Out: r.out}); err != nil {
 		return err
 	}
 	if e.Source != nil {
 		r.waitSourceVM(vm, e)
+	}
+	if win != nil {
+		if err := r.windowsInstall(vm, e); err != nil {
+			return err
+		}
 	}
 	if e.Snapshot != "" {
 		if err := closeInternet(); err != nil { // l'état de référence est pris Internet fermé
@@ -492,7 +507,8 @@ func (r *run) waitSourceVM(vm string, e module.Effective) {
 func (r *run) waitSSH(vm string, timeout int) bool {
 	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + r.vmIP(vm)
 	for t := 0; t < timeout; t += 3 {
-		if exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, "true")...).Run() == nil {
+		// « exit 0 » : compris par sh (Linux) comme par PowerShell (Windows)
+		if exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, "exit 0")...).Run() == nil {
 			return true
 		}
 		time.Sleep(3 * time.Second)

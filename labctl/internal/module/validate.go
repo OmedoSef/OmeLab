@@ -30,6 +30,7 @@ type Context struct {
 }
 
 var (
+	reWinPath  = regexp.MustCompile(`^[A-Za-z]:[/\\]`)
 	reName     = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	reVMName   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	reMAC      = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
@@ -242,7 +243,10 @@ func (m *Module) Validate(ctx Context) []Issue {
 
 func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 	m, p := c.m, "vms."+name
-	cloud := vm.Source == nil // image cloud : cloud-init disponible
+	cloud := vm.Source == nil && vm.Windows == nil // image cloud : cloud-init disponible
+	if vm.Windows != nil {
+		c.checkWindows(p, vm, m.Effective(name, ctx.Settings))
+	}
 	if vm.Image != "" && vm.Source != nil {
 		c.err(p, "image et source à la fois : choisir l'une (image cloud) ou l'autre (disque fourni)")
 	}
@@ -287,8 +291,8 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 		}
 	}
 
-	// cloud-init seulement
-	if !cloud {
+	// cloud-init seulement (Windows : files et run passent par SSH)
+	if !cloud && vm.Windows == nil {
 		for _, f := range []struct {
 			path string
 			set  bool
@@ -341,8 +345,8 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 			c.err(fp, "src et dest obligatoires")
 			continue
 		}
-		if !strings.HasPrefix(f.Dest, "/") {
-			c.err(fp+".dest", "chemin absolu attendu")
+		if winPath := vm.Windows != nil && reWinPath.MatchString(f.Dest); !strings.HasPrefix(f.Dest, "/") && !winPath {
+			c.err(fp+".dest", "chemin absolu attendu (Windows : C:/dossier/fichier)")
 		}
 		if f.Mode != "" && !reMode.MatchString(f.Mode) {
 			c.err(fp+".mode", "mode invalide %q (ex. 0644)", f.Mode)
