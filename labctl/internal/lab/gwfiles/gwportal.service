@@ -1,0 +1,12 @@
+[Unit]
+Description=Portails captifs des modules (labctl gw-portal)
+Wants=gw.service
+After=gw.service
+
+[Service]
+ExecStart=/usr/local/sbin/labctl gw-portal serve
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

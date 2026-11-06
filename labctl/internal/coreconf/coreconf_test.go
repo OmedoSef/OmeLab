@@ -1,6 +1,7 @@
 package coreconf
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -195,5 +196,42 @@ func TestConnections(t *testing.T) {
 	in.Modules[0].Conns = []module.Connection{{To: "pentest/absente"}}
 	if _, err := Render(in); err == nil {
 		t.Error("VM cible inconnue acceptée")
+	}
+}
+
+func TestPortal(t *testing.T) {
+	in := input()
+	no := false
+	in.Modules[0].Conns = []module.Connection{ // demo
+		{To: "internet", From: []string{"srv"}, Via: "portal", Portal: &module.Portal{Auth: "password", Password: "lab", Duration: "30m", API: true, HTTPS: "drop"}},
+		{To: "pentest/web", Ports: []string{"tcp/80"}, Via: "portal", Portal: &module.Portal{Detect: &no}},
+	}
+	f := render(t, in)
+	// Un ensemble par portail, entrées à expiration
+	has(t, f, "gwdns/sets.nft", "set portal_0 { type ipv4_addr; flags timeout; }")
+	has(t, f, "gwdns/sets.nft", "set portal_1 { type ipv4_addr; flags timeout; }")
+	// Avant authentification : HTTP redirigé vers le portail ; DNS relayé (Internet) sauf VMs bloquées
+	pr := "gwdns/prerouting.nft"
+	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @portal_0 ip daddr != @private tcp dport 80 redirect to :8800")
+	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :5301")
+	has(t, f, pr, "ip saddr 10.77.77.0/24 ip saddr != @portal_1 ip daddr 10.66.66.30 tcp dport 80 redirect to :8801")
+	// Après : la connexion, pour les sources authentifiées seulement ; HTTPS non authentifié ignoré (drop)
+	fi := "gwdns/forward-internet.nft"
+	has(t, f, fi, "ip saddr { 10.77.77.10 } ip saddr @portal_0 ip daddr != @private accept")
+	has(t, f, fi, "ip saddr { 10.77.77.10 } ip daddr != @private tcp dport 443 drop")
+	has(t, f, fi, "ip saddr { 10.77.77.10 } reject with icmpx admin-prohibited")
+	has(t, f, "gwdns/forward-modules.nft", `oifname != "eth0" ip saddr 10.77.77.0/24 ip saddr @portal_1 ip daddr 10.66.66.30 tcp dport { 80 } accept`)
+	// Annonce RFC 8910 sur le module des sources
+	has(t, f, "gwdns/dhcp.conf", `dhcp-option-force=tag:demo,114,"http://10.77.77.254:8800/api"`)
+	// Configuration lue par le service de portail
+	var pc []PortalConf
+	if err := json.Unmarshal([]byte(f["gwdns/portal.json"]), &pc); err != nil || len(pc) != 2 {
+		t.Fatalf("portal.json : %v\n%s", err, f["gwdns/portal.json"])
+	}
+	if p := pc[0]; p.Port != 8800 || p.Auth != "password" || p.Seconds != 1800 || !p.Detect || p.Gateway != "10.77.77.254" || p.Sources[0] != "10.77.77.10" {
+		t.Errorf("portail 0 : %+v", p)
+	}
+	if p := pc[1]; p.Auth != "click" || p.Seconds != 3600 || p.Detect || p.Sources[0] != "10.77.77.0/24" {
+		t.Errorf("portail 1 : %+v", p)
 	}
 }

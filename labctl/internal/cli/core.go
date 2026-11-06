@@ -71,6 +71,31 @@ modules (sans lien, aucun module n'en voit un autre). Sa configuration vient des
 		RunE: func(_ *cobra.Command, a []string) error { return g().Interactive(a) },
 	})
 
+	// portails captifs (connections: … via: portal)
+	portalC := &cobra.Command{Use: "portal", Short: "Portails captifs : sessions en cours", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			list, err := g().PortalSessions()
+			if err != nil {
+				return err
+			}
+			printSessions(list)
+			return nil
+		}}
+	portalC.AddCommand(&cobra.Command{Use: "kick PORTAIL IP", Short: "Ferme une session (la source est de nouveau captée)", Args: cobra.ExactArgs(2),
+		ValidArgsFunction: cobra.NoFileCompletions,
+		RunE: func(_ *cobra.Command, a []string) error {
+			id, err := strconv.Atoi(a[0])
+			if err != nil {
+				return fmt.Errorf("numéro de portail invalide : %q", a[0])
+			}
+			if err := g().PortalKick(id, a[1]); err != nil {
+				return err
+			}
+			fmt.Printf("ok  session de %s fermée (portail %d)\n", a[1], id)
+			return nil
+		}})
+	c.AddCommand(portalC)
+
 	// internet
 	internet := &cobra.Command{Use: "internet", Short: "Accès Internet des modules (fermé par défaut)"}
 	internet.AddCommand(

@@ -69,7 +69,12 @@ func TestValidateErrors(t *testing.T) {
 		{"connexion : soi-même", "dns:\n", "connections:\n  - {to: pentest}\ndns:\n", "relié à lui-même"},
 		{"connexion : VM cible", "dns:\n", "connections:\n  - {to: demo/zz}\ndns:\n", "pas une VM à IP fixe"},
 		{"connexion : source", "dns:\n", "connections:\n  - {to: internet, from: [nope]}\ndns:\n", "ni une VM ni une réservation"},
-		{"connexion : via", "dns:\n", "connections:\n  - {to: internet, via: portal}\ndns:\n", "pas encore disponible"},
+		{"connexion : via", "dns:\n", "connections:\n  - {to: internet, via: proxy}\ndns:\n", "pas encore disponible"},
+		{"portail : auth", "dns:\n", "connections:\n  - {to: internet, via: portal, portal: {auth: sms}}\ndns:\n", "auth inconnu"},
+		{"portail : mot de passe", "dns:\n", "connections:\n  - {to: internet, via: portal, portal: {auth: password}}\ndns:\n", "demande un password"},
+		{"portail : durée", "dns:\n", "connections:\n  - {to: internet, via: portal, portal: {duration: 3d}}\ndns:\n", "durée invalide"},
+		{"portail sans via", "dns:\n", "connections:\n  - {to: internet, portal: {auth: click}}\ndns:\n", "sans via: portal"},
+		{"portail : never", "dns:\n", "connections:\n  - {to: internet, from: [msf2], via: portal}\ndns:\n", "internet: never"},
 		{"connexion et lien", "dns:\n", "connections:\n  - {to: demo, ports: [tcp/80]}\ndns:\n  links: [demo]\n", "déjà dans dns.links"},
 	}
 	for _, c := range cases {

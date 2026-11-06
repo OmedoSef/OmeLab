@@ -18,6 +18,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
 header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
 header h1 { font-size: 18px; margin: 0; }
@@ -584,6 +585,8 @@ function connCard(m, mods, busy) {
   const desc = c => `${(c.from || []).length ? esc(c.from.join(", ")) : `<span class="meta">tout le module</span>`}`;
   const ports = c => (c.ports || []).length ? `<div class="tags">${c.ports.map(p => `<span class="pill mono">${esc(p)}</span>`).join("")}</div>` : `<span class="meta">tous</span>`;
   const out = m.connections || [];
+  const mode = c => c.via !== "portal" ? `<span class="meta">direct</span>`
+    : `<span class="pill open" title="${esc(JSON.stringify(c.portal || {}))}">portail : ${esc(c.portal?.auth || "click")}, ${esc(c.portal?.duration || "1h")}</span>`;
   const incoming = [];
   for (const o of mods) if (o.name !== m.name) (o.connections || []).forEach(c => {
     if (c.to === m.name || c.to.startsWith(m.name + "/")) incoming.push({ ...c, src: o.name });
@@ -595,10 +598,10 @@ function connCard(m, mods, busy) {
   }
   return `<section class="card"><div class="card-head"><h2>Connexions restreintes</h2>
       <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet ; un lien de la carte précédente, lui, ouvre tout</span></div>
-    <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th></th></tr></thead><tbody>
-    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}</td><td>${desc(c)}</td><td>${ports(c)}</td>
+    <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th>Mode</th><th></th></tr></thead><tbody>
+    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
       <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
-      || `<tr><td colspan="4" class="empty">Aucune</td></tr>`}
+      || `<tr><td colspan="5" class="empty">Aucune</td></tr>`}
     </tbody></table>
     <form class="inline" data-cfg-form="conn" data-module="${esc(m.name)}" style="border-top:1px solid var(--line)">
       <strong style="width:100%">Ajouter une connexion</strong>
@@ -606,6 +609,16 @@ function connCard(m, mods, busy) {
       <span style="display:grid;gap:3px;font-size:12px;color:var(--muted)">Depuis (aucune case : tout le module)<span style="display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:4px">
         ${fixed(m.name).map(n => `<label class="check"><input type="checkbox" name="from" value="${esc(n)}"> ${esc(n)}</label>`).join("") || `<span class="meta">aucune VM à IP fixe</span>`}</span></span>
       <label>Ports (vide : tous)<input name="ports" class="mono" placeholder="tcp/80 tcp/443 udp/53 icmp" style="min-width:240px"></label>
+      <label>Mode<select name="via" data-via><option value="direct">direct</option><option value="portal">derrière un portail captif</option></select></label>
+      <div class="portal-opts" hidden style="width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:8px 0;border-top:1px dashed var(--line)">
+        <label>Authentification<select name="auth" data-auth><option value="click">un clic</option><option value="password">mot de passe</option><option value="terms">accepter les conditions</option></select></label>
+        <label class="pw" hidden>Mot de passe<input name="password" autocomplete="off"></label>
+        <label>Durée d'une session<input name="duration" value="1h" pattern="[0-9]+(m|h)" title="ex. 30m, 2h (1m à 24h)" style="width:80px"></label>
+        <label>Titre<input name="title" placeholder="Portail Omedo Labs"></label>
+        <label>HTTPS non authentifié<select name="https"><option value="">refusé (reject)</option><option value="drop">sans réponse (drop)</option></select></label>
+        <label class="check" title="Redirige les tests de connectivité d'Android, Apple, Windows… : le système affiche « Se connecter au réseau »"><input type="checkbox" name="detect" checked> détection par les OS</label>
+        <label class="check" title="RFC 8910 / 8908 : option DHCP 114 et API JSON du portail"><input type="checkbox" name="api"> annonce DHCP 114 + API</label>
+      </div>
       <button ${busy}>Ajouter</button>
     </form>
     ${incoming.length ? `<div class="card-head" style="border-top:1px solid var(--line);border-bottom:0;display:block">
@@ -867,6 +880,14 @@ document.addEventListener("click", async e => {
   }
 });
 document.addEventListener("change", e => {
+  const f = e.target.closest("form[data-cfg-form=conn]");
+  if (f && (e.target.dataset.via !== undefined || e.target.dataset.auth !== undefined)) {
+    $(".portal-opts", f).hidden = f.via.value !== "portal";
+    $(".pw", f).hidden = f.auth.value !== "password";
+    f.password.required = f.via.value === "portal" && f.auth.value === "password";
+  }
+});
+document.addEventListener("change", e => {
   if (e.target.id === "f-pick") { uploadFiles(e.target.files); e.target.value = ""; }
   else if (e.target.id === "f-dir") fx.dir = e.target.value;
 });
@@ -940,6 +961,16 @@ function renderCore() {
         <dt>Bloquées en permanence</dt><dd class="tags">${(c.blocked || []).map(a => `<span class="pill never mono">${esc(a)}</span>`).join("") || "—"}</dd>
         <dt>Toujours</dt><dd class="meta">LAN et réseaux privés injoignables, rien n'entre depuis le WAN sauf SSH, aucun routage entre modules sans lien</dd>
       </dl></section>`;
+    const ps = c.portal || [];
+    h += `<section class="card"><div class="card-head"><h2>Portails captifs</h2>
+        <span class="meta">sources authentifiées (connexions <span class="mono">via: portal</span>) ; à l'expiration, la source est de nouveau captée</span></div>
+      <table><thead><tr><th>Portail</th><th>Source</th><th>Module → cible</th><th>Depuis</th><th>Expire</th><th></th></tr></thead><tbody>
+      ${ps.map(p => `<tr><td class="mono">${p.portal}</td><td class="mono">${esc(p.ip)}</td><td>${esc(p.module)} → ${esc(p.target)}</td>
+        <td class="meta">${new Date(p.since).toLocaleTimeString("fr-FR")}</td>
+        <td>${new Date(p.expires).toLocaleTimeString("fr-FR")} <span class="meta">(${Math.max(0, Math.round((new Date(p.expires) - Date.now()) / 60000))} min)</span></td>
+        <td><button class="danger" ${busy} data-run='${esc(JSON.stringify(["core", "portal", "kick", String(p.portal), p.ip]))}'>Déconnecter</button></td></tr>`).join("")
+        || `<tr><td colspan="6" class="empty">Aucune session</td></tr>`}
+      </tbody></table></section>`;
   }
   $("#view-core").innerHTML = h;
 }
@@ -1038,7 +1069,9 @@ document.addEventListener("submit", async e => {
   const fd = new FormData(f), v = Object.fromEntries(fd), module = f.dataset.module;
   const kind = f.dataset.cfgForm;
   const body = kind === "host" ? { op: "host-add", module, name: v.name, octet: Number(v.octet), mac: v.mac }
-    : kind === "conn" ? { op: "conn-add", module, target: v.target, from: fd.getAll("from"), ports: (v.ports || "").split(/[\s,]+/).filter(Boolean) }
+    : kind === "conn" ? { op: "conn-add", module, target: v.target, from: fd.getAll("from"), ports: (v.ports || "").split(/[\s,]+/).filter(Boolean),
+        via: v.via, portal: v.via !== "portal" ? null : { auth: v.auth, password: v.auth === "password" ? v.password : "", duration: v.duration,
+          title: v.title, detect: !!v.detect, api: !!v.api, https: v.https } }
     : { op: "alias-add", module, name: v.name, target: v.target };
   if (await editConfig(body) && kind === "conn") toast("Connexion ajoutée : « Appliquer sur la passerelle » pour l'activer");
 });

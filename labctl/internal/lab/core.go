@@ -2,25 +2,28 @@ package lab
 
 import (
 	"bufio"
+	"encoding/json"
 	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"labs/labctl/internal/portal"
 	"labs/labctl/internal/virt"
 )
 
 // CoreState détaille la passerelle core-gw : cartes, services, baux DHCP, pare-feu.
 type CoreState struct {
-	State    string        `json:"state"`
-	WAN      string        `json:"wan"`
-	Networks []string      `json:"networks"` // réseaux libvirt sur lesquels elle est branchée
-	Services []ServiceInfo `json:"services"`
-	Leases   []LeaseInfo   `json:"leases"`
-	Allowed  []string      `json:"allowed"` // sources autorisées à sortir (gwctl)
-	Blocked  []string      `json:"blocked"` // sources bloquées (NO_INTERNET + manuelles)
-	Error    string        `json:"error,omitempty"`
+	State    string           `json:"state"`
+	WAN      string           `json:"wan"`
+	Networks []string         `json:"networks"` // réseaux libvirt sur lesquels elle est branchée
+	Services []ServiceInfo    `json:"services"`
+	Leases   []LeaseInfo      `json:"leases"`
+	Allowed  []string         `json:"allowed"` // sources autorisées à sortir (gwctl)
+	Blocked  []string         `json:"blocked"` // sources bloquées (NO_INTERNET + manuelles)
+	Portal   []portal.Session `json:"portal"`  // sessions des portails captifs
+	Error    string           `json:"error,omitempty"`
 }
 
 type ServiceInfo struct {
@@ -39,9 +42,10 @@ type LeaseInfo struct {
 }
 
 // Script exécuté sur la passerelle : une section par type d'information
-const coreProbe = `echo '@services'; systemctl list-units --all --plain --no-legend 'gwdns@*' gw.service 2>/dev/null
+const coreProbe = `echo '@services'; systemctl list-units --all --plain --no-legend 'gwdns@*' gw.service gwportal.service 2>/dev/null
 echo '@leases'; cat /var/lib/misc/gwdhcp.leases 2>/dev/null
-echo '@gwctl'; sudo gwctl status 2>/dev/null; sudo cat /etc/gwdns/blocked 2>/dev/null | sed 's/^/blocked /'`
+echo '@gwctl'; sudo gwctl status 2>/dev/null; sudo cat /etc/gwdns/blocked 2>/dev/null | sed 's/^/blocked /'
+echo '@portal'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl gw-portal sessions --json 2>/dev/null; echo`
 
 // Core lit l'état détaillé de la passerelle.
 func (l *Lab) Core() *CoreState {
@@ -93,6 +97,8 @@ func (l *Lab) Core() *CoreState {
 			cs.Allowed = appendUnique(cs.Allowed, f[1])
 		case section == "gwctl" && len(f) == 2 && f[0] == "blocked":
 			cs.Blocked = appendUnique(cs.Blocked, f[1])
+		case section == "portal" && strings.HasPrefix(line, "["):
+			_ = json.Unmarshal([]byte(line), &cs.Portal)
 		}
 	}
 	sort.Slice(cs.Services, func(i, j int) bool { return cs.Services[i].Name < cs.Services[j].Name })
@@ -105,6 +111,8 @@ func serviceRole(unit string) string {
 	switch {
 	case u == "gw":
 		return "pare-feu (appliqué au démarrage)"
+	case u == "gwportal":
+		return "portails captifs (connections: … via: portal)"
 	case u == "gwdns@dhcp":
 		return "DHCP de tous les modules"
 	case strings.HasSuffix(u, "-open"):

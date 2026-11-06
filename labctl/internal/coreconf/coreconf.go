@@ -8,6 +8,7 @@
 package coreconf
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"sort"
@@ -17,10 +18,14 @@ import (
 )
 
 const (
-	GatewayOctet   = 254
-	DHCPRangeStart = 100
-	DHCPRangeEnd   = 199
-	firstDNSPort   = 5300
+	// PortalFirstPort : port du premier portail captif sur la passerelle (un port par connexion via: portal) ;
+	// PortalControlPort : commande locale du service de portail (127.0.0.1 seulement).
+	PortalFirstPort   = 8800
+	PortalControlPort = 8799
+	GatewayOctet      = 254
+	DHCPRangeStart    = 100
+	DHCPRangeEnd      = 199
+	firstDNSPort      = 5300
 )
 
 // Module décrit un module tel que la passerelle le voit.
@@ -100,6 +105,10 @@ func Render(in Input) (Files, error) {
 	var modules, links, blocked strings.Builder
 	fwMods := []string{"# Généré par labctl core-config : liens et connexions entre modules (chaîne forward)"}
 	fwNet := []string{"# Généré par labctl core-config : ce que permet un accès Internet ouvert (chaîne forward)"}
+	pre := []string{"# Généré par labctl core-config : portails captifs (chaîne prerouting, avant le DNS)"}
+	sets := []string{"# Généré par labctl core-config : sources authentifiées de chaque portail (expiration native)"}
+	portals := []PortalConf{}
+	api := map[string]string{} // module -> URL de l'API du portail (option DHCP 114)
 	for i, m := range order {
 		closed := firstDNSPort + 2*i
 		fmt.Fprintf(&modules, "%s.0/24 %d %d %s %s\n", m.Subnet, closed, closed+1, m.Name, m.Domain)
@@ -114,11 +123,17 @@ func Render(in Input) (Files, error) {
 			}
 		}
 		for _, cn := range m.Conns {
-			mr, nr, err := connRules(m, cn, byName, attached)
+			r, err := connRules(m, cn, byName, attached, len(portals), closed+1)
 			if err != nil {
 				return nil, fmt.Errorf("module %s, connexion vers %s : %w", m.Name, cn.To, err)
 			}
-			fwMods, fwNet = append(fwMods, mr...), append(fwNet, nr...)
+			fwMods, fwNet, pre, sets = append(fwMods, r.mods...), append(fwNet, r.internet...), append(pre, r.pre...), append(sets, r.sets...)
+			if r.portal != nil {
+				portals = append(portals, *r.portal)
+				if r.portal.API && api[m.Name] == "" {
+					api[m.Name] = fmt.Sprintf("http://%s:%d/api", r.portal.Gateway, r.portal.Port)
+				}
+			}
 		}
 		for _, vm := range m.NoInternet {
 			if _, ok := m.Hosts[vm]; !ok {
@@ -132,7 +147,11 @@ func Render(in Input) (Files, error) {
 	f["gwdns/forward-modules.nft"] = strings.Join(fwMods, "\n") + "\n"
 	f["gwdns/forward-internet.nft"] = strings.Join(fwNet, "\n") + "\n"
 	f["gwdns/blocked"] = blocked.String()
-	f["gwdns/dhcp.conf"] = dhcp(order)
+	f["gwdns/prerouting.nft"] = strings.Join(pre, "\n") + "\n"
+	f["gwdns/sets.nft"] = strings.Join(sets, "\n") + "\n"
+	pj, _ := json.MarshalIndent(portals, "", "  ")
+	f["gwdns/portal.json"] = string(pj) + "\n"
+	f["gwdns/dhcp.conf"] = dhcp(order, api)
 	return f, nil
 }
 
@@ -151,7 +170,7 @@ ConfigureWithoutCarrier=yes
 }
 
 // dhcp : une plage et des réservations par module branché, repérées par un tag.
-func dhcp(order []*Module) string {
+func dhcp(order []*Module, api map[string]string) string {
 	var b strings.Builder
 	b.WriteString(`# Généré par labctl core-config : DHCP des modules
 port=0
@@ -171,6 +190,9 @@ dhcp-scriptuser=root
 		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:dns-server,%s\n", m.Name, gw)
 		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:domain-name,%s\n", m.Name, m.Domain)
 		fmt.Fprintf(&b, "dhcp-option=tag:%s,option:domain-search,%s\n", m.Name, m.Domain)
+		if u := api[m.Name]; u != "" { // RFC 8910 : annonce du portail captif
+			fmt.Fprintf(&b, "dhcp-option-force=tag:%s,114,\"%s\"\n", m.Name, u)
+		}
 		for _, vm := range m.vmsByIP() {
 			if mac := m.MACs[vm]; mac != "" {
 				fmt.Fprintf(&b, "dhcp-host=%s,%s,%s\n", mac, m.IP(vm), vm)
@@ -244,54 +266,127 @@ local=/%s/
 	return b.String()
 }
 
+// PortalConf : un portail captif, tel que le service de portail de la passerelle le lit (gwdns/portal.json).
+type PortalConf struct {
+	ID       int      `json:"id"`
+	Port     int      `json:"port"`    // port d'écoute (redirection du HTTP non authentifié)
+	Set      string   `json:"set"`     // ensemble nftables des sources authentifiées
+	Module   string   `json:"module"`  // module des sources
+	Gateway  string   `json:"gateway"` // adresse de la passerelle sur ce module
+	Sources  []string `json:"sources"` // IP ou sous-réseau des sources concernées
+	Target   string   `json:"target"`  // internet, module ou module/vm
+	Auth     string   `json:"auth"`
+	Password string   `json:"password,omitempty"`
+	Title    string   `json:"title"`
+	Seconds  int      `json:"seconds"` // durée d'une session
+	Detect   bool     `json:"detect"`
+	API      bool     `json:"api"`
+}
+
+// rules : ce qu'une connexion ajoute à chaque fragment de pare-feu.
+type rules struct {
+	mods, internet, pre, sets []string
+	portal                    *PortalConf
+}
+
 // connRules traduit une connexion en règles nftables : pour les modules (mods), des acceptations ; pour
 // Internet (internet), des acceptations limitées aux sources autorisées, puis un refus du reste pour ces
 // sources (sans quoi la règle générale « autorisé : tout Internet » les laisserait passer).
-func connRules(m *Module, cn module.Connection, byName map[string]*Module, attached map[string]bool) (mods, internet []string, err error) {
+//
+// Derrière un portail (via: portal, numéro id), l'acceptation demande en plus d'être dans l'ensemble
+// portal_<id> (sources authentifiées, retirées à l'expiration) ; avant, le HTTP vers la cible est redirigé
+// vers le portail (pre), et vers Internet le DNS est relayé (instance open du module, port openDNS) pour que
+// les tests de connectivité des OS atteignent le portail. Un portail vers Internet remplace l'ouverture
+// manuelle pour ses sources.
+func connRules(m *Module, cn module.Connection, byName map[string]*Module, attached map[string]bool, id, openDNS int) (r rules, err error) {
 	src := m.Subnet + ".0/24"
+	sources := []string{src}
 	if len(cn.From) > 0 {
 		ips := make([]string, 0, len(cn.From))
 		for _, f := range cn.From {
 			if _, ok := m.Hosts[f]; !ok {
-				return nil, nil, fmt.Errorf("source %s sans IP fixe", f)
+				return r, fmt.Errorf("source %s sans IP fixe", f)
 			}
 			ips = append(ips, m.IP(f))
 		}
-		src = "{ " + strings.Join(ips, ", ") + " }"
+		src, sources = "{ "+strings.Join(ips, ", ")+" }", ips
 	}
 	matches, err := portMatches(cn.Ports)
 	if err != nil {
-		return nil, nil, err
+		return r, err
 	}
 	desc := fmt.Sprintf("# connexion %s%s -> %s%s", m.Name, fromDesc(cn.From), cn.To, portsDesc(cn.Ports))
-	if cn.To == module.Internet {
-		internet = append(internet, desc)
-		for _, pm := range matches {
-			internet = append(internet, fmt.Sprintf("ip saddr %s ip saddr @allowed ip daddr != @private %saccept", src, pm))
+
+	// Cible : Internet (hors réseaux privés) ou un module / une VM
+	dst := "!= @private"
+	if cn.To != module.Internet {
+		mod, vm := cn.Target()
+		o, ok := byName[mod]
+		if !ok {
+			return r, fmt.Errorf("module inconnu")
 		}
-		internet = append(internet, fmt.Sprintf("ip saddr %s reject with icmpx admin-prohibited", src))
-		return nil, internet, nil
-	}
-	mod, vm := cn.Target()
-	o, ok := byName[mod]
-	if !ok {
-		return nil, nil, fmt.Errorf("module inconnu")
-	}
-	if !attached[mod] {
-		return []string{desc + " : module non branché, ignorée"}, nil, nil
-	}
-	dst := o.Subnet + ".0/24"
-	if vm != "" {
-		if _, ok := o.Hosts[vm]; !ok {
-			return nil, nil, fmt.Errorf("%s n'a pas d'IP fixe dans %s", vm, mod)
+		if !attached[mod] {
+			r.mods = []string{desc + " : module non branché, ignorée"}
+			return r, nil
 		}
-		dst = o.IP(vm)
+		dst = o.Subnet + ".0/24"
+		if vm != "" {
+			if _, ok := o.Hosts[vm]; !ok {
+				return r, fmt.Errorf("%s n'a pas d'IP fixe dans %s", vm, mod)
+			}
+			dst = o.IP(vm)
+		}
 	}
-	mods = append(mods, desc)
+
+	gate := "ip saddr @allowed " // Internet : ouvert à la demande
+	if cn.Via == "portal" {
+		pt := cn.Portal
+		pc := &PortalConf{ID: id, Port: PortalFirstPort + id, Set: fmt.Sprintf("portal_%d", id), Module: m.Name,
+			Gateway: fmt.Sprintf("%s.%d", m.Subnet, GatewayOctet), Sources: sources, Target: cn.To,
+			Auth: "click", Title: "Portail Omedo Labs", Seconds: int(pt.Session().Seconds()), Detect: pt.Detects()}
+		if pt != nil {
+			pc.Password, pc.API = pt.Password, pt.API
+			if pt.Auth != "" {
+				pc.Auth = pt.Auth
+			}
+			if pt.Title != "" {
+				pc.Title = pt.Title
+			}
+		}
+		r.portal = pc
+		desc += fmt.Sprintf(" via portail %d (port %d, %s)", id, pc.Port, pc.Auth)
+		gate = fmt.Sprintf("ip saddr @%s ", pc.Set)
+		r.sets = append(r.sets, fmt.Sprintf("set %s { type ipv4_addr; flags timeout; }", pc.Set))
+		r.pre = append(r.pre, desc,
+			fmt.Sprintf("ip saddr %s ip saddr != @%s ip daddr %s tcp dport 80 redirect to :%d", src, pc.Set, dst, pc.Port))
+		if cn.To == module.Internet {
+			r.pre = append(r.pre, fmt.Sprintf("ip saddr %s ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :%d", src, openDNS))
+		}
+	} else if cn.To != module.Internet {
+		gate = ""
+	}
+
+	var out []string
 	for _, pm := range matches {
-		mods = append(mods, fmt.Sprintf(`oifname != "eth0" ip saddr %s ip daddr %s %saccept`, src, dst, pm))
+		if cn.To == module.Internet {
+			out = append(out, fmt.Sprintf("ip saddr %s %sip daddr %s %saccept", src, gate, dst, pm))
+		} else {
+			out = append(out, fmt.Sprintf(`oifname != "eth0" ip saddr %s %sip daddr %s %saccept`, src, gate, dst, pm))
+		}
 	}
-	return mods, nil, nil
+	if cn.Via == "portal" && cn.Portal != nil && cn.Portal.HTTPS == "drop" { // HTTPS non authentifié : sans réponse
+		if cn.To == module.Internet {
+			out = append(out, fmt.Sprintf("ip saddr %s ip daddr %s tcp dport 443 drop", src, dst))
+		} else {
+			out = append(out, fmt.Sprintf(`oifname != "eth0" ip saddr %s ip daddr %s tcp dport 443 drop`, src, dst))
+		}
+	}
+	if cn.To == module.Internet {
+		r.internet = append(append([]string{desc}, out...), fmt.Sprintf("ip saddr %s reject with icmpx admin-prohibited", src))
+	} else {
+		r.mods = append([]string{desc}, out...)
+	}
+	return r, nil
 }
 
 // portMatches regroupe les ports par protocole : une condition nftables par protocole (« » = tout).

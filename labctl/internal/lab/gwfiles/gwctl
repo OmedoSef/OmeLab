@@ -24,6 +24,8 @@ STATE=/run/gw
 DNS_MODULES=/etc/gwdns/modules   # lignes : SOUS-RESEAU/24 PORT_FERME PORT_OUVERT MODULE DOMAINE
 FWD_MODULES=/etc/gwdns/forward-modules.nft    # règles des liens et connexions entre modules (générées par labctl)
 FWD_INTERNET=/etc/gwdns/forward-internet.nft  # restrictions de ports d'un accès Internet ouvert (générées par labctl)
+SETS=/etc/gwdns/sets.nft                      # ensembles des portails captifs (sources authentifiées, à expiration)
+PRE=/etc/gwdns/prerouting.nft                 # redirections des portails captifs (HTTP non authentifié, DNS)
 BLOCKED=/etc/gwdns/blocked       # VMs NO_INTERNET des modules, bloquées en permanence comme source
 mkdir -p "$STATE"; touch "$STATE"/{allowed,blocked}
 
@@ -108,6 +110,8 @@ table inet gw {
   set private { type ipv4_addr; flags interval;
     elements = { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16,
                  172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/3 } }
+  # Portails captifs : sources authentifiées (remplies par le service gwportal, vidées à chaque apply)
+$(rules "$SETS")
 
   chain input {
     type filter hook input priority filter; policy drop;
@@ -121,6 +125,8 @@ table inet gw {
     iifname "$WAN" tcp dport 22 accept
     # Instances DNS des modules (atteintes via les redirections de prerouting)
     iifname != "$WAN" meta l4proto { tcp, udp } th dport 5300-5399 accept
+    # Portails captifs (service gwportal), joignables depuis les modules seulement
+    iifname != "$WAN" tcp dport 8800-8899 accept
     iifname != "$WAN" reject with icmpx admin-prohibited
   }
 
@@ -142,6 +148,7 @@ $(rules "$FWD_INTERNET")
 
   chain prerouting {
     type nat hook prerouting priority dstnat;
+$(rules "$PRE")
 $(dns_rules)
   }
 

@@ -292,8 +292,10 @@ type configEdit struct {
 	Octet  int      `json:"octet"`
 	MAC    string   `json:"mac"`
 	Target string   `json:"target"`
-	From   []string `json:"from"`  // conn-add
-	Ports  []string `json:"ports"` // conn-add
+	From   []string       `json:"from"`   // conn-add
+	Ports  []string       `json:"ports"`  // conn-add
+	Via    string         `json:"via"`    // conn-add : direct | portal
+	Portal *module.Portal `json:"portal"` // conn-add, via portal
 	Index  int      `json:"index"` // conn-del
 }
 
@@ -316,7 +318,7 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	case "host-del":
 		err = s.lab.ConfDelHost(e.Module, e.Name)
 	case "conn-add":
-		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports})
+		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports, Via: e.Via, Portal: e.Portal})
 	case "conn-del":
 		err = s.lab.ConfDelConnection(e.Module, e.Index)
 	case "alias-add":

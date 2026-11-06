@@ -121,7 +121,13 @@ l'envoie sur la passerelle (`labctl core config` l'affiche sans rien appliquer, 
 - les VMs bloquées (`/etc/gwdns/blocked`) ;
 - les règles des liens et des connexions restreintes (`/etc/gwdns/forward-modules.nft`), et les restrictions de
   ports d'un accès Internet ouvert (`/etc/gwdns/forward-internet.nft`) : générées par labctl, insérées par `gwctl`
-  dans la chaîne `forward` (`/etc/gwdns/links` reste écrit pour information).
+  dans la chaîne `forward` (`/etc/gwdns/links` reste écrit pour information) ;
+- les portails captifs (`connections: … via: portal`) : ensembles des sources authentifiées
+  (`/etc/gwdns/sets.nft`, entrées à expiration), redirections du HTTP non authentifié (`/etc/gwdns/prerouting.nft`)
+  et configuration du service `gwportal` (`/etc/gwdns/portal.json`). Ce service est **labctl lui-même**
+  (`labctl gw-portal serve`), copié sur la passerelle par `labctl core gw` et `labctl core update` ; il écoute sur
+  les ports 8800 et suivants, côté modules seulement, et garde ses sessions dans `/run/gw/` pour les remettre en
+  place après chaque `apply`. `labctl core portal` : sessions en cours ; `labctl core portal kick N IP`.
 
 Chaque requête DNS d'une VM est redirigée par nftables vers l'instance `open` de son module si la VM a le droit
 de sortir, sinon vers l'instance `closed`, qui ne connaît que les noms du lab.

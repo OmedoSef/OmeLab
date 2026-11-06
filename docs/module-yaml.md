@@ -142,7 +142,8 @@ connections:
 | `to` | oui | un module, `module/vm` (VM à IP fixe ou réservation), ou `internet` |
 | `from` | non | VMs à IP fixe ou réservations de ce module ; défaut : tout le module |
 | `ports` | non | `tcp/80`, `udp/53`, plages `tcp/8000-8100`, `icmp` ; défaut : tous |
-| `via` | non | `direct` (défaut) ; `portal` et `proxy` sont à venir (refusés pour l'instant) |
+| `via` | non | `direct` (défaut) ou `portal` (portail captif, voir ci-dessous) ; `proxy` est à venir |
+| `portal` | non | options du portail (avec `via: portal`) |
 
 - **Vers un module** : seul ce qui est déclaré passe, dans ce sens-là ; les réponses reviennent, le sens inverse
   reste fermé (il se déclare dans l'autre module). Les noms de la cible deviennent résolvables, pour le module
@@ -155,6 +156,42 @@ connections:
   injoignable, rien n'entre depuis le WAN.
 - Comme le reste de la section réseau : enregistré tout de suite, appliqué sur la passerelle avec
   `labctl core apply` (ou le bandeau *Appliquer* de la GUI).
+
+### Portail captif (`via: portal`)
+
+Pour observer comment des machines se comportent derrière un portail captif, vers Internet ou vers un autre module :
+
+```yaml
+connections:
+  - to: internet
+    from: [srv]
+    via: portal
+    portal: {auth: password, password: lab, duration: 30m, title: Wi-Fi Hôtel}
+  - {to: pentest/web, ports: [tcp/80], via: portal, portal: {auth: terms, detect: false}}
+```
+
+| Clé de `portal` | Défaut | Description |
+|---|---|---|
+| `auth` | `click` | `click` (un bouton), `password`, `terms` (case « j'accepte ») |
+| `password` | | avec `auth: password` ; mot de passe de lab, en clair dans le fichier |
+| `duration` | `1h` | durée d'une session (`1m` à `24h`) ; ensuite la source est de nouveau captée |
+| `title` | Portail Omedo Labs | titre de la page |
+| `detect` | `true` | les tests de connectivité des OS (Android `generate_204`, Apple `hotspot-detect`, Windows `connecttest`, Firefox, NetworkManager) sont redirigés : le système affiche « se connecter au réseau ». `false` : ils reçoivent la réponse « connecté » (portail discret), seule la navigation est captée |
+| `api` | `false` | annonce RFC 8910 (option DHCP 114, pour tout le module) et API RFC 8908 (`/api`) |
+| `https` | `reject` | HTTPS non authentifié : refus immédiat, ou `drop` (sans réponse, délai d'attente) |
+
+- **Avant authentification** : le HTTP (`tcp/80`) vers la cible est redirigé vers le portail de la passerelle
+  (`http://<passerelle .254>:<8800+n>/`), le reste est refusé ; vers Internet, le DNS externe est résolu (sans quoi
+  les tests de connectivité n'atteindraient pas le portail ; c'est aussi la porte des tunnels DNS, comme sur un vrai
+  portail).
+- **Après** : la connexion est ouverte (ses `ports`) jusqu'à la fin de la session ; nftables retire la source
+  seul à l'expiration. Vers Internet, le portail **remplace** l'ouverture manuelle pour ces sources
+  (`core internet on` ne les concerne plus).
+- Les sessions survivent à `labctl core apply` ; `labctl core portal` les liste, `labctl core portal kick N IP` en
+  ferme une (aussi dans la GUI, page Passerelle).
+- Le HTTPS ne peut pas être capté sans alerte de certificat : comme sur un vrai portail, seul le HTTP est redirigé.
+- Une VM `internet: never` ne passe pas par un portail vers Internet (refusé par le validateur, et bloquée par la
+  passerelle de toute façon).
 
 ### VM (`vms.<nom>`)
 
@@ -224,7 +261,8 @@ Ce que fait `up`, dans l'ordre :
 - `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ;
 - alias vers une VM inexistante ; lien vers un module inexistant ; certificat dont un nom sort du domaine de la CA ;
 - connexion : cible inconnue (module, VM sans IP fixe), source qui n'est ni une VM à IP fixe ni une réservation,
-  port mal formé, cible déjà dans `dns.links`, `via` inconnu ou pas encore disponible ;
+  port mal formé, cible déjà dans `dns.links`, `via` inconnu ou pas encore disponible ; portail : `auth`
+  inconnu, `password` manquant, durée hors de 1m-24h, `https` inconnu, source `internet: never` vers Internet ;
 - variable `${...}` inconnue ; `internet: never` + une VM qui doit installer des paquets ;
 - `internet: never` sans `ip` (la passerelle bloque par adresse) ;
 - nom de module de plus de 9 caractères (pont `virbr-<module>`) ou réservé (`list`, `validate`, `core`…).

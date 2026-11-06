@@ -38,6 +38,9 @@ func newRoot() *cobra.Command {
 	root.SetHelpCommand(&cobra.Command{Hidden: true})
 	root.CompletionOptions.HiddenDefaultCmd = true
 
+	// Service de la passerelle : fonctionne sans dossier Labs (labctl y est copié seul)
+	root.AddCommand(gwPortalCmd())
+
 	// Les modules sont découverts au lancement : une sous-commande par dossier modules/<nom>/
 	l, err := lab.Find()
 	if err != nil {

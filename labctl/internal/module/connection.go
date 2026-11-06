@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -17,11 +18,40 @@ const Internet = "internet"
 
 // Connection est une entrée de connections:.
 type Connection struct {
-	To    string   `yaml:"to" json:"to"`                           // module, module/vm, ou internet
-	From  []string `yaml:"from,omitempty" json:"from,omitempty"`   // VMs ou réservations de ce module (défaut : tout le module)
-	Ports []string `yaml:"ports,omitempty" json:"ports,omitempty"` // tcp/80, udp/53, tcp/8000-8100, icmp (défaut : tout)
-	Via   string   `yaml:"via,omitempty" json:"via,omitempty"`     // direct (défaut) ; portal et proxy à venir
+	To     string   `yaml:"to" json:"to"`                             // module, module/vm, ou internet
+	From   []string `yaml:"from,omitempty" json:"from,omitempty"`     // VMs ou réservations de ce module (défaut : tout le module)
+	Ports  []string `yaml:"ports,omitempty" json:"ports,omitempty"`   // tcp/80, udp/53, tcp/8000-8100, icmp (défaut : tout)
+	Via    string   `yaml:"via,omitempty" json:"via,omitempty"`       // direct (défaut), portal ; proxy à venir
+	Portal *Portal  `yaml:"portal,omitempty" json:"portal,omitempty"` // options de via: portal
 }
+
+// Portal : options d'une connexion derrière un portail captif (via: portal). Avant authentification, le HTTP
+// vers la cible est redirigé vers le portail de la passerelle et le reste refusé ; après, la connexion est
+// ouverte pendant Duration.
+type Portal struct {
+	Auth     string `yaml:"auth,omitempty" json:"auth,omitempty"`         // click (défaut) | password | terms
+	Password string `yaml:"password,omitempty" json:"password,omitempty"` // auth: password (mot de passe de lab, en clair)
+	Duration string `yaml:"duration,omitempty" json:"duration,omitempty"` // durée d'une session (défaut 1h ; 1m à 24h)
+	Title    string `yaml:"title,omitempty" json:"title,omitempty"`       // titre de la page
+	Detect   *bool  `yaml:"detect,omitempty" json:"detect,omitempty"`     // rediriger les tests de connectivité des OS (défaut oui)
+	API      bool   `yaml:"api,omitempty" json:"api,omitempty"`           // annonce RFC 8910 (DHCP 114) + API RFC 8908
+	HTTPS    string `yaml:"https,omitempty" json:"https,omitempty"`       // HTTPS non authentifié : reject (défaut) | drop
+}
+
+// PortalAuths : modes d'authentification d'un portail.
+var PortalAuths = []string{"click", "password", "terms"}
+
+// Session renvoie la durée d'une session (défaut 1 h).
+func (p *Portal) Session() time.Duration {
+	if p == nil || p.Duration == "" {
+		return time.Hour
+	}
+	d, _ := time.ParseDuration(p.Duration)
+	return d
+}
+
+// Detects : les tests de connectivité des OS sont-ils redirigés (défaut oui) ?
+func (p *Portal) Detects() bool { return p == nil || p.Detect == nil || *p.Detect }
 
 // Port est un élément de ports: analysé.
 type Port struct {
@@ -82,10 +112,15 @@ func (c *checker) checkConnections(ctx Context) {
 		p := fmt.Sprintf("connections.%d", i)
 		switch cn.Via {
 		case "", "direct":
-		case "portal", "proxy":
-			c.err(p+".via", "via: %s pas encore disponible (seul direct l'est)", cn.Via)
+			if cn.Portal != nil {
+				c.err(p+".portal", "portal: sans via: portal")
+			}
+		case "portal":
+			c.checkPortal(p, cn, ctx)
+		case "proxy":
+			c.err(p+".via", "via: proxy pas encore disponible (direct, portal)")
 		default:
-			c.err(p+".via", "via inconnu %q (direct)", cn.Via)
+			c.err(p+".via", "via inconnu %q (direct, portal)", cn.Via)
 		}
 		if mod, vm := cn.Target(); cn.To == "" {
 			c.err(p+".to", "to obligatoire : un module, module/vm, ou internet")
@@ -119,6 +154,42 @@ func (c *checker) checkConnections(ctx Context) {
 	}
 }
 
+func (c *checker) checkPortal(p string, cn Connection, ctx Context) {
+	pt := cn.Portal
+	if pt == nil {
+		pt = &Portal{}
+	}
+	pp := p + ".portal"
+	switch pt.Auth {
+	case "", "click", "terms":
+		if pt.Password != "" {
+			c.err(pp+".password", "password sans auth: password")
+		}
+	case "password":
+		if pt.Password == "" {
+			c.err(pp+".password", "auth: password demande un password")
+		}
+	default:
+		c.err(pp+".auth", "auth inconnu %q (%s)", pt.Auth, strings.Join(PortalAuths, ", "))
+	}
+	if pt.Duration != "" {
+		if d, err := time.ParseDuration(pt.Duration); err != nil || d < time.Minute || d > 24*time.Hour {
+			c.err(pp+".duration", "durée invalide %q (de 1m à 24h, ex. 30m, 2h)", pt.Duration)
+		}
+	}
+	if pt.HTTPS != "" && pt.HTTPS != "reject" && pt.HTTPS != "drop" {
+		c.err(pp+".https", "https inconnu %q (reject, drop)", pt.HTTPS)
+	}
+	// Une VM qui ne doit jamais sortir ne passe pas non plus par un portail vers Internet
+	if cn.To == Internet {
+		for _, f := range cn.From {
+			if vm := c.m.VMs[f]; vm != nil && c.m.Effective(f, ctx.Settings).Internet == "never" {
+				c.err(p+".from", "%s a internet: never : pas de portail vers Internet", f)
+			}
+		}
+	}
+}
+
 // AddConnection ajoute une entrée à connections: (une ligne {to, from, ports}).
 func (m *Module) AddConnection(cn Connection) {
 	seq := mapValue(m.doc(), "connections")
@@ -143,6 +214,28 @@ func (m *Module) AddConnection(cn Connection) {
 	}
 	if cn.Via != "" && cn.Via != "direct" {
 		item.Content = append(item.Content, scalar("via"), scalar(cn.Via))
+	}
+	if pt := cn.Portal; pt != nil && cn.Via == "portal" {
+		po := &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle}
+		add := func(k, v string) {
+			if v != "" {
+				po.Content = append(po.Content, scalar(k), scalar(v))
+			}
+		}
+		add("auth", pt.Auth)
+		add("password", pt.Password)
+		add("duration", pt.Duration)
+		add("title", pt.Title)
+		if pt.Detect != nil && !*pt.Detect {
+			add("detect", "false")
+		}
+		if pt.API {
+			add("api", "true")
+		}
+		add("https", pt.HTTPS)
+		if len(po.Content) > 0 {
+			item.Content = append(item.Content, scalar("portal"), po)
+		}
 	}
 	seq.Content = append(seq.Content, item)
 }

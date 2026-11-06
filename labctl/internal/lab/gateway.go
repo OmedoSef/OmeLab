@@ -4,9 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +19,7 @@ import (
 	"time"
 
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/portal"
 	"labs/labctl/internal/virt"
 )
 
@@ -35,6 +38,7 @@ var gwInstall = []gwFile{
 	{"gwdhcp-hook", "/usr/local/sbin/gwdhcp-hook", "0755"},
 	{"gw.service", "/etc/systemd/system/gw.service", "0644"},
 	{"gwdns@.service", "/etc/systemd/system/gwdns@.service", "0644"},
+	{"gwportal.service", "/etc/systemd/system/gwportal.service", "0644"},
 	{"90-gw.conf", "/etc/sysctl.d/90-gw.conf", "0644"},
 }
 
@@ -271,7 +275,9 @@ sudo networkctl reload`, &buf); err != nil {
   i=${u#gwdns@}; i=${i%%.service}; [ -f /etc/gwdns/$i.conf ] || sudo systemctl disable -q --now $u; done
 sudo systemctl stop gwdns@dhcp 2>/dev/null; sudo gwctl prune-leases
 for i in %s; do sudo systemctl enable -q gwdns@$i && sudo systemctl restart gwdns@$i; done
-sudo gwctl apply`, strings.Join(instances, " ")), nil); err != nil {
+sudo gwctl apply
+# Portails captifs : configuration relue, sessions remises dans les ensembles recréés par gwctl apply
+if systemctl cat gwportal >/dev/null 2>&1 && [ -x /usr/local/sbin/labctl ]; then sudo systemctl restart gwportal; fi`, strings.Join(instances, " ")), nil); err != nil {
 		return fmt.Errorf("redémarrage des services de la passerelle : %w", err)
 	}
 	attached := strings.Join(in.Attached, " ")
@@ -774,6 +780,9 @@ func (g *Gateway) Create() error {
 		}
 		g.waitSSH()
 	}
+	if err := g.installLabctl(); err != nil {
+		return err
+	}
 	mods, err := g.gwModules()
 	if err != nil {
 		return err
@@ -801,6 +810,46 @@ func (g *Gateway) waitSSH() bool {
 	return false
 }
 
+// installLabctl copie labctl (binaire statique) sur la passerelle et active le service des portails captifs.
+func (g *Gateway) installLabctl() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(exe)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := g.SSH("sudo install -m 0755 /dev/stdin /usr/local/sbin/labctl", f); err != nil {
+		return fmt.Errorf("copie de labctl sur la passerelle : %w", err)
+	}
+	if _, err := g.SSH("sudo systemctl daemon-reload && sudo systemctl enable -q gwportal", nil); err != nil {
+		return err
+	}
+	g.logf("ok  labctl copié sur la passerelle (portails captifs)")
+	return nil
+}
+
+// PortalSessions renvoie les sessions des portails captifs (vide si la passerelle n'en a pas).
+func (g *Gateway) PortalSessions() ([]portal.Session, error) {
+	out, err := g.sshOut("[ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl gw-portal sessions --json || echo '[]'")
+	if err != nil {
+		return nil, err
+	}
+	var list []portal.Session
+	return list, json.Unmarshal(out, &list)
+}
+
+// PortalKick ferme la session de ip sur le portail id.
+func (g *Gateway) PortalKick(id int, ip string) error {
+	if _, err := netip.ParseAddr(ip); err != nil {
+		return fmt.Errorf("adresse invalide : %q", ip)
+	}
+	_, err := g.SSH(fmt.Sprintf("/usr/local/sbin/labctl gw-portal kick %d %s", id, ip), nil)
+	return err
+}
+
 // Update pousse la version courante des fichiers système (embarqués ou remplacés), puis applique.
 func (g *Gateway) Update() error {
 	if err := g.require(); err != nil {
@@ -820,6 +869,9 @@ func (g *Gateway) Update() error {
 	}
 	// Le service dnsmasq de Debian n'est pas utilisé : instances gwdns@ (dhcp, <module>-open/closed)
 	if _, err := g.SSH("sudo systemctl disable -q --now dnsmasq; sudo systemctl daemon-reload && sudo /usr/sbin/sysctl -q --system", nil); err != nil {
+		return err
+	}
+	if err := g.installLabctl(); err != nil {
 		return err
 	}
 	g.logf("ok  fichiers système de la passerelle à jour")

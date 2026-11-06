@@ -97,7 +97,10 @@ Un panneau à gauche mène à toutes les pages ; la page courante est dans l'adr
   - **Réseau** : réservations DHCP (nom, IP, MAC), alias DNS, liens avec les autres modules **dans les deux sens**
     (ce module peut joindre… / peut être joint par…, une case par sens), et **connexions restreintes**
     (`connections:` : vers un module, une VM ou Internet, depuis certaines VMs, sur certains ports ; voir
-    [docs/module-yaml.md](../docs/module-yaml.md)) avec celles que d'autres modules déclarent vers celui-ci.
+    [docs/module-yaml.md](../docs/module-yaml.md)) avec celles que d'autres modules déclarent vers celui-ci ;
+    une connexion peut passer par un **portail captif** (authentification par clic, mot de passe ou conditions,
+    durée de session, détection par les OS, annonce DHCP 114). Les sessions en cours sont sur la page Passerelle
+    (bouton *Déconnecter*).
 - **+ Nouveau module…** : nom demandé, puis l'éditeur sur un squelette (brouillon jusqu'au premier enregistrement).
 - **Passerelle** : créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console ; état des services
   (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et bloquées dans le pare-feu.
@@ -157,5 +160,6 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
 | `internal/gui/` | serveur web local et page `static/index.html` (embarquée dans le binaire) |
+| `internal/portal/` | service de portail captif, lancé sur la passerelle (`labctl gw-portal serve`) |
 
 Convention utilisée par labctl : la VM `<vm>` d'un module `<m>` s'appelle `<m>-<vm>` dans libvirt.
