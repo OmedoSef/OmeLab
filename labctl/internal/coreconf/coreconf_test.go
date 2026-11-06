@@ -250,6 +250,11 @@ func TestProxy(t *testing.T) {
 	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :5301")
 	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked ip daddr != @private tcp dport { 80, 443, 8080 } redirect to :8080")
 	has(t, f, pr, "ip saddr 10.77.77.0/24 ip saddr != @blocked ip daddr 10.66.66.30 tcp dport { 80, 443 } redirect to :8080")
+	// Proxy sans ports: directs : rien n'est ouvert en direct (pas d'accept « tout ») → QUIC (UDP/443) coupé,
+	// le navigateur retombe sur TCP, vu par le proxy ; seul le refus de la source reste dans forward-internet
+	fi := "gwdns/forward-internet.nft"
+	hasNot(t, f, fi, "ip saddr { 10.77.77.10 } ip daddr != @private accept")
+	has(t, f, fi, "ip saddr { 10.77.77.10 } reject with icmpx admin-prohibited")
 	// Les autres ports suivent la connexion (ici ssh direct)
 	has(t, f, "gwdns/forward-modules.nft", `oifname != "eth0" ip saddr 10.77.77.0/24 ip daddr 10.66.66.30 tcp dport { 80, 22 } accept`)
 	var pc []ProxyConf

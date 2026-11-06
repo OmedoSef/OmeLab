@@ -437,6 +437,13 @@ func connRules(m *Module, cn module.Connection, byName map[string]*Module, attac
 			src, gate, dst, strings.Join(pp, ", "), ProxyPort))
 	}
 
+	// Proxy : le HTTP(S) part vers mitmproxy par la redirection ci-dessus ; les ports: éventuels passent en
+	// direct, mais SANS ports: on n'ouvre rien d'autre. En particulier on ne laisse pas QUIC (UDP/443) filer
+	// en direct : coupé, les navigateurs retombent sur TCP/443 — visible par le proxy (un proxy ouvert à tout
+	// serait aveugle au HTTP/3). Pour autoriser QUIC quand même, mettre udp/443 dans ports:.
+	if cn.Via == "proxy" && len(cn.Ports) == 0 {
+		matches = nil
+	}
 	var out []string
 	for _, pm := range matches {
 		if cn.To == module.Internet {
