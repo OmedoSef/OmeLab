@@ -23,7 +23,9 @@ Labs/
 ├── labctl/           outil de pilotage en Go : CLI avec complétion + GUI web locale
 ├── modules/
 │   ├── attacker/     postes d'attaque : Kali, Parrot (branchés sur les labs cibles)
-│   └── pentest/      lab de pentest : Metasploitable 2, DVWA + Juice Shop
+│   ├── pentest/      lab de pentest : Metasploitable 2, DVWA + Juice Shop
+│   ├── pjpt/         lab Active Directory d'entraînement (préparation PJPT)
+│   └── sample/       exemple complet et commenté, à lire et à copier
 ├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
 ├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
 └── .vscode/          configuration de débogage de labctl
@@ -34,8 +36,28 @@ Labs/
 | `core` | Passerelle Internet activable par module ou par VM, DHCP et DNS de tous les modules, liens entre modules | [docs/core.md](docs/core.md) |
 | `attacker` | Postes d'attaque (Kali, Parrot), branchés sur les réseaux des labs cibles (`attach:`) | [modules/attacker](modules/attacker/README.md) |
 | `pentest` | Lab d'entraînement au pentest, isolé | [modules/pentest](modules/pentest/README.md) |
+| `pjpt` | Lab Active Directory d'entraînement (préparation PJPT), isolé | [modules/pjpt](modules/pjpt/README.md) |
+| `sample` | Exemple complet et commenté, à lire et à copier | [modules/sample](modules/sample/README.md) |
 
 VMs hors module, réseaux, images et PKI : [docs/vms.md](docs/vms.md).
+
+## Repères de commandes
+
+labctl tient en quelques familles. Au quotidien, **`labctl <module> …`** suffit presque toujours.
+
+| Commande | Pour quoi | Niveau |
+|---|---|---|
+| `labctl <module> …` | piloter **un** module : `up`, `status`, `start`/`stop`, `snapshot`/`restore`, `attach`/`detach`, `destroy`… | **le plus courant** |
+| `labctl module …` | les modules **en général** : `list`, `validate` (tous), `show <m>`, `edit <m>` ; `module <m> …` fait la même chose que `labctl <m> …` | déclaratif, transverse |
+| `labctl lab …` | un **groupe de VMs** par étiquette libvirt (sans `module.yaml`) : `up`/`down`/`destroy`/`status`/`snapshot`/`revert` — surtout pour des VMs faites à la main (`vm create -l LAB`) | brut (libvirt) |
+| `labctl vm …` | **une** VM : `create`, `destroy`, `ip`, `ssh`, `snapshot` | plus bas niveau |
+| `labctl core …` / `labctl pki …` | la passerelle (Internet, DHCP, DNS, liens) / la PKI (CA, certificats) | infrastructure |
+
+En clair :
+
+- un **module** est la description déclarative (`module.yaml`) d'un lab — réseau isolé, CA, VMs, branchements. `labctl <module>` le construit et le gère : c'est ton outil principal.
+- `labctl <module>` et `labctl module <module>` lancent **exactement les mêmes** commandes ; `module` ajoute seulement les actions transverses (lister, valider, montrer, éditer).
+- un **lab** au sens `labctl lab` n'est qu'un groupe de VMs partageant une étiquette libvirt. Un module crée ses VMs dans un lab du même nom, mais `labctl lab` agit sur les VMs **brutes** : il ne crée ni réseau, ni CA, et ne vérifie pas l'isolation. À réserver aux VMs créées hors module.
 
 ## Principes communs
 
@@ -79,8 +101,8 @@ Un module est un dossier `modules/<nom>/` contenant :
 | `files/` | fichiers copiés dans les VMs (configurations, modèles avec variables `${...}`) |
 | `README.md` | exercices, notes |
 
-Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|destroy`
-(aussi sous `labctl module <m> …`). Aucune ligne de code propre à un module.
+Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|attach|detach|destroy`
+(aussi sous `labctl module <m> …` ; voir *Repères de commandes* plus haut). Aucune ligne de code propre à un module.
 La passerelle `core` n'est pas un module : elle est intégrée à labctl (`labctl core …`, voir [docs/core.md](docs/core.md)).
 
 `labctl module validate` contrôle les `module.yaml` sans rien créer ; `labctl module show <m>` affiche les valeurs
