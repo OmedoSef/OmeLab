@@ -106,6 +106,8 @@ nav.tabs .count { display: inline-block; min-width: 18px; padding: 0 5px; margin
 /* Pastille de la passerelle dans l'en-tête : un indicateur, ses actions sont dans l'onglet Core */
 button#gw { border: 0; background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 12px; }
 button#gw.down { color: var(--bad); font-weight: 600; }
+button#pending-pill { border: 0; cursor: pointer; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 /* Action en cours */
 .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
   animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
@@ -121,6 +123,10 @@ button#gw.down { color: var(--bad); font-weight: 600; }
 /* Boîtes de dialogue */
 dialog#dlg { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 0; width: min(460px, calc(100vw - 32px)); }
 dialog#dlg::backdrop { background: rgb(0 0 0 / .45); }
+dialog#pending-dlg { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 0; width: min(820px, calc(100vw - 32px)); max-height: calc(100vh - 64px); }
+dialog#pending-dlg::backdrop { background: rgb(0 0 0 / .45); }
+dialog#pending-dlg .diff { border-top: 1px solid var(--line); border-radius: 0; }
+dialog#pending-dlg .pending-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); }
 dialog#dlg form { display: grid; gap: 12px; padding: 18px 20px; }
 dialog#dlg h3 { margin: 0; font-size: 16px; }
 dialog#dlg p { margin: 0; white-space: pre-line; color: var(--muted); }
@@ -172,6 +178,7 @@ textarea.ftext { display: block; width: 100%; height: min(60vh, 600px); border: 
   <h1>Labs</h1>
   <span class="spacer"></span>
   <button id="gw" data-go="core" title="Passerelle core-gw : DHCP, DNS et Internet des modules (détails et actions : Passerelle)">passerelle…</button>
+  <button id="pending-pill" title="Changements de configuration non appliqués sur la passerelle (cliquer pour le détail)" hidden></button>
   <span id="updated" class="meta"></span>
   <button id="refresh" title="Rafraîchir">↻</button>
 </header>
@@ -204,6 +211,7 @@ textarea.ftext { display: block; width: 100%; height: min(60vh, 600px); border: 
 </section>
 <div id="toasts"></div>
 <dialog id="dlg"></dialog>
+<dialog id="pending-dlg"></dialog>
 
 <script>
 "use strict";
@@ -216,7 +224,7 @@ addEventListener("hashchange", () => {
 });
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let state = null, running = false, current = null, core = null, pki = null, config = null, showDiff = false;
+let state = null, running = false, current = null, core = null, pki = null, config = null;
 const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
 const stLabel = s => stateLabel[s] || s;
 
@@ -618,25 +626,42 @@ function renderModule(m, name, sub, down, gwUp, busy) {
 }
 
 // --- Changements en attente sur la passerelle : bandeau en haut de toutes les pages
+// Changements de la passerelle non appliqués : pilule compacte dans l'en-tête (cliquable), détail dans une
+// modale. Seul le cas d'erreur garde une bannière rouge en haut du contenu.
 function renderPending() {
-  const c = config, busy = running ? "disabled" : "";
+  const c = config;
   if (!c) return;
   const pending = c.pending || [];
-  let h = "";
-  if (c.gateway === "running" && c.pendingError) h = `<div class="banner"><span class="err">${esc(c.pendingError)}</span></div>`;
-  else if (c.gateway === "running" && pending.length) {
-    h = `<section class="card"><div class="banner" style="border:0;border-radius:0">
-        <strong>Modifications non appliquées</strong>
-        <span class="meta">${pending.length} fichier(s) de la passerelle changeront : ${pending.map(f => esc(f.file)).join(", ")}</span>
-        <span class="spacer"></span>
-        <button data-toggle-diff>${showDiff ? "Masquer" : "Voir"} les changements</button>
-        <button class="primary" ${busy} data-run='["core","apply"]'>Appliquer sur la passerelle</button>
-      </div>
-      ${showDiff ? pending.map(f => `<pre class="diff"><strong>${esc(f.file)}</strong>\n${f.lines.map(l =>
-        l.op === "…" ? `<span class="skip">  …</span>` : `<span class="${l.op === "+" ? "add" : l.op === "-" ? "del" : ""}">${esc(l.op)} ${esc(l.text)}</span>`).join("\n")}</pre>`).join("") : ""}
-    </section>`;
+  const on = c.gateway === "running";
+  $("#pending").innerHTML = (on && c.pendingError) ? `<div class="banner"><span class="err">${esc(c.pendingError)}</span></div>` : "";
+  const pill = $("#pending-pill"), dlg = $("#pending-dlg");
+  if (on && pending.length) {
+    pill.hidden = false;
+    pill.innerHTML = `⚠ ${pending.length} changement${pending.length > 1 ? "s" : ""} passerelle`;
+    if (dlg.open) dlg.innerHTML = pendingModal(); // garder la modale à jour si elle est ouverte
+  } else {
+    pill.hidden = true;
+    if (dlg.open) dlg.close();
   }
-  $("#pending").innerHTML = h;
+}
+
+function pendingModal() {
+  const pending = (config && config.pending) || [], busy = running ? "disabled" : "";
+  return `<div class="card-head"><h3 style="margin:0;font-size:16px">Modifications non appliquées sur la passerelle</h3>
+      <span class="spacer"></span><button data-close-pending aria-label="Fermer">×</button></div>
+    <div class="card-desc meta">${pending.length} fichier(s) de configuration changeront. « Appliquer » régénère puis recharge le DHCP, le DNS et le pare-feu de la passerelle.</div>
+    ${pending.map(f => `<pre class="diff"><strong>${esc(f.file)}</strong>\n${f.lines.map(l =>
+      l.op === "…" ? `<span class="skip">  …</span>` : `<span class="${l.op === "+" ? "add" : l.op === "-" ? "del" : ""}">${esc(l.op)} ${esc(l.text)}</span>`).join("\n")}</pre>`).join("")}
+    <div class="pending-actions">
+      <button data-close-pending>Fermer</button>
+      <button class="primary" ${busy} data-apply-pending>Appliquer sur la passerelle</button>
+    </div>`;
+}
+
+function openPending() {
+  const dlg = $("#pending-dlg");
+  dlg.innerHTML = pendingModal();
+  dlg.showModal();
 }
 
 // Connexions restreintes (connections: du module.yaml) : celles du module, et celles qui arrivent vers lui
@@ -1481,7 +1506,9 @@ document.addEventListener("click", e => {
   else if (t.dataset.cfg) { e.preventDefault(); editConfig(JSON.parse(t.dataset.cfg)); }
   else if (t.dataset.detach) { e.preventDefault(); detachVM(JSON.parse(t.dataset.detach)); }
   else if (t.dataset.attachAdd) { e.preventDefault(); attachPicker(t.dataset.attachAdd); }
-  else if (t.dataset.toggleDiff !== undefined) { showDiff = !showDiff; renderPending(); }
+  else if (t.id === "pending-pill") openPending();
+  else if (t.dataset.closePending !== undefined) $("#pending-dlg").close();
+  else if (t.dataset.applyPending !== undefined) { $("#pending-dlg").close(); run(["core", "apply"]); }
   else if (t.dataset.rotateRoot !== undefined) rotateRoot();
   else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm, t.classList.contains("danger"));
   else if (t.dataset.console) console_(t.dataset.console);
