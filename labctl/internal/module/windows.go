@@ -70,8 +70,14 @@ func (c *checker) checkWindows(p string, vm *VM, eff Effective) {
 	}
 	if w.Password == "" {
 		c.err(wp+".password", "mot de passe obligatoire (Administrateur et compte lab)")
-	} else if len(w.Password) < 8 || strings.ToLower(w.Password) == w.Password {
-		c.warn(wp+".password", "mot de passe simple : Windows (et la promotion en contrôleur de domaine) exigent souvent majuscules, chiffres et symboles")
+	} else {
+		pw := w.Password
+		if exp, err := (VarContext{Module: c.m}).Expand(w.Password); err == nil {
+			pw = exp
+		}
+		if len(pw) < 8 || strings.ToLower(pw) == pw {
+			c.warn(wp+".password", "mot de passe simple : Windows (et la promotion en contrôleur de domaine) exigent souvent majuscules, chiffres et symboles")
+		}
 	}
 	if len(vm.Packages) > 0 || len(vm.Certificates) > 0 {
 		c.err(p, "packages et certificates ne s'appliquent pas à Windows (files: et run: en PowerShell, oui)")

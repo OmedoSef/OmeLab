@@ -274,7 +274,12 @@ func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
 		return fmt.Errorf("clé SSH publique introuvable : %s", keyPath)
 	}
 
-	d := unattendData{Edition: w.Edition, Password: w.Password, TimeZone: w.TimeZone}
+	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard()}
+	password, err := vars.Expand(w.Password)
+	if err != nil {
+		return err
+	}
+	d := unattendData{Edition: w.Edition, Password: password, TimeZone: w.TimeZone}
 	if d.TimeZone == "" {
 		d.TimeZone = "Romance Standard Time"
 	}

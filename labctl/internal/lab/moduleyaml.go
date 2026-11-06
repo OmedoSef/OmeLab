@@ -27,6 +27,7 @@ func (l *Lab) loadYAML(m *Module) {
 		return
 	}
 	m.YAML = y
+	l.injectLocalAttach(y) // câblage local (attach.local.yaml), traité ensuite comme les attach: du module.yaml
 	if y.Description != "" {
 		m.Description = y.Description
 	}

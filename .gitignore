@@ -7,3 +7,5 @@
 bin/
 # Remplacements locaux des fichiers de la passerelle (mise au point, voir docs/core.md)
 /core/
+# Câblage local des VMs branchées (brancher/débrancher dans la GUI)
+/attach.local.yaml

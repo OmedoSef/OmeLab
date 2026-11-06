@@ -226,6 +226,12 @@ func (c VarContext) lookup(name string) (string, error) {
 		return m.Prefix3() + ".254", nil
 	case name == "keyboard":
 		return c.Keyboard, nil
+	case strings.HasPrefix(name, "var."):
+		key := strings.TrimPrefix(name, "var.")
+		if v, ok := m.Vars[key]; ok {
+			return v, nil
+		}
+		return "", fmt.Errorf("variable ${var.%s} absente de vars: du module", key)
 	case strings.HasPrefix(name, "vm."):
 		if c.VM == "" {
 			return "", fmt.Errorf("${%s} n'a de sens que pour une VM", name)
@@ -241,7 +247,7 @@ func (c VarContext) lookup(name string) (string, error) {
 		}
 		return c.lookupVM(vm, field, domain, ipOf)
 	}
-	return "", fmt.Errorf("variable inconnue ${%s} (module.name, module.domain, network.subnet, network.gateway, vm.name, vm.ip, vm.fqdn, vms.<vm>.ip, vms.<vm>.fqdn, keyboard)", name)
+	return "", fmt.Errorf("variable inconnue ${%s} (module.name, module.domain, network.subnet, network.gateway, vm.name, vm.ip, vm.fqdn, vms.<vm>.ip, vms.<vm>.fqdn, keyboard, var.<nom>)", name)
 }
 
 func (c VarContext) lookupVM(vm, field, domain string, ipOf func(string) (string, error)) (string, error) {

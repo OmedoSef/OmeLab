@@ -90,6 +90,7 @@ type AttachedState struct {
 	IP      string `json:"ip"`
 	State   string `json:"state"`
 	Plugged bool   `json:"plugged"` // carte présente sur ce réseau
+	Local   bool   `json:"local"`   // câblage local (attach.local.yaml) : débranchable depuis la GUI
 }
 
 type VMState struct {
@@ -161,9 +162,13 @@ func (l *Lab) Status() (*State, error) {
 			}()
 		}
 		wg.Wait()
+		localRef := map[string]bool{}
+		for _, la := range l.localAttachFor(m.Name) {
+			localRef[strings.ToLower(la.VM)] = true
+		}
 		for name, ref := range m.Conf.Attached {
 			lv := strings.Replace(ref, "/", "-", 1)
-			a := AttachedState{Name: name, From: ref, Libvirt: lv, IP: m.Env.Subnet + "." + strconv.Itoa(m.Conf.Hosts[name]), State: DomState(lv)}
+			a := AttachedState{Name: name, From: ref, Libvirt: lv, IP: m.Env.Subnet + "." + strconv.Itoa(m.Conf.Hosts[name]), State: DomState(lv), Local: localRef[strings.ToLower(ref)]}
 			if ifs, err := virt.Shared().Interfaces(lv); err == nil && m.Conf.HostMACs[name] != "" {
 				for _, it := range ifs {
 					a.Plugged = a.Plugged || strings.EqualFold(it.MAC, m.Conf.HostMACs[name])

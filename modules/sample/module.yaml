@@ -1,0 +1,64 @@
+# Module sample : exemple COMPLET et fonctionnel, à lire pour apprendre et à copier pour démarrer.
+# Un petit serveur web intranet, servi en HTTPS avec le certificat de la CA du module. Isolé comme tout module.
+# Pour un squelette vide à remplir soi-même : `labctl module new <nom>`. Toutes les clés : docs/module-yaml.md.
+module: sample
+description: "Exemple : serveur web intranet en HTTPS (CA du module), à lire et à copier"
+
+network:
+  name: sample-lab              # réseau libvirt isolé (bridge virbr-sample)
+  subnet: 10.69.69.0/24         # hôte .1, VMs à IP fixe .2-.99, DHCP libre .100-.199, passerelle core .254
+  domain: sample-lab.omedo.lab  # srv -> srv.sample-lab.omedo.lab
+
+pki:
+  ca: sample                    # CA dérivée, limitée au domaine et au sous-réseau du module (sert au certificat plus bas)
+
+# Valeurs nommées du module, écrites une fois et reprises partout via ${var.<nom>} (ici dans la page web).
+vars:
+  title: "Intranet de démonstration"
+  owner: "Omedo Labs"
+
+dns:
+  aliases:
+    www: srv                    # www.sample-lab.omedo.lab -> la VM srv
+
+defaults:
+  snapshot: clean               # état de référence pris à la fin de l'installation (labctl sample restore)
+
+vms:
+  srv:                          # VM sample-srv, nom DNS srv.<domaine> (+ alias www)
+    role: server
+    ip: 10                      # IP fixe .10 ; la MAC est ajoutée au module.yaml au premier « up »
+    mac: 52:54:00:f0:6e:35
+    image: debian13             # image cloud du catalogue (debian12, debian13, ubuntu2404…)
+    cpus: 2
+    memory: 2048
+    internet: install           # Internet ouvert pour elle seule le temps de l'installation (paquets), fermé ensuite
+    packages: [nginx]
+    files:
+      # template: true -> les ${...} sont remplacés à la copie dans la VM
+      - {src: files/index.html, dest: /var/www/html/index.html, template: true}
+      - {src: files/sample.conf, dest: /etc/nginx/conf.d/sample.conf, template: true}
+    certificates:
+      - name: web               # certificat émis par la CA du module pour ce serveur
+        dns: [srv, www]         # noms couverts (dans le domaine du module)
+        ip: true                # + l'IP fixe de la VM
+        cert: /etc/ssl/sample/web.crt
+        key: /etc/ssl/sample/web.key
+        reload: systemctl reload nginx   # relancé après l'installation du certificat
+    snapshot: clean
+
+# --- Pour aller plus loin (décommenter au besoin) ---------------------------------------------------------
+#
+# Une deuxième VM, en DHCP libre (sans ip:) :
+#   vms:
+#     poste:
+#       image: ubuntu2404
+#
+# Accès RESTREINTS vers un autre module ou Internet (sinon tout est cloisonné par défaut) :
+# connections:
+#   - {to: pentest/web, from: [srv], ports: [tcp/443]}   # srv peut joindre web de pentest en 443
+#   - {to: internet, ports: [tcp/443, udp/53]}           # srv peut sortir en HTTPS et DNS
+#
+# Brancher un poste d'attaque du module attacker sur ce réseau (même LAN) :
+# attach:
+#   - {vm: attacker/kali, ip: 50}

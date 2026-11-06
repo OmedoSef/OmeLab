@@ -129,11 +129,28 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `dns.links` | non | modules que celui-ci peut joindre et résoudre : **tout**, tous ports, du module entier vers le module entier |
 | `connections` | non | accès **restreints** (voir ci-dessous) |
 | `attach` | non | VMs d'autres modules branchées sur le réseau de celui-ci (voir *VMs branchées*) |
+| `vars` | non | valeurs nommées du module, reprises partout via `${var.<nom>}` (voir *Variables*) : mots de passe de test, nom de domaine… à écrire une fois |
 
-### VMs branchées (`attach:`)
+### VMs branchées (`attach:` et câblage local)
 
 Un module cible accueille une VM d'un autre module, typiquement un poste d'attaque du module `attacker`, qui
-reçoit alors une carte de plus **sur le réseau des cibles**, comme un attaquant branché sur le LAN :
+reçoit alors une carte de plus **sur le réseau des cibles**, comme un attaquant branché sur le LAN.
+
+**Recommandé : le câblage local.** Quelle VM tu branches sur quel module est une décision *propre à ta machine*,
+pas une propriété du lab. Elle vit donc dans `attach.local.yaml` à la racine (git-ignoré, **non distribué**), et
+se pilote à la souris dans la GUI (onglet VMs d'un module → *Brancher une VM…* / *Débrancher*). Un module reste
+ainsi autonome et distribuable, sans dépendre d'un module d'attaque précis :
+
+```yaml
+# attach.local.yaml (racine du dépôt) — « on » = module cible
+attach:
+  - {on: pentest, vm: attacker/kali, ip: 10}
+  - {on: pjpt,    vm: attacker/kali, ip: 50}
+```
+
+**Possible aussi : `attach:` dans le `module.yaml`** du module cible, pour un bundle volontairement autonome. Même
+forme, sans `on` (le module cible est celui du fichier). Une cible ou une VM absente est alors **tolérée** (simple
+avertissement au `up`), pour qu'un lab distribué fonctionne même sans le module d'attaque attendu.
 
 ```yaml
 attach:
@@ -325,7 +342,21 @@ Déroulé (`labctl <module> up`) :
 
 Utilisables dans `run`, `certificates[].reload` et les fichiers `template: true` :
 `${module.name}`, `${module.domain}`, `${network.subnet}`, `${network.gateway}` (.254), `${vm.name}`, `${vm.ip}`,
-`${vm.fqdn}`, `${vms.<autre>.ip}`, `${keyboard}`. Une variable inconnue est une **erreur de validation**.
+`${vm.fqdn}`, `${vms.<autre>.ip}`, `${keyboard}`, et `${var.<nom>}` pour les valeurs définies sous `vars:`. Une
+variable inconnue — ou un `${var.…}` absent de `vars:` — est une **erreur de validation**.
+
+Les `${var.<nom>}` servent à écrire une valeur une seule fois et à la reprendre partout (dans `files:` en
+`template: true`, dans `run:`, et même dans `windows.password`) : idéal pour des mots de passe de test ou un
+nom de domaine partagés par plusieurs VMs.
+
+```yaml
+vars:
+  domain: pjptlab.local
+  admin_password: "Labs-Omedo1!"
+vms:
+  dc01:
+    windows: {password: ${var.admin_password}, …}
+```
 
 ## Commandes
 

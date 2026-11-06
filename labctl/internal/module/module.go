@@ -19,15 +19,16 @@ const FileName = "module.yaml"
 
 // Module est le contenu d'un module.yaml.
 type Module struct {
-	Module      string         `yaml:"module"`
-	Description string         `yaml:"description,omitempty"`
-	Network     *Network       `yaml:"network,omitempty"`
-	PKI         *PKI           `yaml:"pki,omitempty"`
-	DNS         DNS            `yaml:"dns,omitempty"`
-	Connections []Connection   `yaml:"connections,omitempty"`
-	Attach      []Attach       `yaml:"attach,omitempty"`
-	Defaults    VMSettings     `yaml:"defaults,omitempty"`
-	VMs         map[string]*VM `yaml:"vms"`
+	Module      string            `yaml:"module"`
+	Description string            `yaml:"description,omitempty"`
+	Network     *Network          `yaml:"network,omitempty"`
+	PKI         *PKI              `yaml:"pki,omitempty"`
+	DNS         DNS               `yaml:"dns,omitempty"`
+	Vars        map[string]string `yaml:"vars,omitempty"`
+	Connections []Connection      `yaml:"connections,omitempty"`
+	Attach      []Attach          `yaml:"attach,omitempty"`
+	Defaults    VMSettings        `yaml:"defaults,omitempty"`
+	VMs         map[string]*VM    `yaml:"vms"`
 
 	// Renseignés au chargement
 	Dir     string     `yaml:"-"`
@@ -60,9 +61,10 @@ type DNS struct {
 // réseau des cibles). Elle y reçoit une carte de plus, avec IP réservée, sans route par défaut ni DNS (sa carte
 // principale reste celle de son module).
 type Attach struct {
-	VM  string `yaml:"vm" json:"vm"`                       // <module>/<vm>
-	IP  int    `yaml:"ip" json:"ip"`                       // dernier octet sur le réseau de ce module
-	MAC string `yaml:"mac,omitempty" json:"mac,omitempty"` // générée au premier up
+	VM    string `yaml:"vm" json:"vm"`                       // <module>/<vm>
+	IP    int    `yaml:"ip" json:"ip"`                       // dernier octet sur le réseau de ce module
+	MAC   string `yaml:"mac,omitempty" json:"mac,omitempty"` // générée au premier up
+	Local bool   `yaml:"-" json:"-"`                         // injectée depuis attach.local.yaml (câblage local), pas du module.yaml
 }
 
 // Split renvoie le module et la VM d'un attach.

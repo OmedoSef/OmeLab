@@ -2,10 +2,58 @@ package lab
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"labs/labctl/internal/virt"
 )
+
+// AttachVM branche <module>/<vm> sur le réseau du module cible : écrit le câblage local, s'assure du réseau,
+// pose la carte à chaud (si la VM tourne) et met à jour le DHCP. Appelé par la GUI (bouton Brancher).
+func (l *Lab) AttachVM(on, vm string, ip int, out io.Writer) error {
+	if err := l.AddLocalAttach(on, vm, ip); err != nil {
+		return err
+	}
+	r, err := l.loadRun(on, out)
+	if err != nil {
+		return err
+	}
+	if err := r.ensureNetwork(); err != nil {
+		return err
+	}
+	if err := r.ensureAttach(); err != nil {
+		return err
+	}
+	return r.applyCore()
+}
+
+// DetachVM débranche <module>/<vm> du module cible : retire la carte (si posée), supprime le câblage local et
+// met à jour le DHCP. Appelé par la GUI (bouton Débrancher).
+func (l *Lab) DetachVM(on, vm string, out io.Writer) error {
+	mac, err := l.DelLocalAttach(on, vm)
+	if err != nil {
+		return err
+	}
+	owner, ovm, _ := strings.Cut(vm, "/")
+	lv := owner + "-" + ovm
+	if mac != "" && DomState(lv) != "absente" {
+		v := virt.Shared()
+		if ifs, err := v.Interfaces(lv); err == nil {
+			for _, it := range ifs {
+				if strings.EqualFold(it.MAC, mac) {
+					if err := v.DetachInterface(lv, mac, DomState(lv) == "running"); err != nil {
+						return fmt.Errorf("carte de %s : %w", lv, err)
+					}
+				}
+			}
+		}
+	}
+	r, err := l.loadRun(on, out)
+	if err != nil {
+		return err
+	}
+	return r.applyCore()
+}
 
 // VMs branchées d'un module à l'autre (attach: du module.yaml) : le module cible déclare la VM qu'il accueille
 // (ex. pjpt : attach: [{vm: attacker/kali, ip: 50}]) ; labctl ajoute à cette VM une carte sur le réseau du
@@ -50,16 +98,24 @@ func (r *run) ensureAttach() error {
 		mac := strings.ToLower(a.MAC)
 		if mac == "" {
 			mac = RandomMAC()
-			if err := r.y.SetAttachMAC(i, mac); err != nil {
-				return err
-			}
-			if err := r.y.Save(); err != nil {
-				return err
+			dest := r.y.Path
+			if a.Local { // branchement local : la MAC va dans attach.local.yaml, pas dans le module.yaml partagé
+				if err := r.l.setLocalAttachMAC(r.y.Module, a.VM, mac); err != nil {
+					return err
+				}
+				dest = r.l.attachLocalPath()
+			} else {
+				if err := r.y.SetAttachMAC(i, mac); err != nil {
+					return err
+				}
+				if err := r.y.Save(); err != nil {
+					return err
+				}
 			}
 			if err := r.reload(); err != nil {
 				return err
 			}
-			r.logf("ok  MAC %s pour %s écrite dans %s", mac, a.VM, r.y.Path)
+			r.logf("ok  MAC %s pour %s écrite dans %s", mac, a.VM, dest)
 		}
 		ifs, err := v.Interfaces(lv)
 		if err != nil {

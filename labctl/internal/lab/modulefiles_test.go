@@ -126,7 +126,8 @@ func TestModuleFiles(t *testing.T) {
 func TestConnectionEdits(t *testing.T) {
 	l := testLab(t)
 	sk := strings.Replace(ModuleSkeleton("cnx"), "# network:", "network:", 1)
-	sk = strings.Replace(sk, "#   subnet: 10.70.70.0/24", "  subnet: 10.70.70.0/24", 1)
+	// Sous-réseau propre au test : pas celui de l'exemple du squelette, pour ne pas chevaucher un réseau réel de l'hôte.
+	sk = strings.Replace(sk, "#   subnet: 10.70.70.0/24", "  subnet: 10.123.123.0/24", 1)
 	if _, _, err := l.SaveModuleText("cnx", sk, "", true); err != nil {
 		t.Fatal(err)
 	}

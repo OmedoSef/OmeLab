@@ -315,6 +315,41 @@ async function editConfig(body) {
   catch (e) { toast(e.message, true); return false; }
 }
 
+const lastOctet = ip => { const m = /(\d+)\s*$/.exec(ip || ""); return m ? parseInt(m[1], 10) : 0; };
+
+// Débrancher une VM externe (câblage local) : retire la carte et l'entrée de attach.local.yaml.
+async function detachVM({ module, vm, name }) {
+  if (!await ask({ title: "Débrancher", text: `Retirer ${vm} du réseau de ${module} ?`, ok: "Débrancher", danger: true })) return;
+  if (await editConfig({ op: "attach-del", module, target: vm })) { toast(`${name} débranchée de ${module}`); load(true); }
+}
+
+// Brancher une VM d'un autre module : choisir la VM (à IP fixe), puis une adresse libre sur ce réseau.
+async function attachPicker(on) {
+  const host = (state.modules || []).find(m => m.name === on);
+  if (!host) return;
+  const already = new Set((host.attached || []).map(a => a.from));
+  const cands = [];
+  for (const m of state.modules || []) {
+    if (m.name === on) continue;
+    for (const v of m.vms || []) {
+      const ref = `${m.name}/${v.name}`;
+      if (/\.\d+$/.test(v.ip || "") && !already.has(ref)) cands.push(ref);
+    }
+  }
+  if (!cands.length) { toast("Aucune VM à IP fixe à brancher (les autres modules n'en déclarent pas, ou elles sont déjà branchées)"); return; }
+  const ref = await ask({ title: `Brancher sur ${on}`, text: "Choisir la VM à brancher sur ce réseau :", options: cands, ok: "Suivant" });
+  if (!ref) return;
+  const used = new Set();
+  for (const v of host.vms || []) used.add(lastOctet(v.ip));
+  for (const a of host.attached || []) used.add(lastOctet(a.ip));
+  let free = 50; while (free <= 99 && used.has(free)) free++;
+  const s = await ask({ title: `Adresse de ${ref}`, text: `Dernier octet (2 à 99) sur ${host.subnet}.x :`, input: true, value: String(free), pattern: "[0-9]{1,3}", hint: "un nombre entre 2 et 99", ok: "Brancher" });
+  if (!s) return;
+  const octet = parseInt(s, 10);
+  if (!(octet >= 2 && octet <= 99)) { toast("Adresse hors plage (2 à 99)", true); return; }
+  if (await editConfig({ op: "attach-add", module: on, target: ref, octet })) { toast(`${ref} branchée sur ${on}`); load(true); }
+}
+
 async function loadCore(fresh = false) {
   try { core = await (await api("/api/core" + (fresh ? "?fresh" : ""))).json(); renderCore(); }
   catch (e) { $("#view-core").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
@@ -552,17 +587,22 @@ function renderModule(m, name, sub, down, gwUp, busy) {
       </div></td></tr>`;
   }
   if (!vms.length) html += `<tr><td colspan="5" class="empty">Aucune VM déclarée : onglet module.yaml</td></tr>`;
-  // VMs d'autres modules branchées sur ce réseau (attach:) : gérées dans leur module
+  // VMs d'autres modules branchées sur ce réseau (attach:) : la machine reste gérée dans son module
+  html += `<tr class="sub"><td colspan="5" class="meta">VMs externes branchées sur ce réseau</td></tr>`;
   for (const a of m.attached || []) {
     const [owner] = a.from.split("/");
+    const detach = a.local
+      ? `<button class="danger" ${busy} data-detach='${esc(JSON.stringify({ module: m.name, vm: a.from, name: a.name }))}'>Débrancher</button>`
+      : `<span class="meta" title="déclaré dans ${esc(owner)}/module.yaml (attach:)">dans le module.yaml</span>`;
     html += `<tr>
       <td><span class="dot ${esc(a.state.replace(" ", "-"))}"></span><strong>${esc(a.name)}</strong> <span class="meta">${esc(stLabel(a.state))}</span>
         <div class="meta">branchée depuis <button class="linkbtn" style="font-weight:400" data-go="m/${esc(owner)}/vms">${esc(a.from)}</button></div></td>
       <td class="mono">${esc(a.ip)}</td><td class="meta">—</td><td><span class="meta">via ${esc(owner)}</span></td>
-      <td>${a.state === "absente" ? `<span class="meta">à créer dans ${esc(owner)}</span>`
+      <td><div class="actions">${a.state === "absente" ? `<span class="meta">à créer dans ${esc(owner)}</span>`
         : a.plugged ? `<span class="pill on">carte branchée</span>`
-        : `<button ${busy} ${runAttr([m.name, "up"])} title="labctl ${esc(m.name)} up : branche la carte">Brancher</button>`}</td></tr>`;
+        : `<button ${busy} ${runAttr([m.name, "up"])} title="labctl ${esc(m.name)} up : branche la carte">Brancher</button>`} ${detach}</div></td></tr>`;
   }
+  html += `<tr><td colspan="5"><button ${busy} data-attach-add="${esc(m.name)}">+ Brancher une VM d'un autre module…</button></td></tr>`;
   html += `</tbody></table>
     <details class="cmd" style="border-top:1px solid var(--line)" ${openCmd.has(m.name) ? "open" : ""} data-cmd-box="${esc(m.name)}">
       <summary>Autre commande du module (labctl ${esc(m.name)} …)</summary>
@@ -1439,6 +1479,8 @@ document.addEventListener("click", e => {
   if (t.dataset.go) go(t.dataset.go);
   else if (t.dataset.download) download(t.dataset.download);
   else if (t.dataset.cfg) { e.preventDefault(); editConfig(JSON.parse(t.dataset.cfg)); }
+  else if (t.dataset.detach) { e.preventDefault(); detachVM(JSON.parse(t.dataset.detach)); }
+  else if (t.dataset.attachAdd) { e.preventDefault(); attachPicker(t.dataset.attachAdd); }
   else if (t.dataset.toggleDiff !== undefined) { showDiff = !showDiff; renderPending(); }
   else if (t.dataset.rotateRoot !== undefined) rotateRoot();
   else if (t.dataset.run) run(JSON.parse(t.dataset.run), t.dataset.confirm, t.classList.contains("danger"));

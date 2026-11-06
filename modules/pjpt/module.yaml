@@ -1,0 +1,90 @@
+# Module pjpt : petit Active Directory d'entraînement (préparation PJPT), volontairement faible et ISOLÉ.
+# Les postes d'attaque viennent du module attacker (attach:). Voir docs/module-yaml.md pour toutes les clés,
+# et README.md pour le déroulé (ce qui est volontairement faible, démarrage, snapshots).
+module: pjpt
+description: "Lab Active Directory d'entraînement PJPT (volontairement vulnérable, réseau isolé sans Internet)"
+
+network:
+  name: pjpt-lab
+  subnet: 10.70.70.0/24
+  domain: pjptlab.local        # nom de la forêt Active Directory (= domaine DNS du réseau)
+
+# Secrets et réglages du lab, en un seul endroit : repris dans les scripts files/ (template: true) et dans
+# windows.password. Volontairement simples — ce sont des valeurs de test d'un lab isolé, à ne jamais réutiliser.
+vars:
+  domain: pjptlab.local
+  netbios: PJPTLAB
+  admin_password: "Labs-Omedo1!"        # Administrateur (local puis domaine) et compte lab ; sert aussi à joindre le domaine
+  dsrm_password: "Labs-DSRM-2026!"      # mot de passe du mode restauration des services AD (DSRM)
+  local_admin_password: "Labs-Local-1!" # admin local IDENTIQUE sur les deux clients (surface de mouvement latéral)
+
+# Les postes d'attaque se branchent sur ce réseau via le câblage LOCAL (attach.local.yaml, non distribué) :
+# bouton « Brancher une VM… » dans la GUI. Le module reste autonome et distribuable (rien de personnel ici).
+
+defaults:
+  snapshot: clean              # état de référence pris à la fin de l'installation (labctl pjpt restore)
+  # internet jamais ouvert : l'installation Windows se fait hors ligne (pilotes et OpenSSH sont sur les ISO locales)
+
+vms:
+  # --- Contrôleur de domaine : créé et promu EN PREMIER (les VMs sont provisionnées une à une, dans l'ordre
+  #     du fichier). Les clients qui suivent trouvent donc un domaine déjà en place pour s'y joindre.
+  dc01:
+    role: dc
+    ip: 10
+    mac: 52:54:00:b8:7f:ea
+    cpus: 2
+    memory: 4096
+    disk: 64
+    hardware: {firmware: efi, secure_boot: true, tpm: true}
+    windows:
+      iso: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
+      checksum: sha256:3e4fa6d8507b554856fc9ca6079cc402df11a8b79344871669f0251535255325
+      edition: "Windows Server 2022 SERVERSTANDARD"
+      password: ${var.admin_password}
+    files:
+      - {src: files/dc-setup.ps1, dest: 'C:/labs/dc-setup.ps1', template: true}
+      - {src: files/dc-populate.ps1, dest: 'C:/labs/dc-populate.ps1', template: true}
+      - {src: files/dc-weaknesses.ps1, dest: 'C:/labs/dc-weaknesses.ps1', template: true}
+    run:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File C:\labs\dc-setup.ps1
+      - reboot
+      - powershell -NoProfile -ExecutionPolicy Bypass -File C:\labs\dc-populate.ps1
+      - powershell -NoProfile -ExecutionPolicy Bypass -File C:\labs\dc-weaknesses.ps1
+
+  # --- Postes clients joints au domaine. cli02 est identique à cli01 : n'en démarrer qu'un suffit pour
+  #     commencer (labctl pjpt start dc01 cli01).
+  cli01:
+    role: client
+    ip: 20
+    cpus: 2
+    memory: 4096
+    disk: 64
+    hardware: {firmware: efi, secure_boot: true, tpm: true}
+    windows:
+      iso: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+      checksum: sha256:bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38
+      edition: "Windows 11 Enterprise Evaluation"
+      password: ${var.admin_password}
+    files:
+      - {src: files/client-join.ps1, dest: 'C:/labs/client-join.ps1', template: true}
+    run:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File C:\labs\client-join.ps1
+      - reboot
+
+  cli02:
+    role: client
+    ip: 30
+    cpus: 2
+    memory: 4096
+    disk: 64
+    hardware: {firmware: efi, secure_boot: true, tpm: true}
+    windows:
+      iso: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+      checksum: sha256:bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38
+      edition: "Windows 11 Enterprise Evaluation"
+      password: ${var.admin_password}
+    files:
+      - {src: files/client-join.ps1, dest: 'C:/labs/client-join.ps1', template: true}
+    run:
+      - powershell -NoProfile -ExecutionPolicy Bypass -File C:\labs\client-join.ps1
+      - reboot

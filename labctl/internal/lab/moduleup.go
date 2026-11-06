@@ -50,6 +50,7 @@ func (l *Lab) loadRun(name string, out io.Writer) (*run, error) {
 		}
 		return nil, fmt.Errorf("%s invalide (%d erreur(s)) :\n%s", module.FileName, n, strings.Join(msgs, "\n"))
 	}
+	l.injectLocalAttach(y)
 	return &run{l: l, y: y, out: out}, nil
 }
 
@@ -59,6 +60,7 @@ func (r *run) reload() error {
 	if err != nil {
 		return err
 	}
+	r.l.injectLocalAttach(y)
 	r.y = y
 	return nil
 }

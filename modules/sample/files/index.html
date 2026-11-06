@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Modèle : les variables (var.title, module.domain, vm.fqdn, vm.ip) sont remplacées à la copie dans la VM. -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${var.title}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.6; }
+    code { background: #f0f0f0; padding: 0 .3rem; border-radius: .2rem; }
+    .ok { color: #137333; }
+  </style>
+</head>
+<body>
+  <h1>${var.title}</h1>
+  <p class="ok">✔ Le serveur <strong>${vm.fqdn}</strong> répond en HTTPS.</p>
+  <p>Page servie par <code>nginx</code> sur la VM <code>${vm.name}</code> (${vm.ip}), avec un certificat
+     émis par la CA du module <code>sample</code>. Exemple généré par labctl.</p>
+  <hr>
+  <p><small>${var.owner} — lab isolé. Voir <code>modules/sample/README.md</code>.</small></p>
+</body>
+</html>
