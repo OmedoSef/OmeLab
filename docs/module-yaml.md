@@ -289,6 +289,7 @@ connections:
 | `hardware` | q35, virtio, spice, bios | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
 | `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
+| `keyboard` | clavier de l'hôte | disposition appliquée à la VM (console et X) à la création ; par défaut celle de l'hôte (`LABS_KEYBOARD`, sinon `localectl`) ; à préciser (ex. `us`) pour forcer une autre disposition |
 | `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}` |
 | `certificates` | — | certificats émis par la CA du module et **installés dans la VM** (par SSH) ; `reload` relancé après |
 | `snapshot` | — | nom du snapshot pris une fois la VM prête (ex. `clean`) |

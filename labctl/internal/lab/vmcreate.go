@@ -109,10 +109,14 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			s.Nets[i].MAC = RandomMAC()
 		}
 	}
+	keyboard := s.Keyboard // override par VM (module.yaml) ; vide : disposition de l'hôte
+	if keyboard == "" {
+		keyboard = l.Keyboard()
+	}
 	env := cloudEnv{
 		Domain:    l.NetDomain(s.Nets[0].Network),
 		Gateway:   s.Gateway,
-		Keyboard:  l.Keyboard(),
+		Keyboard:  keyboard,
 		User:      l.Setting("LABS_VM_USER", "lab"),
 		Password:  l.Setting("LABS_VM_PASSWORD", "lab"),
 		Files:     map[string][]byte{},

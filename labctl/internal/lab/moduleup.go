@@ -514,7 +514,7 @@ func (r *run) createVM(vm string) (err error) {
 	}
 
 	s := VMSpec{
-		Name: lv, Image: e.Image, CPUs: e.CPUs, MemoryMiB: e.Memory, DiskGiB: e.Disk,
+		Name: lv, Image: e.Image, CPUs: e.CPUs, MemoryMiB: e.Memory, DiskGiB: e.Disk, Keyboard: e.Keyboard,
 		Nets: []NetSpec{{Network: r.y.NetworkName(), MAC: e.MAC}},
 		Lab:  r.y.Module, Role: e.Role, NoAgent: !e.Agent,
 		HW: Hardware{Machine: e.Hardware.Machine, DiskBus: e.Hardware.DiskBus, NICModel: e.Hardware.NICModel,

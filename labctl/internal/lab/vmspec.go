@@ -26,6 +26,7 @@ type VMSpec struct {
 	Lab       string    // rattachement (description libvirt « lab=... »)
 	Role      string    // rôle (description libvirt « role=... »)
 	Packages  []string  // paquets en plus de qemu-guest-agent
+	Keyboard  string    // disposition clavier ; vide = celle de l'hôte (l.Keyboard())
 	Files     []FileSpec
 	Run       []string     // commandes shell lancées en fin d'installation, dans l'ordre
 	UserData  string       // fichier cloud-config remplaçant celui généré
@@ -208,13 +209,17 @@ func renderCloudInit(s *VMSpec, e cloudEnv) CloudInit {
 	fmt.Fprintf(&u, "    plain_text_passwd: %s\n    ssh_authorized_keys:\n      - %s\n", e.Password, strings.TrimSpace(e.PubKey))
 	fmt.Fprintf(&u, "ssh_pwauth: false\npackages: [%s]\nruncmd:\n", strings.Join(pkgs, ", "))
 	u.WriteString("  - [systemctl, enable, --now, qemu-guest-agent]\n")
-	fmt.Fprintf(&u, "  - [sh, -c, \"localectl set-x11-keymap %s 2>/dev/null || true\"]\n", e.Keyboard)
+	// Clavier de l'hôte (ou override VM) : X11 ET console appliqués tout de suite (setupcon), pas seulement au prochain démarrage
+	fmt.Fprintf(&u, "  - [sh, -c, \"localectl set-x11-keymap %s 2>/dev/null; setupcon --save --force 2>/dev/null; true\"]\n", e.Keyboard)
 	for _, r := range s.Run {
 		fmt.Fprintf(&u, "  - [sh, -c, \"%s\"]\n", strings.ReplaceAll(r, `"`, `\"`))
 	}
-	// Clavier : /etc/default/keyboard (console et X), puis localectl ci-dessus
+	// Clavier : /etc/default/keyboard (console) ET /etc/X11/xorg.conf.d (X), lus au démarrage sans dépendre de
+	// localectl (qui peut échouer en plein cloud-init) ; le runcmd plus haut applique en plus le tout à chaud.
 	u.WriteString("write_files:\n  - path: /etc/default/keyboard\n    encoding: b64\n")
 	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(KeyboardFile(e.Keyboard))))
+	u.WriteString("  - path: /etc/X11/xorg.conf.d/00-keyboard.conf\n    encoding: b64\n")
+	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(XkbConf(e.Keyboard))))
 	for _, f := range s.Files {
 		mode := f.Mode
 		if mode == "" {
@@ -236,6 +241,12 @@ func renderCloudInit(s *VMSpec, e cloudEnv) CloudInit {
 // KeyboardFile renvoie le contenu de /etc/default/keyboard pour une disposition.
 func KeyboardFile(layout string) string {
 	return fmt.Sprintf("XKBMODEL=\"pc105\"\nXKBLAYOUT=\"%s\"\nXKBVARIANT=\"\"\nXKBOPTIONS=\"\"\nBACKSPACE=\"guess\"\n", layout)
+}
+
+// XkbConf renvoie une règle Xorg (/etc/X11/xorg.conf.d/00-keyboard.conf) fixant la disposition du serveur X,
+// lue au démarrage de X indépendamment de localectl.
+func XkbConf(layout string) string {
+	return fmt.Sprintf("Section \"InputClass\"\n    Identifier \"system-keyboard\"\n    MatchIsKeyboard \"on\"\n    Option \"XkbLayout\" \"%s\"\nEndSection\n", layout)
 }
 
 func xmlEsc(s string) string {

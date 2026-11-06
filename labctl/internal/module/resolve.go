@@ -43,6 +43,7 @@ type Effective struct {
 	Agent    bool
 	Internet string
 	Snapshot string
+	Keyboard string            // "" = disposition de l'hôte (résolue par labctl au moment de la création)
 	VM       *VM               // définition d'origine (paquets, fichiers, certificats...)
 	Origins  map[string]string // champ -> origine
 }
@@ -157,6 +158,7 @@ func (m *Module) Effective(name string, set Settings) Effective {
 	e.Disk = pickInt("disk", vm.Disk, d.Disk, "LABS_DEFAULT_DISK", BuiltinDisk)
 	e.Internet = pickStr("internet", vm.Internet, d.Internet, "off")
 	e.Snapshot = pickStr("snapshot", vm.Snapshot, d.Snapshot, "")
+	e.Keyboard = pickStr("keyboard", vm.Keyboard, d.Keyboard, "") // "" : clavier de l'hôte, appliqué à la création
 	h, dh := vm.Hardware, d.Hardware
 	e.Hardware = Hardware{
 		Machine:    pickStr("hardware.machine", h.Machine, dh.Machine, "q35"),

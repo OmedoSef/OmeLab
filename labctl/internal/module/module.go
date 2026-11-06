@@ -90,6 +90,7 @@ type VMSettings struct {
 	Guest    Guest    `yaml:"guest,omitempty"`
 	Internet string   `yaml:"internet,omitempty"` // off | install | never
 	Snapshot string   `yaml:"snapshot,omitempty"`
+	Keyboard string   `yaml:"keyboard,omitempty"` // disposition clavier ; défaut : celle de l'hôte (LABS_KEYBOARD/localectl)
 }
 
 // VM est une VM du module.
