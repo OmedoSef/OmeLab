@@ -199,9 +199,10 @@ connections:
 - **Vers un module** : seul ce qui est déclaré passe, dans ce sens-là ; les réponses reviennent, le sens inverse
   reste fermé (il se déclare dans l'autre module). Les noms de la cible deviennent résolvables, pour le module
   entier (une instance DNS par module) : c'est le pare-feu qui filtre par VM et par port.
-- **Vers `internet`** : n'ouvre rien. Internet reste ouvert ou fermé à la demande (`labctl core internet`) ; la
-  connexion dit ce qui est permis **quand c'est ouvert**. Une VM sans connexion `internet` garde l'accès complet
-  une fois ouverte.
+- **Vers `internet`** : **ouvre** ses `ports` pour ses sources, qu'Internet soit ouvert à la main ou non (comme une
+  connexion entre modules) ; le reste est refusé pour ces sources, et elles obtiennent la résolution des noms publics.
+  `labctl core internet on` n'est plus un prérequis : c'est un raccourci « accès complet » pour les VMs **sans**
+  connexion `internet` (une VM qui a une connexion garde son périmètre, même quand le module est ouvert à tout).
 - Une cible ne peut pas être à la fois dans `dns.links` et dans `connections` (ambigu : retirer l'un des deux).
 - Inchangé : les VMs `internet: never` ne sortent jamais (ni vers Internet, ni vers les modules liés), le LAN reste
   injoignable, rien n'entre depuis le WAN.
@@ -236,8 +237,8 @@ connections:
   les tests de connectivité n'atteindraient pas le portail ; c'est aussi la porte des tunnels DNS, comme sur un vrai
   portail).
 - **Après** : la connexion est ouverte (ses `ports`) jusqu'à la fin de la session ; nftables retire la source
-  seul à l'expiration. Vers Internet, le portail **remplace** l'ouverture manuelle pour ces sources
-  (`core internet on` ne les concerne plus).
+  seul à l'expiration (et coupe ses connexions en cours). Comme toute connexion, le portail n'a pas besoin de
+  l'ouverture manuelle (`core internet on`) ; sa particularité est de garder l'accès **derrière l'authentification**.
 - Les sessions survivent à `labctl core apply` ; `labctl core portal` les liste, `labctl core portal kick N IP` en
   ferme une (aussi dans la GUI, page Passerelle).
 - Le HTTPS ne peut pas être capté sans alerte de certificat : comme sur un vrai portail, seul le HTTP est redirigé.
@@ -263,7 +264,7 @@ connections:
 | `ports` | | ports HTTP(S) en plus de `tcp/80` et `tcp/443` (ex. `tcp/8080`) |
 
 - Seuls 80, 443 et `proxy.ports` passent par le proxy ; les autres ports suivent `ports:` de la connexion, en direct.
-- Vers Internet, le proxy n'ouvre rien : il agit quand Internet est ouvert pour la source (`labctl core internet`).
+- Vers Internet, le proxy **ouvre** le HTTP(S) de ses sources (Internet ouvert à la main ou non) en le faisant passer par mitmproxy.
 - Refus du filtre : HTTPS coupé, HTTP avec une page 403 du proxy.
 - **Autorité d'interception** : racine à part (« Omedo Labs Interception CA », `pki/interception/`, hors de la chaîne
   Omedo Labs), créée à la première utilisation, dont la clé n'est copiée que dans la passerelle. Elle n'est installée

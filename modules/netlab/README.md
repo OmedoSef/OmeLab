@@ -19,10 +19,11 @@ de la GUI), puis **appliquer** (`labctl core apply` ou le bouton *Appliquer* / l
 
 ## 1. Pare-feu par connexion (`via: direct`) — forme active par défaut
 
-HTTPS et DNS autorisés, HTTP (port 80) bloqué. `direct` n'ouvre rien tout seul : il faut ouvrir Internet.
+HTTPS et DNS autorisés, HTTP (port 80) bloqué. La connexion **ouvre** ses ports par elle-même : pas besoin
+d'ouvrir Internet à la main (Internet peut rester « fermé » dans l'en-tête).
 
 ```bash
-labctl core internet on netlab poste
+labctl core apply
 labctl netlab ssh poste 'curl -s -o /dev/null -w "HTTPS %{http_code}\n" https://example.com'      # 200
 labctl netlab ssh poste 'curl -s --max-time 5 http://example.com >/dev/null && echo "HTTP ouvert" || echo "HTTP bloqué"'   # bloqué (port 80 hors de la connexion)
 ```
@@ -31,8 +32,8 @@ Ajoute `tcp/80` aux `ports:` et ré-applique : le HTTP passe à son tour.
 
 ## 2. Portail captif (`via: portal`)
 
-Décommente le bloc **portal**, commente le bloc *direct*, applique. **Pas besoin** de `core internet on` :
-le portail garde l'accès derrière l'authentification (mot de passe « labs »).
+Décommente le bloc **portal**, commente le bloc *direct*, applique. Comme toute connexion, pas besoin de
+`core internet on` ; le portail garde en plus l'accès **derrière l'authentification** (mot de passe « labs »).
 
 ```bash
 labctl core apply
@@ -50,12 +51,11 @@ labctl core portal               # sessions en cours ; labctl core portal kick N
 
 ## 3. Proxy transparent (`via: proxy`)
 
-Décommente un bloc **proxy**, applique, puis ouvre Internet pour le poste (le proxy agit quand Internet est
-ouvert pour la source).
+Décommente un bloc **proxy**, applique. La connexion ouvre le HTTP(S) du poste par elle-même (pas besoin
+d'ouvrir Internet) et le fait passer par mitmproxy.
 
 ```bash
 labctl core apply
-labctl core internet on netlab poste
 labctl netlab ssh poste 'curl -s https://example.com -o /dev/null; curl -s https://www.debian.org -o /dev/null'
 labctl core proxy                # journal : source, destination, nom TLS, requêtes HTTP (page Trafic de la GUI aussi)
 ```

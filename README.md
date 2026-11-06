@@ -70,11 +70,13 @@ En clair :
   d'adresses : `labctl core start` d'abord.
 - **Internet est fermé par défaut**, et toujours refermé au redémarrage de la passerelle :
   ```bash
-  labctl core internet on attacker kali    # Kali seule
+  labctl core internet on attacker kali    # accès COMPLET, raccourci pour les VMs sans connexion dédiée
   labctl core internet off pentest
   ```
-  Même ouverte, la passerelle ne laisse sortir que vers Internet. Ton LAN et les autres réseaux privés
-  restent injoignables.
+  C'est le gros interrupteur. Pour un accès **précis** (certains ports, un portail, un proxy), une VM déclare une
+  `connections:` vers `internet` dans son `module.yaml` : elle **ouvre** ses ports par elle-même, sans cet
+  interrupteur (voir [docs/module-yaml.md](docs/module-yaml.md)). Même ouverte, la passerelle ne laisse sortir que
+  vers Internet. Ton LAN et les autres réseaux privés restent injoignables.
 - **Liens entre modules** : par défaut, un module ne voit aucun autre module, ni par le routage ni par le DNS.
   `labctl core link A B [--both]` ouvre les deux d'un coup, dans un sens ou dans les deux.
 - **DNS** : `<vm>.<domaine du module>`, des alias, et les noms Internet seulement pour les VMs autorisées à sortir.

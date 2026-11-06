@@ -9,15 +9,13 @@ network:
 
 # Accès Internet du poste : AUCUNE connexion par défaut (le poste part sans accès). Décommente UN des blocs
 # ci-dessous selon le mécanisme à tester, dans la GUI (onglet Réseau → Connexions) ou ici, puis applique
-# (labctl core apply / bouton Appliquer). Rappels :
-#   - « direct » et « proxy » n'ouvrent rien par eux-mêmes → labctl core internet on netlab poste
-#   - « portal » remplace l'ouverture manuelle : il garde l'accès derrière l'authentification
+# (labctl core apply / bouton Appliquer). Une connexion OUVRE ses ports par elle-même : pas besoin de
+# « labctl core internet on » (qui n'est qu'un raccourci « accès complet » pour les VMs sans connexion).
 # connections:
   # 1) Pare-feu par connexion : HTTPS et DNS autorisés, HTTP (port 80) bloqué — pour voir le filtrage par port.
   # - {to: internet, from: [poste], ports: [tcp/443, udp/53], via: direct}
 
   # 2) Portail captif : le poste est capté tant qu'il ne s'est pas authentifié (mot de passe « labs »).
-  #    Pas besoin de « core internet on ».
   # - to: internet
   #   from: [poste]
   #   ports: [tcp/80, tcp/443, udp/53]
@@ -25,7 +23,6 @@ network:
   #   portal: {auth: password, password: "labs", duration: 30m, title: "Wi-Fi du lab"}
 
   # 3) Proxy transparent : le HTTP(S) du poste passe par mitmproxy (page Trafic / labctl core proxy).
-  #    Décommente, applique, puis labctl core internet on netlab poste.
   # - to: internet
   #   from: [poste]
   #   ports: [tcp/80, tcp/443, udp/53]
@@ -53,5 +50,3 @@ vms:
       - groupadd -f autologin && usermod -aG autologin lab
       - systemctl set-default graphical.target && systemctl isolate graphical.target   # bascule tout de suite en mode graphique
     snapshot: clean
-connections:
-  - {to: internet, from: [poste], via: portal, portal: {auth: click, duration: 1h, api: true}}

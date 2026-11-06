@@ -182,9 +182,11 @@ func TestConnections(t *testing.T) {
 	has(t, f, fm, `oifname != "eth0" ip saddr { 10.77.77.10 } ip daddr 10.66.66.30 udp dport { 53 } accept`)
 	has(t, f, fm, `oifname != "eth0" ip saddr { 10.77.77.10 } ip daddr 10.66.66.30 meta l4proto icmp accept`)
 	has(t, f, fm, "# connexion demo -> dormant (tous ports) : module non branché, ignorée")
-	// Internet : seulement les ports déclarés quand c'est ouvert, puis refus pour cette source
-	has(t, f, fi, "ip saddr { 10.77.77.40 } ip saddr @allowed ip daddr != @private tcp dport { 443 } accept")
+	// Internet : la connexion ouvre ses ports (octroi, sans @allowed), puis refuse le reste pour cette source
+	has(t, f, fi, "ip saddr { 10.77.77.40 } ip daddr != @private tcp dport { 443 } accept")
 	has(t, f, fi, "ip saddr { 10.77.77.40 } reject with icmpx admin-prohibited")
+	// ...et la source obtient le DNS externe (résolveur « open » du module), sinon rien à résoudre Internet fermé
+	has(t, f, "gwdns/prerouting.nft", "ip saddr { 10.77.77.40 } ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :5301")
 	// La cible devient résolvable (pentest visible depuis demo)
 	has(t, f, "gwdns/demo-open.conf", "# module pentest (pentest-lab.omedo.lab) : visible")
 
@@ -244,8 +246,9 @@ func TestProxy(t *testing.T) {
 	}
 	f := render(t, in)
 	pr := "gwdns/prerouting.nft"
-	// Internet : seulement quand c'est ouvert ; jamais pour une VM bloquée
-	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked ip saddr @allowed ip daddr != @private tcp dport { 80, 443, 8080 } redirect to :8080")
+	// Internet : octroi (ouvert ou non), jamais pour une VM bloquée ; la source a aussi le DNS externe
+	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :5301")
+	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked ip daddr != @private tcp dport { 80, 443, 8080 } redirect to :8080")
 	has(t, f, pr, "ip saddr 10.77.77.0/24 ip saddr != @blocked ip daddr 10.66.66.30 tcp dport { 80, 443 } redirect to :8080")
 	// Les autres ports suivent la connexion (ici ssh direct)
 	has(t, f, "gwdns/forward-modules.nft", `oifname != "eth0" ip saddr 10.77.77.0/24 ip daddr 10.66.66.30 tcp dport { 80, 22 } accept`)

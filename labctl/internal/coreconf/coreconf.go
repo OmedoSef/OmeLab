@@ -325,15 +325,15 @@ type rules struct {
 	proxy                     *ProxyConf
 }
 
-// connRules traduit une connexion en règles nftables : pour les modules (mods), des acceptations ; pour
-// Internet (internet), des acceptations limitées aux sources autorisées, puis un refus du reste pour ces
-// sources (sans quoi la règle générale « autorisé : tout Internet » les laisserait passer).
+// connRules traduit une connexion en règles nftables. Une connexion est un OCTROI : elle ouvre ses ports
+// pour ses sources, qu'Internet soit ouvert à la main (core internet on) ou non — comme un lien entre
+// modules. Pour Internet, on ajoute un refus du reste pour ces sources (sans quoi la règle générale
+// « autorisé : tout Internet » les laisserait passer quand l'ouverture manuelle est active) et une
+// redirection de leur DNS vers le résolveur « open » du module (résolution des noms publics).
 //
 // Derrière un portail (via: portal, numéro id), l'acceptation demande en plus d'être dans l'ensemble
 // portal_<id> (sources authentifiées, retirées à l'expiration) ; avant, le HTTP vers la cible est redirigé
-// vers le portail (pre), et vers Internet le DNS est relayé (instance open du module, port openDNS) pour que
-// les tests de connectivité des OS atteignent le portail. Un portail vers Internet remplace l'ouverture
-// manuelle pour ses sources.
+// vers le portail (pre). Un portail garde l'accès derrière l'authentification.
 func connRules(m *Module, cn module.Connection, byName map[string]*Module, attached map[string]bool, id, openDNS int) (r rules, err error) {
 	src := m.Subnet + ".0/24"
 	sources := []string{src}
@@ -374,7 +374,10 @@ func connRules(m *Module, cn module.Connection, byName map[string]*Module, attac
 		}
 	}
 
-	gate := "ip saddr @allowed " // Internet : ouvert à la demande
+	// Une connexion est un octroi explicite : elle ouvre ses ports sans dépendre de l'ouverture manuelle
+	// (core internet on), exactement comme un lien ou une connexion entre modules. Les sources bloquées
+	// sont déjà rejetées en amont de la chaîne forward (ip saddr @blocked reject).
+	gate := ""
 	if cn.Via == "portal" {
 		pt := cn.Portal
 		pc := &PortalConf{ID: id, Port: PortalFirstPort + id, Set: fmt.Sprintf("portal_%d", id), Module: m.Name,
@@ -398,12 +401,16 @@ func connRules(m *Module, cn module.Connection, byName map[string]*Module, attac
 		if cn.To == module.Internet {
 			r.pre = append(r.pre, fmt.Sprintf("ip saddr %s ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :%d", src, openDNS))
 		}
-	} else if cn.To != module.Internet {
-		gate = ""
+	} else if cn.To == module.Internet {
+		// direct ou proxy vers Internet : la source obtient la résolution externe (instance DNS « open » du
+		// module), sinon elle tomberait sur le résolveur « closed » (noms du lab seulement) tant qu'Internet
+		// n'est pas ouvert à la main — et sa connexion ne pourrait résoudre aucun nom public.
+		r.pre = append(r.pre, fmt.Sprintf("# connexion %s%s -> internet : DNS externe", m.Name, fromDesc(cn.From)),
+			fmt.Sprintf("ip saddr %s ip saddr != @blocked meta l4proto { tcp, udp } th dport 53 redirect to :%d", src, openDNS))
 	}
 	if cn.Via == "proxy" {
-		// HTTP(S) vers la cible redirigé vers le proxy (qui se connecte lui-même à la vraie destination) ; vers
-		// Internet, seulement quand c'est ouvert. Les VMs bloquées ne passent pas (pas de chaîne forward ici).
+		// HTTP(S) vers la cible redirigé vers le proxy (qui se connecte lui-même à la vraie destination).
+		// L'octroi vaut Internet ouvert ou non. Les VMs bloquées ne passent pas (rejetées en amont).
 		px := cn.Proxy
 		mode := "log"
 		if px != nil && px.Mode != "" {

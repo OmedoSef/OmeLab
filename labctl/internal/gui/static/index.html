@@ -554,11 +554,11 @@ function renderModule(m, name, sub, down, gwUp, busy) {
       <div class="card-head" style="padding-top:8px;padding-bottom:8px">
         <span class="meta">${esc(m.description)}</span>
         <span class="spacer"></span>
-        <span class="pill ${m.internet !== "fermé" ? "open" : ""}">Internet : ${esc(m.internet)}</span>
+        <span class="pill ${m.internet !== "fermé" ? "open" : ""}" title="Accès complet accordé à la main (core internet on) aux VMs sans connexion dédiée. Les connexions déclarées (direct, proxy, portail) ouvrent leurs ports indépendamment de cet état.">Accès direct : ${esc(m.internet)}</span>
         <span class="actions">
           ${openAll
-            ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Fermer Internet</button>`
-            : `<button ${dis} ${runAttr(["core", "internet", "on", m.name])} data-confirm="Ouvrir Internet à tout le module ${esc(m.name)} (sauf les VMs « jamais ») ?">Ouvrir à tout le module</button>
+            ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Fermer l'accès direct</button>`
+            : `<button ${dis} ${runAttr(["core", "internet", "on", m.name])} data-confirm="Donner un accès Internet COMPLET à toutes les VMs de ${esc(m.name)} (en plus des connexions déclarées ; sauf les VMs « jamais ») ?">Ouvrir à tout le module</button>
                ${m.internet !== "fermé" ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`}
         </span>
       </div>`;
@@ -679,13 +679,13 @@ function connCard(m, mods, busy) {
   for (const o of mods) if (o.name !== m.name) (o.connections || []).forEach(c => {
     if (c.to === m.name || c.to.startsWith(m.name + "/")) incoming.push({ ...c, src: o.name });
   });
-  const targets = [["internet", "Internet (quand il est ouvert)"]];
+  const targets = [["internet", "Internet"]];
   for (const o of mods) if (o.name !== m.name) {
     targets.push([o.name, `${o.name} (tout le module)`]);
     for (const vm of fixed(o.name)) targets.push([`${o.name}/${vm}`, `${o.name} / ${vm}`]);
   }
   return `<section class="card"><div class="card-head"><h2>Connexions restreintes</h2>
-      <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet ; un lien de la carte précédente, lui, ouvre tout</span></div>
+      <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet. Une connexion <strong>ouvre</strong> ses ports (même « accès direct » fermé) ; un lien de la carte précédente, lui, ouvre tout</span></div>
     <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th>Mode</th><th></th></tr></thead><tbody>
     ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
       <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
@@ -983,9 +983,6 @@ document.addEventListener("change", e => {
     f.pdomains.required = f.via.value === "proxy" && f.pmode.value === "filter";
     $(".pw", f).hidden = f.auth.value !== "password";
     f.password.required = f.via.value === "portal" && f.auth.value === "password";
-    // Le portail EST la porte : pas besoin (et il ne faut pas) d'ouvrir Internet à la main.
-    const io = f.target.querySelector('option[value=internet]');
-    if (io) io.textContent = f.via.value === "portal" ? "Internet (géré par le portail — ne pas ouvrir)" : "Internet (quand il est ouvert)";
   }
 });
 document.addEventListener("change", e => {
