@@ -32,6 +32,9 @@ mkdir -p "$STATE"; touch "$STATE"/{allowed,blocked}
 valid() { [[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]] || { echo "adresse invalide : $1" >&2; exit 2; }; }
 add() { valid "$2"; grep -qxF "$2" "$STATE/$1" || echo "$2" >>"$STATE/$1"; }
 del() { valid "$2"; grep -vxF "$2" "$STATE/$1" >"$STATE/$1.tmp" || true; mv "$STATE/$1.tmp" "$STATE/$1"; }
+# Coupe les connexions déjà suivies d'une source : sans ça, la chaîne forward (« ct state established accept »)
+# laisse les flux en cours continuer après une révocation ou un blocage — seules les nouvelles seraient coupées.
+flush_ct() { local ct; ct=$(command -v conntrack || echo /usr/sbin/conntrack); [[ -x $ct ]] && "$ct" -D -s "$1" >/dev/null 2>&1 || true; }
 # elements FICHIER... : contenu des fichiers en syntaxe d'ensemble nftables
 LEASES=/var/lib/misc/gwdhcp.leases
 HOSTSDIR=/run/gwdns/leases
@@ -164,8 +167,8 @@ NFT
 
 case ${1:-} in
   allow) add allowed "${2:?CIDR}" ;;
-  revoke) del allowed "${2:?CIDR}" ;;
-  block) add blocked "${2:?CIDR}" ;;
+  revoke) del allowed "${2:?CIDR}"; flush_ct "${2}" ;;
+  block) add blocked "${2:?CIDR}"; flush_ct "${2}" ;;
   unblock) del blocked "${2:?CIDR}" ;;
   status) for f in allowed blocked; do sed "s/^/$f /" "$STATE/$f"; done; exit 0 ;;
   release) shift; release "$@"; exit 0 ;;

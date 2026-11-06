@@ -760,7 +760,7 @@ func (g *Gateway) Create() error {
 		s := VMSpec{
 			Name: GatewayVM, Image: "debian13", CPUs: 1, MemoryMiB: GatewayProxyMiB, DiskGiB: 10,
 			Nets: []NetSpec{{Network: "default"}}, Lab: "core", Role: "gateway",
-			Packages: []string{"nftables", "dnsmasq", "dnsmasq-utils"},
+			Packages: []string{"nftables", "dnsmasq", "dnsmasq-utils", "conntrack"},
 			Run: []string{"sysctl --system >/dev/null", "systemctl disable --now dnsmasq",
 				"systemctl daemon-reload && systemctl enable --now gw.service", "systemctl enable systemd-networkd"},
 		}
@@ -829,7 +829,9 @@ func (g *Gateway) installLabctl() error {
 	if _, err := g.SSH("sudo install -m 0755 /dev/stdin /usr/local/sbin/labctl", f); err != nil {
 		return fmt.Errorf("copie de labctl sur la passerelle : %w", err)
 	}
-	if _, err := g.SSH("sudo systemctl daemon-reload && sudo systemctl enable -q gwportal", nil); err != nil {
+	// Redémarre le service s'il tourne déjà : il reprend le nouveau binaire (les sessions, persistées
+	// dans /run/gw, sont relues au démarrage). Sinon on l'active simplement.
+	if _, err := g.SSH("sudo systemctl daemon-reload && sudo systemctl enable -q gwportal && sudo systemctl try-restart gwportal", nil); err != nil {
 		return err
 	}
 	g.logf("ok  labctl copié sur la passerelle (portails captifs)")
@@ -860,7 +862,7 @@ func (g *Gateway) Update() error {
 	if err := g.require(); err != nil {
 		return err
 	}
-	if _, err := g.SSH("dpkg -s dnsmasq dnsmasq-utils >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -qq -y dnsmasq dnsmasq-utils >/dev/null", nil); err != nil {
+	if _, err := g.SSH("dpkg -s dnsmasq dnsmasq-utils conntrack >/dev/null 2>&1 || sudo DEBIAN_FRONTEND=noninteractive apt-get install -qq -y dnsmasq dnsmasq-utils conntrack >/dev/null", nil); err != nil {
 		return err
 	}
 	for _, f := range gwInstall {

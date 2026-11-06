@@ -45,10 +45,11 @@ type Session struct {
 
 // Server sert les portails et tient leurs sessions.
 type Server struct {
-	confs map[int]coreconf.PortalConf
-	state string
-	nft   func(cmd string) error // commande nftables (remplacée dans les tests)
-	now   func() time.Time
+	confs   map[int]coreconf.PortalConf
+	state   string
+	nft     func(cmd string) error // commande nftables (remplacée dans les tests)
+	flushCT func(ip string)        // ferme les connexions suivies d'une source (remplacée dans les tests)
+	now     func() time.Time
 
 	mu       sync.Mutex
 	sessions map[string]*Session // clé : <portail>/<ip>
@@ -69,7 +70,7 @@ func LoadConfig(path string) ([]coreconf.PortalConf, error) {
 
 // New prépare le service ; les sessions encore valides du fichier d'état sont reprises.
 func New(confs []coreconf.PortalConf, state string) *Server {
-	s := &Server{confs: map[int]coreconf.PortalConf{}, state: state, now: time.Now, nft: runNft, sessions: map[string]*Session{}}
+	s := &Server{confs: map[int]coreconf.PortalConf{}, state: state, now: time.Now, nft: runNft, flushCT: flushConntrack, sessions: map[string]*Session{}}
 	for _, c := range confs {
 		s.confs[c.ID] = c
 	}
@@ -93,6 +94,17 @@ func runNft(cmd string) error {
 	return nil
 }
 
+// flushConntrack ferme les connexions déjà suivies dont ip est la source : sans ça, retirer ip de
+// l'ensemble du portail ne coupe pas les flux en cours (la chaîne forward accepte « established,related »),
+// et une déconnexion (ou une expiration) ne couperait l'accès qu'aux nouvelles connexions.
+func flushConntrack(ip string) {
+	bin := "conntrack"
+	if _, err := exec.LookPath(bin); err != nil {
+		bin = "/usr/sbin/conntrack" // emplacement Debian si /usr/sbin n'est pas dans le PATH
+	}
+	_ = exec.Command(bin, "-D", "-s", ip).Run() // best-effort : échoue sans entrée, ou si l'outil manque
+}
+
 func key(id int, ip string) string { return fmt.Sprintf("%d/%s", id, ip) }
 
 // Resync retire les sessions expirées et remet les autres dans les ensembles nftables (après un
@@ -105,6 +117,7 @@ func (s *Server) Resync() {
 		left := int(se.Expires.Sub(now).Seconds())
 		if left <= 0 {
 			delete(s.sessions, k)
+			s.flushCT(se.IP) // session expirée : on coupe aussi les flux encore ouverts
 			continue
 		}
 		_ = s.nft(fmt.Sprintf("add element inet gw %s { %s timeout %ds }", s.confs[se.Portal].Set, se.IP, left))
@@ -177,6 +190,7 @@ func (s *Server) Logout(id int, ip string) bool {
 	}
 	delete(s.sessions, key(id, ip))
 	_ = s.nft(fmt.Sprintf("delete element inet gw %s { %s }", s.confs[id].Set, se.IP))
+	s.flushCT(se.IP) // coupe aussi les connexions en cours, pas seulement les nouvelles
 	s.save()
 	return true
 }

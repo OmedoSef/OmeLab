@@ -983,6 +983,9 @@ document.addEventListener("change", e => {
     f.pdomains.required = f.via.value === "proxy" && f.pmode.value === "filter";
     $(".pw", f).hidden = f.auth.value !== "password";
     f.password.required = f.via.value === "portal" && f.auth.value === "password";
+    // Le portail EST la porte : pas besoin (et il ne faut pas) d'ouvrir Internet à la main.
+    const io = f.target.querySelector('option[value=internet]');
+    if (io) io.textContent = f.via.value === "portal" ? "Internet (géré par le portail — ne pas ouvrir)" : "Internet (quand il est ouvert)";
   }
 });
 document.addEventListener("change", e => {

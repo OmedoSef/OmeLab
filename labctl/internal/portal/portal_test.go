@@ -26,6 +26,7 @@ func testServer(t *testing.T) (*Server, *[]string, *time.Time) {
 	var cmds []string
 	now := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
 	s.nft = func(c string) error { cmds = append(cmds, c); return nil }
+	s.flushCT = func(string) {}
 	s.now = func() time.Time { return now }
 	return s, &cmds, &now
 }
@@ -95,6 +96,7 @@ func TestPortalFlow(t *testing.T) {
 	s2 := New([]coreconf.PortalConf{s.confs[0], s.confs[1]}, s.state)
 	var cmds2 []string
 	s2.nft = func(c string) error { cmds2 = append(cmds2, c); return nil }
+	s2.flushCT = func(string) {}
 	s2.now = s.now
 	s2.Resync()
 	if len(cmds2) != 1 || cmds2[0] != "add element inet gw portal_0 { 10.77.77.10 timeout 40s }" {

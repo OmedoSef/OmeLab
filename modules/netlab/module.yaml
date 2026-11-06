@@ -53,3 +53,5 @@ vms:
       - groupadd -f autologin && usermod -aG autologin lab
       - systemctl set-default graphical.target && systemctl isolate graphical.target   # bascule tout de suite en mode graphique
     snapshot: clean
+connections:
+  - {to: internet, from: [poste], via: portal, portal: {auth: click, duration: 1h, api: true}}
