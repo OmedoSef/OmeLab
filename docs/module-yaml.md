@@ -345,22 +345,32 @@ Déroulé (`labctl <module> up`) :
 
 ### Variables (`${...}`)
 
-Utilisables dans `run`, `certificates[].reload` et les fichiers `template: true` :
-`${module.name}`, `${module.domain}`, `${network.subnet}`, `${network.gateway}` (.254), `${vm.name}`, `${vm.ip}`,
-`${vm.fqdn}`, `${vms.<autre>.ip}`, `${keyboard}`, et `${var.<nom>}` pour les valeurs définies sous `vars:`. Une
-variable inconnue — ou un `${var.…}` absent de `vars:` — est une **erreur de validation**.
+Les `${...}` sont résolus dans **tous les champs** du module.yaml, **sauf** `module:`, `description:` et le bloc
+`vars:` lui-même. Deux familles :
 
-Les `${var.<nom>}` servent à écrire une valeur une seule fois et à la reprendre partout (dans `files:` en
-`template: true`, dans `run:`, et même dans `windows.password`) : idéal pour des mots de passe de test ou un
-nom de domaine partagés par plusieurs VMs.
+- **globales** — `${var.<nom>}` (valeurs de `vars:`), `${module.name}`, `${module.domain}`, `${network.subnet}`,
+  `${network.gateway}` (.254), `${keyboard}` — valables **partout** (iso, image, source, connexions, alias DNS…) ;
+- **par VM** — `${vm.name}`, `${vm.ip}`, `${vm.fqdn}` — seulement dans les champs **d'une VM** (le contexte est
+  cette VM). Au niveau module (dans `network:`, `connections:`, `dns:`…) il n'y a pas de « VM courante » : on y
+  désigne une VM par son nom avec `${vms.<nom>.ip}` / `${vms.<nom>.fqdn}`.
+
+Une variable inconnue, un `${var.…}` absent de `vars:`, un `${vm.…}` hors d'une VM, ou un cycle entre variables
+de `vars:` sont des **erreurs de validation**. Les champs numériques/structurels (`ip`, `cpus`…) ne sont pas
+concernés. Les fichiers `files: template: true` sont aussi templatés (leur **contenu**, pas seulement le chemin).
+
+Idéal pour écrire une valeur une seule fois et la reprendre partout — mot de passe de test, nom de domaine,
+chemin d'ISO partagé par plusieurs VMs :
 
 ```yaml
 vars:
   domain: pjptlab.local
   admin_password: "Labs-Omedo1!"
+  iso_win11: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso   # écrit une fois
 vms:
   dc01:
-    windows: {password: ${var.admin_password}, …}
+    windows: {iso: "${var.iso_win11}", password: "${var.admin_password}"}
+  client01:
+    windows: {iso: "${var.iso_win11}", password: "${var.admin_password}"}   # repris tel quel
 ```
 
 ## Commandes

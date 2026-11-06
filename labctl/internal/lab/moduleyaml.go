@@ -28,6 +28,13 @@ func (l *Lab) loadYAML(m *Module) {
 	}
 	m.YAML = y
 	l.injectLocalAttach(y) // câblage local (attach.local.yaml), traité ensuite comme les attach: du module.yaml
+	// Résout les variables ${...} dans toute la config (sauf module/description/vars) : tout ce qui suit
+	// (Env, Conf, pare-feu, création des VMs) travaille sur les valeurs finales. Tolérant au sous-réseau pas
+	// encore assigné. Une variable fautive (faute de frappe, cycle) devient une erreur du module.
+	if err := y.ExpandVars(l.pkiDomain(), l.Keyboard()); err != nil {
+		m.YAMLErr = err
+		return
+	}
 	if y.Description != "" {
 		m.Description = y.Description
 	}
