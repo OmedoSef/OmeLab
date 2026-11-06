@@ -127,7 +127,17 @@ l'envoie sur la passerelle (`labctl core config` l'affiche sans rien appliquer, 
   et configuration du service `gwportal` (`/etc/gwdns/portal.json`). Ce service est **labctl lui-même**
   (`labctl gw-portal serve`), copié sur la passerelle par `labctl core gw` et `labctl core update` ; il écoute sur
   les ports 8800 et suivants, côté modules seulement, et garde ses sessions dans `/run/gw/` pour les remettre en
-  place après chaque `apply`. `labctl core portal` : sessions en cours ; `labctl core portal kick N IP`.
+  place après chaque `apply`. `labctl core portal` : sessions en cours ; `labctl core portal kick N IP` ;
+- le proxy (`connections: … via: proxy`) : redirections du HTTP(S) vers `:8080` (`/etc/gwdns/prerouting.nft`) et
+  règles lues par le module mitmproxy (`/etc/gwdns/proxy.json`). Le service `gwproxy` (mitmweb 12.3.1 en mode
+  transparent, `/opt/mitmproxy`, module `/usr/local/lib/gwproxy/gwproxy.py`) n'est installé et lancé que si une
+  connexion l'utilise : l'archive officielle est téléchargée sur l'hôte, vérifiée par son empreinte SHA-256, puis
+  copiée dans la passerelle. Interface mitmweb sur `127.0.0.1:8081` de la passerelle seulement (tunnel SSH :
+  `labctl core proxy web`), journal dans `/var/log/gwproxy/flows.jsonl` (`labctl core proxy`). Le port 8080
+  n'accepte que le trafic redirigé par le pare-feu.
+
+La passerelle a **1 Gio** de mémoire (mitmweb garde les échanges en mémoire, 2000 au plus) : `labctl core update`
+porte une passerelle plus ancienne (512 Mio) à 1 Gio, avec un redémarrage d'une trentaine de secondes.
 
 Chaque requête DNS d'une VM est redirigée par nftables vers l'instance `open` de son module si la VM a le droit
 de sortir, sinon vers l'instance `closed`, qui ne connaît que les noms du lab.

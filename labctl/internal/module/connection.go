@@ -2,6 +2,7 @@ package module
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,8 +22,36 @@ type Connection struct {
 	To     string   `yaml:"to" json:"to"`                             // module, module/vm, ou internet
 	From   []string `yaml:"from,omitempty" json:"from,omitempty"`     // VMs ou réservations de ce module (défaut : tout le module)
 	Ports  []string `yaml:"ports,omitempty" json:"ports,omitempty"`   // tcp/80, udp/53, tcp/8000-8100, icmp (défaut : tout)
-	Via    string   `yaml:"via,omitempty" json:"via,omitempty"`       // direct (défaut), portal ; proxy à venir
+	Via    string   `yaml:"via,omitempty" json:"via,omitempty"`       // direct (défaut), portal, proxy
 	Portal *Portal  `yaml:"portal,omitempty" json:"portal,omitempty"` // options de via: portal
+	Proxy  *Proxy   `yaml:"proxy,omitempty" json:"proxy,omitempty"`   // options de via: proxy
+}
+
+// Proxy : options d'une connexion qui passe par le proxy transparent de la passerelle (via: proxy, mitmproxy).
+// Le HTTP et le HTTPS (tcp/80, tcp/443 et Ports en plus) sont redirigés vers le proxy ; le reste suit ports:.
+type Proxy struct {
+	Mode  string   `yaml:"mode,omitempty" json:"mode,omitempty"`   // log (défaut) | filter | intercept
+	Allow []string `yaml:"allow,omitempty" json:"allow,omitempty"` // filter : domaines autorisés (*.debian.org)
+	Deny  []string `yaml:"deny,omitempty" json:"deny,omitempty"`   // filter : domaines refusés (le reste passe)
+	Ports []string `yaml:"ports,omitempty" json:"ports,omitempty"` // ports HTTP(S) en plus de tcp/80 et tcp/443
+}
+
+// ProxyModes : modes du proxy.
+var ProxyModes = []string{"log", "filter", "intercept"}
+
+var reDomainPattern = regexp.MustCompile(`^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+// ProxyPorts renvoie les ports TCP redirigés vers le proxy (80, 443 et les ports en plus).
+func (p *Proxy) ProxyPorts() []Port {
+	out := []Port{{Proto: "tcp", Lo: 80, Hi: 80}, {Proto: "tcp", Lo: 443, Hi: 443}}
+	if p != nil {
+		for _, s := range p.Ports {
+			if pt, err := ParsePort(s); err == nil && pt.Proto == "tcp" {
+				out = append(out, pt)
+			}
+		}
+	}
+	return out
 }
 
 // Portal : options d'une connexion derrière un portail captif (via: portal). Avant authentification, le HTTP
@@ -112,15 +141,18 @@ func (c *checker) checkConnections(ctx Context) {
 		p := fmt.Sprintf("connections.%d", i)
 		switch cn.Via {
 		case "", "direct":
-			if cn.Portal != nil {
-				c.err(p+".portal", "portal: sans via: portal")
-			}
 		case "portal":
 			c.checkPortal(p, cn, ctx)
 		case "proxy":
-			c.err(p+".via", "via: proxy pas encore disponible (direct, portal)")
+			c.checkProxy(p, cn)
 		default:
-			c.err(p+".via", "via inconnu %q (direct, portal)", cn.Via)
+			c.err(p+".via", "via inconnu %q (direct, portal, proxy)", cn.Via)
+		}
+		if cn.Portal != nil && cn.Via != "portal" {
+			c.err(p+".portal", "portal: sans via: portal")
+		}
+		if cn.Proxy != nil && cn.Via != "proxy" {
+			c.err(p+".proxy", "proxy: sans via: proxy")
 		}
 		if mod, vm := cn.Target(); cn.To == "" {
 			c.err(p+".to", "to obligatoire : un module, module/vm, ou internet")
@@ -190,6 +222,44 @@ func (c *checker) checkPortal(p string, cn Connection, ctx Context) {
 	}
 }
 
+func (c *checker) checkProxy(p string, cn Connection) {
+	px := cn.Proxy
+	if px == nil {
+		px = &Proxy{}
+	}
+	pp := p + ".proxy"
+	switch px.Mode {
+	case "", "log", "intercept":
+		if len(px.Allow)+len(px.Deny) > 0 {
+			c.err(pp, "allow et deny demandent mode: filter")
+		}
+	case "filter":
+		if len(px.Allow) > 0 && len(px.Deny) > 0 {
+			c.err(pp, "allow ou deny, pas les deux (allow : seuls ces domaines ; deny : tout sauf ces domaines)")
+		}
+		if len(px.Allow)+len(px.Deny) == 0 {
+			c.err(pp, "mode: filter demande allow (domaines autorisés) ou deny (domaines refusés)")
+		}
+	default:
+		c.err(pp+".mode", "mode inconnu %q (%s)", px.Mode, strings.Join(ProxyModes, ", "))
+	}
+	for _, kv := range []struct {
+		k string
+		v []string
+	}{{"allow", px.Allow}, {"deny", px.Deny}} {
+		for j, d := range kv.v {
+			if !reDomainPattern.MatchString(strings.ToLower(d)) {
+				c.err(fmt.Sprintf("%s.%s.%d", pp, kv.k, j), "domaine invalide %q (ex. github.com, *.debian.org)", d)
+			}
+		}
+	}
+	for j, s := range px.Ports {
+		if pt, err := ParsePort(s); err != nil || pt.Proto != "tcp" {
+			c.err(fmt.Sprintf("%s.ports.%d", pp, j), "port TCP attendu (ex. tcp/8080), pas %q", s)
+		}
+	}
+}
+
 // AddConnection ajoute une entrée à connections: (une ligne {to, from, ports}).
 func (m *Module) AddConnection(cn Connection) {
 	seq := mapValue(m.doc(), "connections")
@@ -214,6 +284,23 @@ func (m *Module) AddConnection(cn Connection) {
 	}
 	if cn.Via != "" && cn.Via != "direct" {
 		item.Content = append(item.Content, scalar("via"), scalar(cn.Via))
+	}
+	if px := cn.Proxy; px != nil && cn.Via == "proxy" {
+		po := &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle}
+		if px.Mode != "" {
+			po.Content = append(po.Content, scalar("mode"), scalar(px.Mode))
+		}
+		for _, kv := range []struct {
+			k string
+			v []string
+		}{{"allow", px.Allow}, {"deny", px.Deny}, {"ports", px.Ports}} {
+			if len(kv.v) > 0 {
+				po.Content = append(po.Content, scalar(kv.k), list(kv.v))
+			}
+		}
+		if len(po.Content) > 0 {
+			item.Content = append(item.Content, scalar("proxy"), po)
+		}
 	}
 	if pt := cn.Portal; pt != nil && cn.Via == "portal" {
 		po := &yaml.Node{Kind: yaml.MappingNode, Style: yaml.FlowStyle}

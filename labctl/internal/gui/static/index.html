@@ -189,6 +189,7 @@ textarea.ftext { display: block; width: 100%; height: min(60vh, 600px); border: 
   </div>
   <div class="view" id="view-core" hidden><div class="empty">Chargement…</div></div>
   <div class="view" id="view-pki" hidden><div class="empty">Chargement…</div></div>
+  <div class="view" id="view-traffic" hidden></div>
 </main>
 </div>
 
@@ -243,10 +244,16 @@ function ask({ title, text = "", ok = "Confirmer", danger = false, input = false
     <div class="dlg-actions"><button value="ok" class="${danger ? "danger-solid" : "primary"}">${esc(ok)}</button>
     ${cancel ? `<button value="" formnovalidate>Annuler</button>` : ""}</div></form>`;
   return new Promise(res => {
-    d.onclose = () => {
+    // Réponse à la validation du formulaire (immédiate), sinon à la fermeture (Échap) ; une seule fois
+    let done = false;
+    const finish = ok => {
+      if (done) return;
+      done = true;
       const f = d.querySelector("[name=v]");
-      res(d.returnValue === "ok" ? (f ? f.value.trim() : true) : null);
+      res(ok ? (f ? f.value.trim() : true) : null);
     };
+    d.querySelector("form").addEventListener("submit", e => finish(e.submitter?.value === "ok"));
+    d.onclose = () => finish(d.returnValue === "ok");
     d.returnValue = "";
     d.showModal();
     const f = d.querySelector("[name=v]");
@@ -275,7 +282,7 @@ function go(p) {
   p = p || "overview";
   const [kind, name, sub] = p.split("/");
   if (kind === "m") p = name ? `m/${name}/${["vms", "yaml", "files", "net"].includes(sub) ? sub : "vms"}` : "overview";
-  else if (!["overview", "core", "pki", "new"].includes(p) || (p === "new" && !ed.create)) p = "overview";
+  else if (!["overview", "core", "pki", "traffic", "new"].includes(p) || (p === "new" && !ed.create)) p = "overview";
   const changed = p !== page;
   page = p;
   if (location.hash !== `#t=${token}&p=${p}`) history[changed ? "pushState" : "replaceState"](null, "", `#t=${token}&p=${p}`);
@@ -284,6 +291,7 @@ function go(p) {
   $("#view-overview").hidden = p !== "overview";
   $("#view-core").hidden = p !== "core";
   $("#view-pki").hidden = p !== "pki";
+  $("#view-traffic").hidden = p !== "traffic";
   $("#view-module").hidden = !m;
   $("#mod-vms").hidden = s !== "vms";
   $("#view-editor").hidden = s !== "yaml";
@@ -291,7 +299,7 @@ function go(p) {
   $("#mod-files").hidden = s !== "files";
   render(); renderNet();
   if (changed) scrollTo(0, 0);
-  if (p === "core") loadCore(); else if (p === "pki") loadPKI();
+  if (p === "core") loadCore(); else if (p === "pki") loadPKI(); else if (p === "traffic") loadTraffic();
   else if (s === "yaml" && p !== "new") { ed.want = m; openEditor(); }
   else if (s === "net") loadConfig();
   else if (s === "files") loadFiles(m);
@@ -442,7 +450,8 @@ function render() {
     `<button class="add" data-new-module>+ Nouveau module…</button>` +
     `<div class="grp">Infrastructure</div>` +
     nav("core", `<span class="dot ${gwUp ? "running" : ""}"></span>Passerelle`) +
-    nav("pki", "PKI");
+    nav("pki", "PKI") +
+    nav("traffic", "Trafic (proxy)");
 
   // Sans passerelle, plus de DHCP, DNS ni Internet : on le dit en tête, avec de quoi la relancer
   const down = gwUp ? "" : `<div class="banner down-banner"><strong>Passerelle core-gw ${esc(stLabel(state.gateway.state))}</strong>
@@ -585,7 +594,9 @@ function connCard(m, mods, busy) {
   const desc = c => `${(c.from || []).length ? esc(c.from.join(", ")) : `<span class="meta">tout le module</span>`}`;
   const ports = c => (c.ports || []).length ? `<div class="tags">${c.ports.map(p => `<span class="pill mono">${esc(p)}</span>`).join("")}</div>` : `<span class="meta">tous</span>`;
   const out = m.connections || [];
-  const mode = c => c.via !== "portal" ? `<span class="meta">direct</span>`
+  const mode = c => c.via === "proxy" ? `<span class="pill open" title="${esc(JSON.stringify(c.proxy || {}))}">proxy : ${esc(c.proxy?.mode || "log")}${
+      (c.proxy?.allow || []).length ? " (seuls " + esc(c.proxy.allow.join(", ")) + ")" : (c.proxy?.deny || []).length ? " (sauf " + esc(c.proxy.deny.join(", ")) + ")" : ""}</span>`
+    : c.via !== "portal" ? `<span class="meta">direct</span>`
     : `<span class="pill open" title="${esc(JSON.stringify(c.portal || {}))}">portail : ${esc(c.portal?.auth || "click")}, ${esc(c.portal?.duration || "1h")}</span>`;
   const incoming = [];
   for (const o of mods) if (o.name !== m.name) (o.connections || []).forEach(c => {
@@ -609,7 +620,14 @@ function connCard(m, mods, busy) {
       <span style="display:grid;gap:3px;font-size:12px;color:var(--muted)">Depuis (aucune case : tout le module)<span style="display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:4px">
         ${fixed(m.name).map(n => `<label class="check"><input type="checkbox" name="from" value="${esc(n)}"> ${esc(n)}</label>`).join("") || `<span class="meta">aucune VM à IP fixe</span>`}</span></span>
       <label>Ports (vide : tous)<input name="ports" class="mono" placeholder="tcp/80 tcp/443 udp/53 icmp" style="min-width:240px"></label>
-      <label>Mode<select name="via" data-via><option value="direct">direct</option><option value="portal">derrière un portail captif</option></select></label>
+      <label>Mode<select name="via" data-via><option value="direct">direct</option><option value="portal">derrière un portail captif</option><option value="proxy">via le proxy</option></select></label>
+      <div class="proxy-opts" hidden style="width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:8px 0;border-top:1px dashed var(--line)">
+        <label>Mode du proxy<select name="pmode" data-pmode><option value="log">log : journal, HTTPS non déchiffré</option><option value="filter">filter : domaines autorisés / refusés</option><option value="intercept">intercept : HTTPS déchiffré</option></select></label>
+        <label class="pxf" hidden>Liste<select name="plist"><option value="allow">seuls ces domaines</option><option value="deny">tout sauf ces domaines</option></select></label>
+        <label class="pxf" hidden>Domaines<input name="pdomains" class="mono" placeholder="*.debian.org github.com" style="min-width:240px"></label>
+        <label>Autres ports HTTP(S)<input name="pports" class="mono" placeholder="tcp/8080" style="width:120px"></label>
+        <span class="meta">80 et 443 passent toujours par le proxy ; les autres ports suivent « Ports »</span>
+      </div>
       <div class="portal-opts" hidden style="width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:8px 0;border-top:1px dashed var(--line)">
         <label>Authentification<select name="auth" data-auth><option value="click">un clic</option><option value="password">mot de passe</option><option value="terms">accepter les conditions</option></select></label>
         <label class="pw" hidden>Mot de passe<input name="password" autocomplete="off"></label>
@@ -881,8 +899,11 @@ document.addEventListener("click", async e => {
 });
 document.addEventListener("change", e => {
   const f = e.target.closest("form[data-cfg-form=conn]");
-  if (f && (e.target.dataset.via !== undefined || e.target.dataset.auth !== undefined)) {
+  if (f && (e.target.dataset.via !== undefined || e.target.dataset.auth !== undefined || e.target.dataset.pmode !== undefined)) {
     $(".portal-opts", f).hidden = f.via.value !== "portal";
+    $(".proxy-opts", f).hidden = f.via.value !== "proxy";
+    f.querySelectorAll(".pxf").forEach(x => { x.hidden = f.pmode.value !== "filter"; });
+    f.pdomains.required = f.via.value === "proxy" && f.pmode.value === "filter";
     $(".pw", f).hidden = f.auth.value !== "password";
     f.password.required = f.via.value === "portal" && f.auth.value === "password";
   }
@@ -913,6 +934,75 @@ document.addEventListener("drop", e => {
   if (!c) return;
   e.preventDefault(); c.classList.remove("drop");
   if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+});
+
+// --- Page Trafic : journal du proxy de la passerelle (connexions via: proxy), accès à mitmweb
+const tr = { events: null, err: "", q: "", module: "", action: "" };
+async function loadTraffic() {
+  if (!$("#tr-list")) renderTrafficShell();
+  try { tr.events = await (await api("/api/proxy/log?n=500")).json(); tr.err = ""; }
+  catch (e) { tr.err = e.message; }
+  renderTraffic();
+}
+function renderTrafficShell() {
+  $("#view-traffic").innerHTML = `<section class="card">
+    <div class="card-head"><h2>Trafic du proxy</h2>
+      <span class="meta">connexions <span class="mono">via: proxy</span> : log (HTTPS non déchiffré), filter, intercept</span>
+      <span class="spacer"></span>
+      <button id="tr-web" title="Interface de mitmproxy : inspecter, modifier, rejouer (tunnel SSH, 127.0.0.1 seulement)">Ouvrir mitmweb</button>
+      <button id="tr-refresh">↻</button></div>
+    <form class="inline" id="tr-filters" style="border-bottom:1px solid var(--line)">
+      <label>Module<select name="module"><option value="">tous</option></select></label>
+      <label>Action<select name="action"><option value="">toutes</option><option>passé</option><option>refusé</option><option>intercepté</option></select></label>
+      <label>Recherche<input name="q" placeholder="domaine, source, URL…" style="min-width:220px"></label>
+      <span class="meta" id="tr-count"></span>
+    </form>
+    <div id="tr-list"><div class="empty">Chargement…</div></div>
+    <div class="card-desc meta" style="border-top:1px solid var(--line)">Mode intercept : une VM ne déchiffre sans alerte que si elle fait confiance à
+      l'autorité d'interception (page PKI, « Confiance dans les VMs ») ; sinon on observe son comportement face au certificat inconnu.</div>
+  </section>`;
+}
+function renderTraffic() {
+  const box = $("#tr-list");
+  if (!box) return;
+  const mods = [...new Set((tr.events || []).map(e => e.module).filter(Boolean))].sort();
+  const sel = $("#tr-filters").module;
+  if (sel.options.length - 1 !== mods.length) sel.innerHTML = `<option value="">tous</option>` + mods.map(m => `<option ${m === tr.module ? "selected" : ""}>${esc(m)}</option>`).join("");
+  if (tr.err) { box.innerHTML = `<div class="empty err">${esc(tr.err)}</div>`; return; }
+  const q = tr.q.toLowerCase();
+  const list = (tr.events || []).filter(e => (!tr.module || e.module === tr.module) && (!tr.action || e.action === tr.action) &&
+    (!q || [e.host, e.src, e.url, e.dst, e.target].some(x => (x || "").toLowerCase().includes(q))));
+  $("#tr-count").textContent = `${list.length} / ${(tr.events || []).length} événement(s)`;
+  const cls = { "passé": "", "refusé": "never", "intercepté": "open" };
+  box.innerHTML = list.length ? `<table><thead><tr><th>Heure</th><th>Source</th><th>Action</th><th>Requête</th><th>Résultat</th></tr></thead><tbody>
+    ${list.slice(0, 500).map(e => `<tr>
+      <td class="meta mono" style="white-space:nowrap">${esc((e.time || "").slice(11, 19))}</td>
+      <td class="mono">${esc(e.src)}<div class="meta">${esc(e.module)} → ${esc(e.target)}</div></td>
+      <td><span class="pill ${cls[e.action] || ""}">${esc(e.action)}</span><div class="meta">${esc(e.mode)}</div></td>
+      <td style="max-width:520px;overflow-wrap:anywhere">${e.kind === "http" ? `<span class="mono">${esc(e.method)}</span> ${esc(e.url)}`
+        : `<span class="meta">TLS</span> ${esc(e.host || "(sans nom)")} <span class="meta mono">${esc(e.dst)}</span>`}</td>
+      <td class="meta">${e.status ? esc(e.status) + (e.size ? " · " + fsize(e.size) : "") : ""}${e.why ? esc(e.why) : ""}${e.error ? `<span class="err">${esc(e.error)}</span>` : ""}</td></tr>`).join("")}
+    </tbody></table>` : `<div class="empty">Rien pour l'instant (aucune connexion via: proxy, ou pas encore de trafic).</div>`;
+}
+document.addEventListener("input", e => {
+  const f = e.target.closest("#tr-filters");
+  if (!f) return;
+  Object.assign(tr, { q: f.q.value, module: f.module.value, action: f.action.value });
+  renderTraffic();
+});
+document.addEventListener("change", e => { if (e.target.closest("#tr-filters")) { const f = $("#tr-filters"); Object.assign(tr, { module: f.module.value, action: f.action.value }); renderTraffic(); } });
+document.addEventListener("submit", e => { if (e.target.id === "tr-filters") e.preventDefault(); });
+document.addEventListener("click", async e => {
+  if (e.target.id === "tr-refresh") loadTraffic();
+  else if (e.target.id === "tr-web") {
+    e.target.disabled = true;
+    try {
+      const d = await (await api("/api/proxy/web", { method: "POST" })).json();
+      window.open(d.url, "_blank", "noopener");
+      toast(`mitmweb ouvert (tunnel SSH) ; mot de passe si demandé : ${d.password}`);
+    } catch (err) { toast(err.message, true); }
+    e.target.disabled = false;
+  }
 });
 
 // --- Vue Core : passerelle, services, DHCP, pare-feu
@@ -1055,8 +1145,10 @@ function renderPKI() {
   h += `<section class="card"><div class="card-head"><h2>Confiance dans les VMs</h2></div>
     <form class="inline" data-form="trust">
       <label>VM<select name="vm" required><option value="">choisir…</option>${vmOpts}</select></label>
-      <button ${busy}>Installer la CA racine dans la VM</button>
-      <span class="meta">(utile pour une VM créée avant la PKI ; sur ton poste : <span class="mono">labctl pki trust-host</span> dans un terminal, sudo requis)</span>
+      <label>Autorité<select name="which"><option value="root">CA racine Omedo Labs</option><option value="interception">autorité d'interception (proxy)</option></select></label>
+      <button ${busy}>Installer dans la VM</button>
+      <span class="meta">racine : utile pour une VM créée avant la PKI (sur ton poste : <span class="mono">labctl pki trust-host</span>, sudo requis) ;
+        interception : le proxy en mode <span class="mono">intercept</span> devient invisible pour cette VM</span>
     </form></section>`;
   $("#view-pki").innerHTML = h;
 }
@@ -1067,10 +1159,14 @@ document.addEventListener("submit", async e => {
   if (!f) return;
   e.preventDefault();
   const fd = new FormData(f), v = Object.fromEntries(fd), module = f.dataset.module;
+  const words = x => (x || "").split(/[\s,]+/).filter(Boolean);
   const kind = f.dataset.cfgForm;
   const body = kind === "host" ? { op: "host-add", module, name: v.name, octet: Number(v.octet), mac: v.mac }
     : kind === "conn" ? { op: "conn-add", module, target: v.target, from: fd.getAll("from"), ports: (v.ports || "").split(/[\s,]+/).filter(Boolean),
-        via: v.via, portal: v.via !== "portal" ? null : { auth: v.auth, password: v.auth === "password" ? v.password : "", duration: v.duration,
+        via: v.via,
+        proxy: v.via !== "proxy" ? null : { mode: v.pmode, allow: v.pmode === "filter" && v.plist === "allow" ? words(v.pdomains) : [],
+          deny: v.pmode === "filter" && v.plist === "deny" ? words(v.pdomains) : [], ports: words(v.pports) },
+        portal: v.via !== "portal" ? null : { auth: v.auth, password: v.auth === "password" ? v.password : "", duration: v.duration,
           title: v.title, detect: !!v.detect, api: !!v.api, https: v.https } }
     : { op: "alias-add", module, name: v.name, target: v.target };
   if (await editConfig(body) && kind === "conn") toast("Connexion ajoutée : « Appliquer sur la passerelle » pour l'activer");
@@ -1097,7 +1193,9 @@ document.addEventListener("submit", e => {
     if (v.pfx) args.push("--pfx");
     run(args);
   } else if (f.dataset.form === "trust") {
-    run(["pki", "trust-vm", v.vm], `Installer la CA racine Omedo Labs dans ${v.vm} (par SSH) ?`);
+    if (v.which === "interception") run(["pki", "trust-vm", "--interception", v.vm],
+      `Installer l'autorité d'interception dans ${v.vm} (par SSH) ? Le proxy pourra alors déchiffrer son HTTPS sans alerte.`);
+    else run(["pki", "trust-vm", v.vm], `Installer la CA racine Omedo Labs dans ${v.vm} (par SSH) ?`);
   }
 });
 document.addEventListener("change", e => {
@@ -1388,6 +1486,7 @@ else {
     if (running || document.hidden) return;
     load();
     if (page === "core") loadCore();
+    if (page === "traffic") loadTraffic();
   }, 5000);
   loadConfig(); // changements en attente sur la passerelle
 }

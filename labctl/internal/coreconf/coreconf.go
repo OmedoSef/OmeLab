@@ -22,10 +22,13 @@ const (
 	// PortalControlPort : commande locale du service de portail (127.0.0.1 seulement).
 	PortalFirstPort   = 8800
 	PortalControlPort = 8799
-	GatewayOctet      = 254
-	DHCPRangeStart    = 100
-	DHCPRangeEnd      = 199
-	firstDNSPort      = 5300
+	// ProxyPort : proxy transparent de la passerelle (mitmproxy) ; ProxyWebPort : son interface (127.0.0.1).
+	ProxyPort      = 8080
+	ProxyWebPort   = 8081
+	GatewayOctet   = 254
+	DHCPRangeStart = 100
+	DHCPRangeEnd   = 199
+	firstDNSPort   = 5300
 )
 
 // Module décrit un module tel que la passerelle le voit.
@@ -108,6 +111,7 @@ func Render(in Input) (Files, error) {
 	pre := []string{"# Généré par labctl core-config : portails captifs (chaîne prerouting, avant le DNS)"}
 	sets := []string{"# Généré par labctl core-config : sources authentifiées de chaque portail (expiration native)"}
 	portals := []PortalConf{}
+	proxies := []ProxyConf{}
 	api := map[string]string{} // module -> URL de l'API du portail (option DHCP 114)
 	for i, m := range order {
 		closed := firstDNSPort + 2*i
@@ -128,6 +132,10 @@ func Render(in Input) (Files, error) {
 				return nil, fmt.Errorf("module %s, connexion vers %s : %w", m.Name, cn.To, err)
 			}
 			fwMods, fwNet, pre, sets = append(fwMods, r.mods...), append(fwNet, r.internet...), append(pre, r.pre...), append(sets, r.sets...)
+			if r.proxy != nil {
+				r.proxy.ID = len(proxies)
+				proxies = append(proxies, *r.proxy)
+			}
 			if r.portal != nil {
 				portals = append(portals, *r.portal)
 				if r.portal.API && api[m.Name] == "" {
@@ -151,6 +159,8 @@ func Render(in Input) (Files, error) {
 	f["gwdns/sets.nft"] = strings.Join(sets, "\n") + "\n"
 	pj, _ := json.MarshalIndent(portals, "", "  ")
 	f["gwdns/portal.json"] = string(pj) + "\n"
+	xj, _ := json.MarshalIndent(proxies, "", "  ")
+	f["gwdns/proxy.json"] = string(xj) + "\n"
 	f["gwdns/dhcp.conf"] = dhcp(order, api)
 	return f, nil
 }
@@ -283,10 +293,24 @@ type PortalConf struct {
 	API      bool     `json:"api"`
 }
 
+// ProxyConf : une connexion via le proxy, telle que le module mitmproxy de la passerelle la lit
+// (gwdns/proxy.json) pour choisir le mode selon la source et la destination.
+type ProxyConf struct {
+	ID      int      `json:"id"`
+	Module  string   `json:"module"`
+	Sources []string `json:"sources"` // IP ou sous-réseau des sources
+	Target  string   `json:"target"`  // internet, module ou module/vm
+	Dest    string   `json:"dest"`    // internet ou sous-réseau / IP de la cible
+	Mode    string   `json:"mode"`    // log | filter | intercept
+	Allow   []string `json:"allow,omitempty"`
+	Deny    []string `json:"deny,omitempty"`
+}
+
 // rules : ce qu'une connexion ajoute à chaque fragment de pare-feu.
 type rules struct {
 	mods, internet, pre, sets []string
 	portal                    *PortalConf
+	proxy                     *ProxyConf
 }
 
 // connRules traduit une connexion en règles nftables : pour les modules (mods), des acceptations ; pour
@@ -364,6 +388,34 @@ func connRules(m *Module, cn module.Connection, byName map[string]*Module, attac
 		}
 	} else if cn.To != module.Internet {
 		gate = ""
+	}
+	if cn.Via == "proxy" {
+		// HTTP(S) vers la cible redirigé vers le proxy (qui se connecte lui-même à la vraie destination) ; vers
+		// Internet, seulement quand c'est ouvert. Les VMs bloquées ne passent pas (pas de chaîne forward ici).
+		px := cn.Proxy
+		mode := "log"
+		if px != nil && px.Mode != "" {
+			mode = px.Mode
+		}
+		pc := &ProxyConf{Module: m.Name, Sources: sources, Target: cn.To, Dest: "internet", Mode: mode}
+		if cn.To != module.Internet {
+			pc.Dest = dst
+		}
+		if px != nil {
+			pc.Allow, pc.Deny = px.Allow, px.Deny
+		}
+		r.proxy = pc
+		var pp []string
+		for _, p := range px.ProxyPorts() {
+			if p.Lo == p.Hi {
+				pp = append(pp, fmt.Sprint(p.Lo))
+			} else {
+				pp = append(pp, fmt.Sprintf("%d-%d", p.Lo, p.Hi))
+			}
+		}
+		desc += fmt.Sprintf(" via proxy (%s)", mode)
+		r.pre = append(r.pre, desc, fmt.Sprintf("ip saddr %s ip saddr != @blocked %sip daddr %s tcp dport { %s } redirect to :%d",
+			src, gate, dst, strings.Join(pp, ", "), ProxyPort))
 	}
 
 	var out []string

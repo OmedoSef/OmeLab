@@ -117,15 +117,23 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 		Args:  cobra.ExactArgs(1), ValidArgsFunction: certNames,
 		RunE: func(_ *cobra.Command, args []string) error { return p.Show(os.Stdout, args[0]) },
 	})
-	root.AddCommand(&cobra.Command{
+	var interception bool
+	trustVM := &cobra.Command{
 		Use:   "trust-vm VM...",
-		Short: "Installe la CA racine dans des VMs existantes (SSH)",
+		Short: "Installe la CA racine (ou --interception : l'autorité du proxy) dans des VMs existantes (SSH)",
 		Args:  cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 			return without(l.AllVMNames(), args), cobra.ShellCompDirectiveNoFileComp
 		},
-		RunE: func(_ *cobra.Command, args []string) error { return p.TrustVM(remote(l), args...) },
-	})
+		RunE: func(_ *cobra.Command, args []string) error {
+			if interception {
+				return p.TrustInterceptionVM(remote(l), args...)
+			}
+			return p.TrustVM(remote(l), args...)
+		},
+	}
+	trustVM.Flags().BoolVar(&interception, "interception", false, "autorité d'interception du proxy (connexions via: proxy, mode intercept) au lieu de la racine")
+	root.AddCommand(trustVM)
 	root.AddCommand(&cobra.Command{
 		Use:   "deploy VM NOM [DOSSIER]",
 		Short: "Copie clé, certificat, chaîne et racine dans la VM (défaut /etc/ssl/lab)",

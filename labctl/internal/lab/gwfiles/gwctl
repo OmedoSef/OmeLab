@@ -127,6 +127,8 @@ $(rules "$SETS")
     iifname != "$WAN" meta l4proto { tcp, udp } th dport 5300-5399 accept
     # Portails captifs (service gwportal), joignables depuis les modules seulement
     iifname != "$WAN" tcp dport 8800-8899 accept
+    # Proxy transparent (gwproxy) : seulement le trafic redirigé par les règles des connexions via: proxy
+    iifname != "$WAN" tcp dport 8080 ct status dnat accept
     iifname != "$WAN" reject with icmpx admin-prohibited
   }
 

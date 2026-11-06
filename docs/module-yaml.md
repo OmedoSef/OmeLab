@@ -142,8 +142,8 @@ connections:
 | `to` | oui | un module, `module/vm` (VM à IP fixe ou réservation), ou `internet` |
 | `from` | non | VMs à IP fixe ou réservations de ce module ; défaut : tout le module |
 | `ports` | non | `tcp/80`, `udp/53`, plages `tcp/8000-8100`, `icmp` ; défaut : tous |
-| `via` | non | `direct` (défaut) ou `portal` (portail captif, voir ci-dessous) ; `proxy` est à venir |
-| `portal` | non | options du portail (avec `via: portal`) |
+| `via` | non | `direct` (défaut), `portal` (portail captif) ou `proxy` (proxy de la passerelle) : voir ci-dessous |
+| `portal` / `proxy` | non | options (avec `via: portal` / `via: proxy`) |
 
 - **Vers un module** : seul ce qui est déclaré passe, dans ce sens-là ; les réponses reviennent, le sens inverse
   reste fermé (il se déclare dans l'autre module). Les noms de la cible deviennent résolvables, pour le module
@@ -192,6 +192,35 @@ connections:
 - Le HTTPS ne peut pas être capté sans alerte de certificat : comme sur un vrai portail, seul le HTTP est redirigé.
 - Une VM `internet: never` ne passe pas par un portail vers Internet (refusé par le validateur, et bloquée par la
   passerelle de toute façon).
+
+### Proxy (`via: proxy`)
+
+Le HTTP et le HTTPS de la connexion passent, de façon transparente (rien à régler dans les VMs), par le proxy de
+la passerelle : **mitmproxy 12.3.1**, installé dans la passerelle à la première connexion qui en a besoin.
+
+```yaml
+connections:
+  - {to: internet, from: [kali], via: proxy, proxy: {mode: intercept}}
+  - {to: internet, via: proxy, proxy: {mode: filter, allow: ["*.debian.org", github.com]}}
+  - {to: pentest/web, ports: [tcp/80, tcp/22], via: proxy, proxy: {mode: log}}
+```
+
+| Clé de `proxy` | Défaut | Description |
+|---|---|---|
+| `mode` | `log` | `log` : journal (source, destination, nom TLS, requêtes HTTP), HTTPS non déchiffré ; `filter` : idem, et filtrage par domaine ; `intercept` : HTTPS déchiffré, requêtes et réponses complètes |
+| `allow` / `deny` | | avec `mode: filter` : seuls ces domaines passent (`allow`), ou tous sauf ceux-ci (`deny`) ; `*.debian.org` ne couvre pas `debian.org` lui-même |
+| `ports` | | ports HTTP(S) en plus de `tcp/80` et `tcp/443` (ex. `tcp/8080`) |
+
+- Seuls 80, 443 et `proxy.ports` passent par le proxy ; les autres ports suivent `ports:` de la connexion, en direct.
+- Vers Internet, le proxy n'ouvre rien : il agit quand Internet est ouvert pour la source (`labctl core internet`).
+- Refus du filtre : HTTPS coupé, HTTP avec une page 403 du proxy.
+- **Autorité d'interception** : racine à part (« Omedo Labs Interception CA », `pki/interception/`, hors de la chaîne
+  Omedo Labs), créée à la première utilisation, dont la clé n'est copiée que dans la passerelle. Elle n'est installée
+  que dans les VMs choisies : `labctl pki trust-vm --interception VM` (ou la page PKI de la GUI). Une VM qui ne lui
+  fait pas confiance voit un certificat inconnu, ce qui permet d'observer son comportement.
+- Journal : `labctl core proxy [-n N]`, ou la page **Trafic** de la GUI (filtres par module, action, texte) ;
+  interface de mitmproxy (inspecter, modifier, rejouer) : `labctl core proxy web` ou le bouton *Ouvrir mitmweb*
+  (tunnel SSH vers `127.0.0.1:8081` de la passerelle, mot de passe affiché).
 
 ### VM (`vms.<nom>`)
 
@@ -263,6 +292,7 @@ Ce que fait `up`, dans l'ordre :
 - connexion : cible inconnue (module, VM sans IP fixe), source qui n'est ni une VM à IP fixe ni une réservation,
   port mal formé, cible déjà dans `dns.links`, `via` inconnu ou pas encore disponible ; portail : `auth`
   inconnu, `password` manquant, durée hors de 1m-24h, `https` inconnu, source `internet: never` vers Internet ;
+  proxy : `mode` inconnu, `allow`/`deny` hors de `mode: filter` ou les deux à la fois, domaine ou port mal formé ;
 - variable `${...}` inconnue ; `internet: never` + une VM qui doit installer des paquets ;
 - `internet: never` sans `ip` (la passerelle bloque par adresse) ;
 - nom de module de plus de 9 caractères (pont `virbr-<module>`) ou réservé (`list`, `validate`, `core`…).

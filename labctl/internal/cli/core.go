@@ -96,6 +96,40 @@ modules (sans lien, aucun module n'en voit un autre). Sa configuration vient des
 		}})
 	c.AddCommand(portalC)
 
+	// proxy (connections: … via: proxy)
+	var n int
+	proxyC := &cobra.Command{Use: "proxy", Short: "Proxy de la passerelle : dernières connexions et requêtes", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			ev, err := g().ProxyLog(n)
+			if err != nil {
+				return err
+			}
+			if len(ev) == 0 {
+				fmt.Println("journal du proxy vide")
+			}
+			for i := len(ev) - 1; i >= 0; i-- {
+				e := ev[i]
+				what := e.Host
+				if e.Kind == "http" {
+					what = fmt.Sprintf("%s %s -> %d", e.Method, e.URL, e.Status)
+				}
+				fmt.Printf("%s  %-15s %-10s %-11s %s%s\n", e.Time, e.Src, e.Mode, e.Action, what, map[bool]string{true: " (" + e.Why + e.Error + ")", false: ""}[e.Why+e.Error != ""])
+			}
+			return nil
+		}}
+	proxyC.Flags().IntVarP(&n, "lines", "n", 50, "nombre d'événements")
+	proxyC.AddCommand(&cobra.Command{Use: "web", Short: "Ouvre mitmweb (interface du proxy) par un tunnel SSH, jusqu'à Ctrl+C", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			gw := g()
+			addr, cmd, err := gw.ProxyTunnel()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("mitmweb : http://%s/  (mot de passe : %s)\nCtrl+C pour fermer le tunnel\n", addr, gw.ProxyWebPassword())
+			return cmd.Wait()
+		}})
+	c.AddCommand(proxyC)
+
 	// internet
 	internet := &cobra.Command{Use: "internet", Short: "Accès Internet des modules (fermé par défaut)"}
 	internet.AddCommand(

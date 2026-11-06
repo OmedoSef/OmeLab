@@ -19,6 +19,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -46,6 +47,11 @@ type server struct {
 	stated time.Time
 	core   *lab.CoreState
 	cored  time.Time
+
+	tunnel  sync.Mutex // tunnel SSH vers mitmweb, ouvert à la demande, fermé avec l'interface
+	tunAddr string
+	tunCmd  *exec.Cmd
+	tunDone chan struct{} // fermé quand le tunnel s'arrête
 }
 
 // Serve lance l'interface sur 127.0.0.1:port et ouvre le navigateur si demandé.
@@ -125,6 +131,8 @@ func Serve(l *lab.Lab, port int, open Open) error {
 	mux.HandleFunc("GET /api/module/skeleton", s.api(s.handleModuleSkeleton))
 	mux.HandleFunc("POST /api/module/check", s.api(s.handleModuleCheck))
 	mux.HandleFunc("POST /api/module/save", s.api(s.handleModuleSave))
+	mux.HandleFunc("GET /api/proxy/log", s.api(s.handleProxyLog))
+	mux.HandleFunc("POST /api/proxy/web", s.api(s.handleProxyWeb))
 	mux.HandleFunc("GET /api/files", s.api(s.handleFiles))
 	mux.HandleFunc("GET /api/file", s.api(s.handleFileText))
 	mux.HandleFunc("GET /api/file/raw", s.api(s.handleFileRaw))
@@ -152,6 +160,11 @@ func Serve(l *lab.Lab, port int, open Open) error {
 	}
 	go func() {
 		<-ctx.Done()
+		s.tunnel.Lock()
+		if s.tunCmd != nil {
+			_ = s.tunCmd.Process.Kill()
+		}
+		s.tunnel.Unlock()
 		shut, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(shut)
@@ -286,17 +299,18 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 type configEdit struct {
-	Op     string   `json:"op"` // host-add, host-del, alias-add, alias-del, link, unlink, conn-add, conn-del
-	Module string   `json:"module"`
-	Name   string   `json:"name"`
-	Octet  int      `json:"octet"`
-	MAC    string   `json:"mac"`
-	Target string   `json:"target"`
+	Op     string         `json:"op"` // host-add, host-del, alias-add, alias-del, link, unlink, conn-add, conn-del
+	Module string         `json:"module"`
+	Name   string         `json:"name"`
+	Octet  int            `json:"octet"`
+	MAC    string         `json:"mac"`
+	Target string         `json:"target"`
 	From   []string       `json:"from"`   // conn-add
 	Ports  []string       `json:"ports"`  // conn-add
 	Via    string         `json:"via"`    // conn-add : direct | portal
 	Portal *module.Portal `json:"portal"` // conn-add, via portal
-	Index  int      `json:"index"` // conn-del
+	Proxy  *module.Proxy  `json:"proxy"`  // conn-add, via proxy
+	Index  int            `json:"index"`  // conn-del
 }
 
 // handleConfigEdit modifie la section dns du module.yaml (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
@@ -318,7 +332,7 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	case "host-del":
 		err = s.lab.ConfDelHost(e.Module, e.Name)
 	case "conn-add":
-		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports, Via: e.Via, Portal: e.Portal})
+		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports, Via: e.Via, Portal: e.Portal, Proxy: e.Proxy})
 	case "conn-del":
 		err = s.lab.ConfDelConnection(e.Module, e.Index)
 	case "alias-add":
@@ -674,4 +688,50 @@ func (s *server) handleFileOp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]bool{"ok": true})
+}
+
+// --- Proxy de la passerelle : journal, interface mitmweb (tunnel SSH)
+
+func (s *server) handleProxyLog(w http.ResponseWriter, r *http.Request) {
+	n := 300
+	fmt.Sscan(r.URL.Query().Get("n"), &n)
+	if n < 1 || n > 5000 {
+		n = 300
+	}
+	ev, err := s.lab.Gateway(nil).ProxyLog(n)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	if ev == nil {
+		ev = []lab.ProxyEvent{}
+	}
+	writeJSON(w, ev)
+}
+
+// handleProxyWeb ouvre (ou réutilise) le tunnel vers mitmweb et renvoie son adresse et son mot de passe.
+func (s *server) handleProxyWeb(w http.ResponseWriter, r *http.Request) {
+	s.tunnel.Lock()
+	defer s.tunnel.Unlock()
+	g := s.lab.Gateway(nil)
+	alive := s.tunDone != nil
+	if alive {
+		select {
+		case <-s.tunDone:
+			alive = false
+		default:
+		}
+	}
+	if !alive {
+		addr, cmd, err := g.ProxyTunnel()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		done := make(chan struct{})
+		s.tunAddr, s.tunCmd, s.tunDone = addr, cmd, done
+		go func() { _ = cmd.Wait(); close(done) }()
+	}
+	pw := g.ProxyWebPassword()
+	writeJSON(w, map[string]string{"url": "http://" + s.tunAddr + "/?token=" + url.QueryEscape(pw), "password": pw})
 }

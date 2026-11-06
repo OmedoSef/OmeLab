@@ -99,14 +99,17 @@ Un panneau à gauche mène à toutes les pages ; la page courante est dans l'adr
     (`connections:` : vers un module, une VM ou Internet, depuis certaines VMs, sur certains ports ; voir
     [docs/module-yaml.md](../docs/module-yaml.md)) avec celles que d'autres modules déclarent vers celui-ci ;
     une connexion peut passer par un **portail captif** (authentification par clic, mot de passe ou conditions,
-    durée de session, détection par les OS, annonce DHCP 114). Les sessions en cours sont sur la page Passerelle
-    (bouton *Déconnecter*).
+    durée de session, détection par les OS, annonce DHCP 114), ou par le **proxy** de la passerelle (mitmproxy :
+    `log`, `filter` par domaine, `intercept` avec l'autorité d'interception). Les sessions de portail sont sur la page
+    Passerelle (bouton *Déconnecter*).
+- **Trafic (proxy)** : journal du proxy, filtrable par module, action et texte ; bouton *Ouvrir mitmweb*
+  (inspecter, modifier, rejouer, par un tunnel SSH).
 - **+ Nouveau module…** : nom demandé, puis l'éditeur sur un squelette (brouillon jusqu'au premier enregistrement).
 - **Passerelle** : créer, démarrer, arrêter, *Appliquer la configuration*, *Mettre à jour*, console ; état des services
   (`gw`, `gwdns@dhcp`, DNS ouvert/fermé de chaque module), baux DHCP, sources autorisées et bloquées dans le pare-feu.
 - **PKI** : CA racine, intermédiaire et CA dérivées avec leurs limites (domaine, sous-réseau) et leur expiration ;
   certificats émis avec leurs noms ; création d'une CA dérivée, émission d'un certificat, déploiement sur une
-  VM, installation de la CA racine dans une VM ; téléchargement des **certificats publics** (jamais des clés
+  VM, installation de la CA racine (ou de l'autorité d'interception du proxy) dans une VM ; téléchargement des **certificats publics** (jamais des clés
   privées ni des `.p12`, qui restent dans `pki/`) ; **maintenance de la chaîne** (renouveler l'intermédiaire, une
   CA dérivée, ou toute la chaîne : voir ci-dessous). `pki trust-host` (sudo) reste en ligne de commande.
 

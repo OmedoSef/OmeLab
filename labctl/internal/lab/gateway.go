@@ -39,6 +39,8 @@ var gwInstall = []gwFile{
 	{"gw.service", "/etc/systemd/system/gw.service", "0644"},
 	{"gwdns@.service", "/etc/systemd/system/gwdns@.service", "0644"},
 	{"gwportal.service", "/etc/systemd/system/gwportal.service", "0644"},
+	{"gwproxy.service", "/etc/systemd/system/gwproxy.service", "0644"},
+	{"gwproxy.py", "/usr/local/lib/gwproxy/gwproxy.py", "0644"},
 	{"90-gw.conf", "/etc/sysctl.d/90-gw.conf", "0644"},
 }
 
@@ -279,6 +281,9 @@ sudo gwctl apply
 # Portails captifs : configuration relue, sessions remises dans les ensembles recréés par gwctl apply
 if systemctl cat gwportal >/dev/null 2>&1 && [ -x /usr/local/sbin/labctl ]; then sudo systemctl restart gwportal; fi`, strings.Join(instances, " ")), nil); err != nil {
 		return fmt.Errorf("redémarrage des services de la passerelle : %w", err)
+	}
+	if err := g.ensureProxy(files); err != nil {
+		return fmt.Errorf("proxy : %w", err)
 	}
 	attached := strings.Join(in.Attached, " ")
 	if attached == "" {
@@ -753,7 +758,7 @@ func (g *Gateway) Create() error {
 		}
 		defer os.RemoveAll(tmp)
 		s := VMSpec{
-			Name: GatewayVM, Image: "debian13", CPUs: 1, MemoryMiB: 512, DiskGiB: 10,
+			Name: GatewayVM, Image: "debian13", CPUs: 1, MemoryMiB: GatewayProxyMiB, DiskGiB: 10,
 			Nets: []NetSpec{{Network: "default"}}, Lab: "core", Role: "gateway",
 			Packages: []string{"nftables", "dnsmasq", "dnsmasq-utils"},
 			Run: []string{"sysctl --system >/dev/null", "systemctl disable --now dnsmasq",
@@ -863,7 +868,7 @@ func (g *Gateway) Update() error {
 		if err != nil {
 			return err
 		}
-		if _, err := g.SSH(fmt.Sprintf("sudo install -m %s /dev/stdin %s", f.mode, f.dest), bytes.NewReader(b)); err != nil {
+		if _, err := g.SSH(fmt.Sprintf("sudo mkdir -p %s && sudo install -m %s /dev/stdin %s", filepath.Dir(f.dest), f.mode, f.dest), bytes.NewReader(b)); err != nil {
 			return fmt.Errorf("%s : %w", f.dest, err)
 		}
 	}
@@ -875,6 +880,9 @@ func (g *Gateway) Update() error {
 		return err
 	}
 	g.logf("ok  fichiers système de la passerelle à jour")
+	if err := g.gatewayMemory(); err != nil {
+		return err
+	}
 	return g.Apply()
 }
 

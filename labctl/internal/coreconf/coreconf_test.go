@@ -235,3 +235,28 @@ func TestPortal(t *testing.T) {
 		t.Errorf("portail 1 : %+v", p)
 	}
 }
+
+func TestProxy(t *testing.T) {
+	in := input()
+	in.Modules[0].Conns = []module.Connection{ // demo
+		{To: "internet", From: []string{"srv"}, Via: "proxy", Proxy: &module.Proxy{Mode: "filter", Allow: []string{"*.debian.org"}, Ports: []string{"tcp/8080"}}},
+		{To: "pentest/web", Ports: []string{"tcp/80", "tcp/22"}, Via: "proxy", Proxy: &module.Proxy{Mode: "intercept"}},
+	}
+	f := render(t, in)
+	pr := "gwdns/prerouting.nft"
+	// Internet : seulement quand c'est ouvert ; jamais pour une VM bloquée
+	has(t, f, pr, "ip saddr { 10.77.77.10 } ip saddr != @blocked ip saddr @allowed ip daddr != @private tcp dport { 80, 443, 8080 } redirect to :8080")
+	has(t, f, pr, "ip saddr 10.77.77.0/24 ip saddr != @blocked ip daddr 10.66.66.30 tcp dport { 80, 443 } redirect to :8080")
+	// Les autres ports suivent la connexion (ici ssh direct)
+	has(t, f, "gwdns/forward-modules.nft", `oifname != "eth0" ip saddr 10.77.77.0/24 ip daddr 10.66.66.30 tcp dport { 80, 22 } accept`)
+	var pc []ProxyConf
+	if err := json.Unmarshal([]byte(f["gwdns/proxy.json"]), &pc); err != nil || len(pc) != 2 {
+		t.Fatalf("proxy.json : %v\n%s", err, f["gwdns/proxy.json"])
+	}
+	if p := pc[0]; p.Mode != "filter" || p.Dest != "internet" || p.Allow[0] != "*.debian.org" || p.Sources[0] != "10.77.77.10" {
+		t.Errorf("proxy 0 : %+v", p)
+	}
+	if p := pc[1]; p.ID != 1 || p.Mode != "intercept" || p.Dest != "10.66.66.30" || p.Target != "pentest/web" {
+		t.Errorf("proxy 1 : %+v", p)
+	}
+}
