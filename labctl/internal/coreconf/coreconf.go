@@ -51,7 +51,7 @@ type Input struct {
 	Attached   []string // modules dont la passerelle est branchée sur le réseau
 	Upstream   string   // DNS amont pour les instances open (passerelle du NAT libvirt)
 	RootDomain string   // domaine racine des labs, jamais relayé vers Internet
-	Skipped    []string // modules écartés (identifiants refusés par Check), avec la raison : à signaler
+	Skipped    []string // avertissements à signaler : modules écartés (Check), règles ignorées (module vulnérable)
 }
 
 // Files associe un chemin relatif (gwdns/..., networkd/...) à son contenu.

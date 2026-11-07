@@ -264,13 +264,14 @@ type configHost struct {
 }
 
 type configModule struct {
-	Name    string              `json:"name"`
-	Subnet  string              `json:"subnet"`
-	Domain  string              `json:"domain"`
-	Hosts   []configHost        `json:"hosts"`
-	Aliases map[string]string   `json:"aliases"`
-	Links   []string            `json:"links"`
-	Conns   []module.Connection `json:"connections"` // connections: du module.yaml, dans l'ordre du fichier
+	Name       string              `json:"name"`
+	Subnet     string              `json:"subnet"`
+	Domain     string              `json:"domain"`
+	Hosts      []configHost        `json:"hosts"`
+	Aliases    map[string]string   `json:"aliases"`
+	Links      []string            `json:"links"`
+	Conns      []module.Connection `json:"connections"` // connections: du module.yaml, dans l'ordre du fichier
+	Vulnerable bool                `json:"vulnerable"`  // vulnerable: true : pas de connexion sortante
 }
 
 func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -285,7 +286,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		cm := configModule{Name: m.Name, Subnet: m.Env.Subnet, Domain: m.Env.Domain, Aliases: m.Conf.Aliases, Links: m.Conf.Links,
-			Conns: []module.Connection{}}
+			Conns: []module.Connection{}, Vulnerable: m.Vulnerable()}
 		if m.YAML != nil && m.YAML.Connections != nil {
 			cm.Conns = m.YAML.Connections
 		}

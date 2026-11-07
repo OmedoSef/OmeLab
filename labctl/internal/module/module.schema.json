@@ -965,6 +965,10 @@
         "object",
         "null"
       ]
+    },
+    "vulnerable": {
+      "description": "cibles volontairement vulnérables : jamais d'Internet (sauf internet: install, le temps de l'installation), aucune connexion ni lien sortant, ses VMs ne se branchent pas ailleurs",
+      "type": "boolean"
     }
   },
   "required": [

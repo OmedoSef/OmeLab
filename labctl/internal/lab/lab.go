@@ -178,6 +178,9 @@ func (l *Lab) Org() string { return l.Setting("LABS_PKI_ORG", DefaultOrg) }
 // RootDomain renvoie le domaine racine des labs (LABS_PKI_DOMAIN).
 func (l *Lab) RootDomain() string { return l.Setting("LABS_PKI_DOMAIN", DefaultDomain) }
 
+// Vulnerable dit si le module est marqué vulnerable: true (cibles volontairement vulnérables, voir module.yaml).
+func (m *Module) Vulnerable() bool { return m != nil && m.YAML != nil && m.YAML.Vulnerable }
+
 // pkiDomain : ancien nom interne de RootDomain.
 func (l *Lab) pkiDomain() string { return l.RootDomain() }
 

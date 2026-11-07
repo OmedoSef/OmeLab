@@ -38,6 +38,9 @@ func (l *Lab) CheckAttach(on, ref string, ip int) (int, error) {
 	if target == nil || target.Env == nil {
 		return 0, fmt.Errorf("module inconnu ou sans réseau : %s", mod)
 	}
+	if target.Vulnerable() {
+		return 0, fmt.Errorf("%s est une cible du module vulnérable %s : ses VMs ne se branchent pas sur d'autres réseaux", vm, mod)
+	}
 	if _, fixed := target.Env.Hosts[vm]; !fixed {
 		return 0, fmt.Errorf("%s n'est pas une VM à IP fixe de %s", vm, mod)
 	}

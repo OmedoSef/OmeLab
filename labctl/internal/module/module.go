@@ -21,6 +21,7 @@ const FileName = "module.yaml"
 type Module struct {
 	Module      string            `yaml:"module"`                // nom du module (= nom de son dossier)
 	Description string            `yaml:"description,omitempty"` // affichée par labctl, la GUI et la complétion
+	Vulnerable  bool              `yaml:"vulnerable,omitempty"`  // cibles volontairement vulnérables : jamais d'Internet (sauf internet: install, le temps de l'installation), aucune connexion ni lien sortant, ses VMs ne se branchent pas ailleurs
 	Network     *Network          `yaml:"network,omitempty"`
 	PKI         *PKI              `yaml:"pki,omitempty"`
 	DNS         DNS               `yaml:"dns,omitempty"`

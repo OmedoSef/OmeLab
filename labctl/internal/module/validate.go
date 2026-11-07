@@ -24,6 +24,7 @@ type Context struct {
 	Images     []string            // catalogue des images cloud
 	Modules    []string            // modules existants (pour les liens)
 	Targets    map[string][]string // module -> VMs à IP fixe et réservations (cibles de connections:)
+	Vulnerable []string            // modules marqués vulnerable: true (leurs VMs ne se branchent pas ailleurs)
 	Used       []NetInfo           // réseaux et domaines déjà pris par d'autres
 	HostRAM    int                 // Mio (0 = inconnu)
 	Settings   Settings
@@ -211,6 +212,8 @@ func (m *Module) Validate(ctx Context) []Issue {
 			c.err(p+".vm", "module inconnu %q", mod)
 		case ctx.Targets != nil && !contains(ctx.Targets[mod], vm):
 			c.err(p+".vm", "%s n'est pas une VM à IP fixe du module %s", vm, mod)
+		case contains(ctx.Vulnerable, mod):
+			c.err(p+".vm", "%s est une cible du module vulnérable %s : ses VMs ne se branchent pas sur d'autres réseaux", vm, mod)
 		}
 		if _, isVM := m.VMs[vm]; isVM || m.hasHost(vm) {
 			c.err(p+".vm", "le nom %s est déjà pris dans ce module (VM ou réservation) : il servirait deux fois dans le DNS", vm)
@@ -219,6 +222,16 @@ func (m *Module) Validate(ctx Context) []Issue {
 			c.err(p+".ip", "ip obligatoire (dernier octet réservé sur le réseau de ce module)")
 		}
 		claim(p, p, a.IP, a.MAC)
+	}
+	// Module vulnérable (cibles volontairement vulnérables) : rien ne sort. Les autres modules peuvent le joindre
+	// (postes d'attaque) ; lui ne joint ni Internet ni aucun autre module.
+	if m.Vulnerable {
+		for i := range m.Connections {
+			c.err(fmt.Sprintf("connections.%d", i), "module vulnérable : aucune connexion sortante (Internet, autre module, proxy, portail)")
+		}
+		if len(m.DNS.Links) > 0 {
+			c.err("dns.links", "module vulnérable : pas de lien vers un autre module (les postes d'attaque, eux, peuvent le joindre)")
+		}
 	}
 	if ctx.HostRAM > 0 && totalMem > ctx.HostRAM {
 		c.warn("vms", "mémoire totale des VMs (%d Mio) supérieure à celle de l'hôte (%d Mio)", totalMem, ctx.HostRAM)

@@ -84,6 +84,7 @@ Vérifiées par des tests depuis des VMs de deux modules :
 | Redémarrage de `core-gw` | Internet refermé partout ; DHCP, DNS et liens rechargés depuis la configuration |
 | Suppression d'une VM (`labctl vm destroy`, `<module> destroy`) | Son bail est libéré : IP disponible, nom DNS retiré tout de suite |
 | `core apply` | Les baux des réseaux qui ne sont plus branchés sont purgés |
+| Module `vulnerable: true` | `core internet on` refusé (module et VMs) ; ses connexions et liens sortants ne sont jamais générés, même ajoutés à la main ; Internet seulement le temps de l'installation d'une VM `internet: install` (tests automatisés) |
 | Module à l'identifiant douteux | Un nom de module, de VM ou d'alias, une MAC, un domaine ou une cible de connexion qui pourrait casser la configuration (saut de ligne, accolade, guillemet, `/`…) : le module est **écarté** de la passerelle avec un message (`core apply`, `core-config`), même s'il n'a jamais été validé ni lancé. Les autres modules restent servis (tests automatisés) |
 
 Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est immédiat et non un délai d'attente.

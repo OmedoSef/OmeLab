@@ -4,6 +4,7 @@
 # et README.md pour le déroulé (ce qui est volontairement faible, démarrage, snapshots).
 module: pjpt
 description: "Lab Active Directory d'entraînement PJPT (volontairement vulnérable, réseau isolé sans Internet)"
+vulnerable: true   # cibles volontairement vulnérables : jamais d'Internet (sauf le temps d'une installation), rien ne sort du module
 
 network:
   name: pjpt-lab

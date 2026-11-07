@@ -76,6 +76,7 @@ type ModuleState struct {
 	NetActive   bool            `json:"netActive"`
 	Internet    string          `json:"internet"`    // texte brut de « core internet status »
 	InternetAll bool            `json:"internetAll"` // ouvert pour tout le module
+	Vulnerable  bool            `json:"vulnerable"`  // vulnerable: true : jamais d'Internet ni rien de sortant
 	Links       []string        `json:"links"`       // modules que celui-ci peut joindre
 	Commands    []string        `json:"commands"`    // commandes de premier niveau du module
 	VMs         []VMState       `json:"vms"`
@@ -120,7 +121,7 @@ func (l *Lab) Status() (*State, error) {
 		if m.Env == nil {
 			continue
 		}
-		ms := ModuleState{
+		ms := ModuleState{Vulnerable: m.Vulnerable(),
 			Name: m.Name, Description: m.Description, Net: m.Env.Net, Subnet: m.Env.Subnet,
 			Domain: m.Env.Domain, Links: m.Conf.Links, Internet: internet[m.Name],
 		}

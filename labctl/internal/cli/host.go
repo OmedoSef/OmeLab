@@ -19,6 +19,15 @@ func checkCmd(l *lab.Lab) *cobra.Command {
 		GroupID: "outils", Args: cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(*cobra.Command, []string) error {
 			n := l.HostCheck(os.Stdout)
+			if vuln := l.VulnerableModules(); len(vuln) > 0 {
+				if lab.HostFirewallActive() {
+					fmt.Println("ok  pare-feu de l'hôte actif (modules vulnérables : " + strings.Join(vuln, ", ") + ")")
+				} else {
+					fmt.Println("attention: pare-feu de l'hôte INACTIF alors que des modules vulnérables existent (" + strings.Join(vuln, ", ") +
+						") : leurs cibles peuvent joindre les services de ce poste -> sudo labctl hostfw on")
+					n++
+				}
+			}
 			// Passerelle démarrée : sa copie de labctl (portails captifs) doit suivre celle de l'hôte après une mise à
 			// jour. Vérifié ici et pas dans HostCheck, qui sert aussi avant un « up » qu'il ne doit pas bloquer.
 			if cs := l.Core(); cs.State == "running" && cs.Error == "" {

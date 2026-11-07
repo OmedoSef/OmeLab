@@ -55,6 +55,11 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 				cm.MACs[h] = mac
 			}
 		}
+		// Module vulnérable : rien ne sort, même si son module.yaml a été modifié sans être validé
+		if m.Vulnerable() && (len(cm.Conns) > 0 || len(cm.Links) > 0) {
+			in.Skipped = append(in.Skipped, fmt.Sprintf("module %s vulnérable : connexions et liens sortants ignorés", m.Name))
+			cm.Conns, cm.Links = nil, nil
+		}
 		// Identifiants recopiés tels quels dans la config de la passerelle : un module qui en porte un douteux
 		// (saut de ligne, accolade, guillemet…) est écarté, même jamais validé ni lancé — il n'entraîne pas les autres.
 		if err := cm.Check(); err != nil {

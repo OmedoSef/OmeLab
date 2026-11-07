@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"labs/labctl/internal/lab"
 )
 
 // Pare-feu de l'hôte côté réseaux des modules : les VMs des labs (cibles vulnérables comprises) ne doivent
@@ -21,7 +23,7 @@ import (
 const (
 	hostfwTable = "labs_host"
 	hostfwFile  = "/etc/labs/hostfw.nft"
-	hostfwUnit  = "labs-hostfw.service"
+	hostfwUnit  = lab.HostFWUnit
 	hostfwUnitP = "/etc/systemd/system/" + hostfwUnit
 	nftBin      = "/usr/sbin/nft"
 )

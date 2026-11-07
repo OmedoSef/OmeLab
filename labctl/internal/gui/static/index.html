@@ -595,7 +595,10 @@ function renderModule(m, name, sub, down, gwUp, busy) {
         <span class="spacer"></span>
         <span class="pill ${m.internet !== "fermé" ? "open" : ""}" title="Accès complet accordé à la main (core internet on) aux VMs sans connexion dédiée. Les connexions déclarées (direct, proxy, portail) ouvrent leurs ports indépendamment de cet état.">Accès direct : ${esc(m.internet)}</span>
         <span class="actions">
-          ${openAll
+          ${m.vulnerable
+            ? `<span class="pill never" title="vulnerable: true dans le module.yaml : Internet n'y est jamais ouvert à la main (seulement pendant l'installation d'une VM internet: install), rien ne sort du module">module vulnérable : jamais d'Internet</span>
+               ${m.internet !== "fermé" ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`
+            : openAll
             ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Fermer l'accès direct</button>`
             : `<button ${dis} ${runAttr(["core", "internet", "on", m.name])} data-confirm="Donner un accès Internet COMPLET à toutes les VMs de ${esc(m.name)} (en plus des connexions déclarées ; sauf les VMs « jamais ») ?">Ouvrir à tout le module</button>
                ${m.internet !== "fermé" ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`}
@@ -619,6 +622,7 @@ function renderModule(m, name, sub, down, gwUp, busy) {
     const act = wide ? "" : activeOn(m.name, v.name);
     let net;
     if (v.noInternet) net = `<span class="pill never" title="internet: never dans le module.yaml">jamais</span>`;
+    else if (m.vulnerable && !v.internet && !openAll) net = `<span class="pill never" title="module vulnérable : Internet seulement pendant l'installation (internet: install)">fermé</span>`;
     else if (openAll) net = `<span class="pill open">ouvert (module)</span>`;
     else if (v.internet) net = `<span class="pill open">ouvert</span> <button ${dis} ${runAttr(["core", "internet", "off", m.name, v.name])}>Fermer</button>`;
     else net = `<span class="pill">fermé</span> <button ${dis} ${runAttr(["core", "internet", "on", m.name, v.name])}>Ouvrir</button>`;
@@ -735,7 +739,7 @@ function connCard(m, mods, busy) {
       <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
       || `<tr><td colspan="5" class="empty">Aucune</td></tr>`}
     </tbody></table>
-    <form class="inline" data-cfg-form="conn" data-module="${esc(m.name)}" style="border-top:1px solid var(--line)">
+    ${m.vulnerable ? `<div class="meta" style="padding:10px 16px;border-top:1px solid var(--line)">Module vulnérable : aucune connexion sortante (Internet, autre module). Les autres modules, eux, peuvent déclarer une connexion vers lui.</div>` : `<form class="inline" data-cfg-form="conn" data-module="${esc(m.name)}" style="border-top:1px solid var(--line)">
       <strong style="width:100%">Ajouter une connexion</strong>
       <label>Vers<select name="target" required>${targets.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select></label>
       <span style="display:grid;gap:3px;font-size:12px;color:var(--muted)">Depuis (aucune case : tout le module)<span style="display:flex;flex-wrap:wrap;gap:4px 12px;padding-top:4px">
@@ -760,7 +764,7 @@ function connCard(m, mods, busy) {
       </div>
       <label class="check" style="width:100%" title="Écrit la connexion dans network.local.yaml (propre à ce poste, non distribué) au lieu du module.yaml — pour les bascules de test et les VMs branchées localement"><input type="checkbox" name="local"> local à ce poste (non distribué)</label>
       <button ${busy}>Ajouter</button>
-    </form>
+    </form>`}
     ${incoming.length ? `<div class="card-head" style="border-top:1px solid var(--line);border-bottom:0;display:block">
       <strong>Vers ${esc(m.name)}, déclarées par d'autres modules</strong> <span class="meta">(à modifier dans le module source)</span>
       ${incoming.map(c => `<div style="display:flex;gap:10px;align-items:center;margin-top:6px;flex-wrap:wrap">

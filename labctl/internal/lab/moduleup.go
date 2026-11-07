@@ -119,6 +119,11 @@ func (l *Lab) ModuleUp(name string, vms []string, o UpOptions) error {
 	if vms, err = r.selectVMs(vms); err != nil {
 		return err
 	}
+	if r.y.Vulnerable {
+		if w := hostfwWarning([]string{name}); w != "" {
+			r.logf("attention: %s", w)
+		}
+	}
 	if err := r.ensureNetwork(); err != nil {
 		return err
 	}
@@ -558,7 +563,7 @@ func (r *run) createVM(vm string) (err error) {
 		return r.l.Gateway(r.out).InternetOff(r.y.Module, []string{vm})
 	}
 	if e.Internet == "install" {
-		if err := r.l.Gateway(r.out).InternetOn(r.y.Module, []string{vm}); err != nil {
+		if err := r.l.Gateway(r.out).openForInstall(r.y.Module, vm); err != nil {
 			return err
 		}
 		open = true

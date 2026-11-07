@@ -140,6 +140,7 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 |---|---|---|
 | `module` | oui | nom (= nom du dossier) |
 | `description` | non | affichée par `labctl`, la GUI et la complétion |
+| `vulnerable` | non | `true` : module de **cibles volontairement vulnérables** (voir *Modules vulnérables*) |
 | `network` | non | sans cette section : réseau `<module>-lab`, domaine `<module>-lab.<domaine des labs>`, sous-réseau `/24` libre choisi par labctl et **écrit dans le YAML** au premier `up` (stable ensuite) |
 | `network.name` / `subnet` | non | pour les fixer soi-même ; `subnet` en `/24` |
 | `network.domain` / `subdomain` | non | domaine du module. `subdomain: X` → `X.<domaine racine du lab>` (se coller sous la racine) ; `domain: X.local` → domaine **complet**, pris tel quel (ignore la racine) ; défaut `<réseau>.<racine>`. Les deux ensemble : `domain` l'emporte |
@@ -150,6 +151,29 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `connections` | non | accès **restreints** (voir ci-dessous) |
 | `attach` | non | VMs d'autres modules branchées sur le réseau de celui-ci (voir *VMs branchées*) |
 | `vars` | non | valeurs nommées du module, reprises partout via `${var.<nom>}` (voir *Variables*) : mots de passe de test, nom de domaine… à écrire une fois |
+
+### Modules vulnérables (`vulnerable: true`)
+
+Un module qui contient des cibles volontairement vulnérables (pentest, pjpt…) se déclare comme tel, en tête :
+
+```yaml
+module: pjpt
+vulnerable: true
+```
+
+C'est une **zone rouge** : rien n'en sort, et labctl le garantit à chaque étape, pas seulement à la validation.
+
+- **Jamais d'Internet ouvert à la main** : `labctl core internet on` est refusé pour le module comme pour ses VMs
+  (la GUI n'affiche pas de bouton d'ouverture). Seule exception : une VM `internet: install` a Internet **le temps
+  de son installation** (ex. images Docker de pentest/web), refermé dès qu'elle est prête.
+- **Aucune connexion ni lien sortant** : `connections:` et `dns.links` sont refusés à la validation, et ignorés
+  par la passerelle même si le fichier est modifié à la main.
+- **Ses VMs ne se branchent pas ailleurs** (`attach:` d'un autre module, câblage local).
+- Les autres modules peuvent, eux, **le joindre** : postes d'attaque branchés sur son réseau, liens ou connexions
+  déclarés vers lui (les réponses reviennent, rien d'autre).
+- `labctl check` signale un pare-feu de l'hôte inactif (`labctl hostfw`), et le `up` d'un module vulnérable
+  l'affiche en avertissement : sans lui, les cibles peuvent joindre les services de ton poste par l'adresse `.1`
+  de leur réseau.
 
 ### VMs branchées (`attach:` et câblage local)
 

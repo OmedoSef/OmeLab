@@ -364,6 +364,24 @@ func (g *Gateway) InternetOn(name string, vms []string) error {
 	if err != nil {
 		return err
 	}
+	if m.Vulnerable() {
+		return fmt.Errorf("%s est un module vulnérable (vulnerable: true) : Internet n'y est jamais ouvert à la main", name)
+	}
+	return g.internetOn(m, vms)
+}
+
+// openForInstall ouvre Internet à une VM le temps de son installation (internet: install), y compris dans un
+// module vulnérable : c'est la seule ouverture qui y soit permise, refermée dès la VM prête.
+func (g *Gateway) openForInstall(name, vm string) error {
+	m, err := g.module(name)
+	if err != nil {
+		return err
+	}
+	return g.internetOn(m, []string{vm})
+}
+
+func (g *Gateway) internetOn(m *gwModule, vms []string) error {
+	name := m.Name
 	if err := g.require(); err != nil {
 		return err
 	}

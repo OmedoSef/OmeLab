@@ -85,6 +85,9 @@ func (l *Lab) ModuleContext(name string) module.Context {
 			continue
 		}
 		ctx.Modules = append(ctx.Modules, m.Name)
+		if m.Vulnerable() {
+			ctx.Vulnerable = append(ctx.Vulnerable, m.Name)
+		}
 		if ctx.Targets == nil {
 			ctx.Targets = map[string][]string{}
 		}
