@@ -212,6 +212,13 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	}
 	fmt.Fprintf(out, "==> Création de %s (%s)\n", s.Name, what)
 	// Disque lié à l'image de base (un disque fourni garde sa taille d'origine) ; installation : disque vierge
+	if s.Install == nil { // image de base : contrôlée à chaque création (y compris si téléchargée avant ce contrôle)
+		if f, err := checkDisk(base); err != nil {
+			return err
+		} else if f != "qcow2" {
+			return fmt.Errorf("image de base %s : qcow2 attendu, %s trouvé", filepath.Base(base), f)
+		}
+	}
 	args := []string{"create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", base, disk}
 	switch {
 	case s.Install != nil:

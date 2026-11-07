@@ -148,8 +148,9 @@ func (l *Lab) EnsureImage(name string, force bool, out io.Writer) (string, error
 		os.Remove(part)
 		return "", fmt.Errorf("empreinte %s invalide pour %s (fichier supprimé, relancer)", img.Algo, name)
 	}
-	if outp, err := exec.Command("qemu-img", "info", part).CombinedOutput(); err != nil {
-		return "", fmt.Errorf("image invalide : %s", strings.TrimSpace(string(outp)))
+	if _, err := checkDisk(part); err != nil { // structure : aucune référence vers un fichier de l'hôte
+		os.Remove(part)
+		return "", err
 	}
 	if err := os.Chmod(part, 0o644); err != nil {
 		return "", err
