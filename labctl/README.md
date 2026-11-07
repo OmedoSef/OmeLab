@@ -133,6 +133,13 @@ sudo (`pki trust-host`, refusé aussi par labctl lui-même quand il est lancé p
 frontière de sécurité. Les commandes destructives ou qui ouvrent un accès réseau tapées dans la console demandent
 confirmation ; la suppression d'un module entier n'a pas de bouton.
 
+**Journal d'audit** : chaque commande labctl (début, fin, résultat, durée, origine ligne de commande ou interface,
+lab, arguments) et chaque modification faite par l'interface elle-même (configuration réseau, fichiers de module…,
+sans le contenu des fichiers ni les mots de passe) est ajoutée à `~/.local/state/labctl/audit.jsonl` (une entrée JSON
+par ligne, lisible par toi seul ; `$XDG_STATE_HOME` respecté). Au-delà de 5 Mo il devient `audit.jsonl.1`.
+`LABCTL_AUDIT=/autre/fichier` le déplace, `LABCTL_AUDIT=off` le coupe. La complétion du shell, l'aide et la version
+ne sont pas journalisées. Ex. : `jq -c 'select(.ok == false)' ~/.local/state/labctl/audit.jsonl` (échecs).
+
 ## Développer et déboguer
 
 Tout l'outillage reste dans le projet, sans sudo ni rien dans le système :

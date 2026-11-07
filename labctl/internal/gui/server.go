@@ -6,6 +6,7 @@
 package gui
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -31,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"labs/labctl/internal/audit"
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/module"
 )
@@ -123,26 +125,26 @@ func Serve(l *lab.Lab, port int, open Open) error {
 	mux.HandleFunc("GET /api/state", s.api(s.handleState))
 	mux.HandleFunc("POST /api/run", s.api(s.handleRun))
 	mux.HandleFunc("POST /api/complete", s.api(s.handleComplete))
-	mux.HandleFunc("POST /api/console", s.api(s.handleConsole))
+	mux.HandleFunc("POST /api/console", s.api(s.audited(s.handleConsole)))
 	mux.HandleFunc("GET /api/core", s.api(s.handleCore))
 	mux.HandleFunc("GET /api/pki", s.api(s.handlePKI))
 	mux.HandleFunc("GET /api/pki/trust", s.api(s.handlePKITrust))
 	mux.HandleFunc("GET /api/pki/file", s.api(s.handlePKIFile))
 	mux.HandleFunc("GET /api/config", s.api(s.handleConfig))
-	mux.HandleFunc("POST /api/config", s.api(s.handleConfigEdit))
+	mux.HandleFunc("POST /api/config", s.api(s.audited(s.handleConfigEdit)))
 	mux.HandleFunc("GET /api/modules", s.api(s.handleModules))
 	mux.HandleFunc("GET /api/module", s.api(s.handleModuleGet))
 	mux.HandleFunc("GET /api/module/skeleton", s.api(s.handleModuleSkeleton))
 	mux.HandleFunc("POST /api/module/check", s.api(s.handleModuleCheck))
-	mux.HandleFunc("POST /api/module/save", s.api(s.handleModuleSave))
+	mux.HandleFunc("POST /api/module/save", s.api(s.audited(s.handleModuleSave)))
 	mux.HandleFunc("GET /api/proxy/log", s.api(s.handleProxyLog))
-	mux.HandleFunc("POST /api/proxy/web", s.api(s.handleProxyWeb))
+	mux.HandleFunc("POST /api/proxy/web", s.api(s.audited(s.handleProxyWeb)))
 	mux.HandleFunc("GET /api/files", s.api(s.handleFiles))
 	mux.HandleFunc("GET /api/file", s.api(s.handleFileText))
 	mux.HandleFunc("GET /api/file/raw", s.api(s.handleFileRaw))
-	mux.HandleFunc("POST /api/file/save", s.api(s.handleFileSave))
-	mux.HandleFunc("POST /api/file/upload", s.api(s.handleFileUpload))
-	mux.HandleFunc("POST /api/file/op", s.api(s.handleFileOp))
+	mux.HandleFunc("POST /api/file/save", s.api(s.audited(s.handleFileSave)))
+	mux.HandleFunc("POST /api/file/upload", s.api(s.audited(s.handleFileUpload)))
+	mux.HandleFunc("POST /api/file/op", s.api(s.audited(s.handleFileOp)))
 
 	srv := &http.Server{Handler: s.checkHost(mux), ReadHeaderTimeout: 10 * time.Second}
 	url := fmt.Sprintf("http://%s/#t=%s", s.host, s.token)
@@ -199,6 +201,58 @@ func (s *server) api(h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r)
 	}
+}
+
+// statusRecorder retient le code de réponse, pour le journal d'audit.
+type statusRecorder struct {
+	http.ResponseWriter
+	code int
+}
+
+func (r *statusRecorder) WriteHeader(c int) { r.code = c; r.ResponseWriter.WriteHeader(c) }
+
+// audited journalise une action faite par l'interface elle-même, sans relancer labctl (qui, lui, se journalise
+// seul) : route, paramètres — sans contenu de fichier ni mot de passe — et résultat.
+func (s *server) audited(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var params []string
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+			if q := r.URL.RawQuery; q != "" {
+				params = []string{q}
+			}
+		} else {
+			body, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+			r.Body = io.NopCloser(bytes.NewReader(body))
+			var m map[string]any
+			if json.Unmarshal(body, &m) == nil {
+				params = auditParams("", m)
+			}
+		}
+		rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}
+		start := time.Now()
+		h(rec, r)
+		ok := rec.code < 400
+		audit.Log(audit.Entry{Event: "gui", Origin: "gui", Lab: s.lab.Root, Action: r.Method + " " + r.URL.Path,
+			Args: params, OK: &ok, Duration: time.Since(start).Milliseconds()})
+	}
+}
+
+// auditParams aplatit les paramètres d'une requête pour le journal, sans contenu de fichier ni secret.
+func auditParams(prefix string, m map[string]any) []string {
+	var out []string
+	for k, v := range m {
+		switch strings.ToLower(k) {
+		case "text", "content", "data", "password":
+			continue
+		}
+		if sub, ok := v.(map[string]any); ok {
+			out = append(out, auditParams(prefix+k+".", sub)...)
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s%s=%v", prefix, k, v))
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *server) handleState(w http.ResponseWriter, r *http.Request) {

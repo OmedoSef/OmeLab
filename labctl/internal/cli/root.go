@@ -6,9 +6,11 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"labs/labctl/internal/audit"
 	"labs/labctl/internal/gui"
 	"labs/labctl/internal/lab"
 )
@@ -30,14 +32,50 @@ func versionCmd() *cobra.Command {
 	}
 }
 
-// Execute construit et lance la commande racine.
+// Execute construit et lance la commande racine. Chaque commande est journalisée (début, fin et résultat) dans le
+// journal d'audit de l'utilisateur (internal/audit) ; une commande remplacée par une autre (vm ssh) n'a que son début.
 func Execute() int {
+	args := os.Args[1:]
+	logged := auditable(args)
+	var e audit.Entry
+	start := time.Now()
+	if logged {
+		e = audit.Entry{Origin: audit.Origin(), Args: args}
+		if l, err := lab.Find(); err == nil {
+			e.Lab = l.Root
+		}
+		s := e
+		s.Event = "start"
+		audit.Log(s)
+	}
 	root := newRoot()
-	if err := root.Execute(); err != nil {
+	err := root.Execute()
+	if logged {
+		ok := err == nil
+		e.Event, e.OK, e.Duration = "end", &ok, time.Since(start).Milliseconds()
+		if err != nil {
+			e.Error = err.Error()
+		}
+		audit.Log(e)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "erreur :", err)
 		return 1
 	}
 	return 0
+}
+
+// auditable : commandes journalisées. Pas la complétion du shell (à chaque Tab), ni l'aide, la version ou le
+// service de la passerelle (gw-portal tourne sur core-gw).
+func auditable(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "__complete", "__completeNoDesc", "completion", "help", "version", "gw-portal", "-h", "--help", "--version":
+		return false
+	}
+	return true
 }
 
 func newRoot() *cobra.Command {

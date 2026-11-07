@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,6 +67,40 @@ func TestRunRefusals(t *testing.T) {
 		s.handleRun(rec, httptest.NewRequest("POST", "/api/run", strings.NewReader(body)))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s : code %d, refus attendu (400)", body, rec.Code)
+		}
+	}
+}
+
+// Une action de l'interface est journalisée (route, paramètres, résultat) sans contenu de fichier ni mot de passe,
+// et le gestionnaire reçoit la requête intacte.
+func TestAuditedGUIAction(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	t.Setenv("LABCTL_AUDIT", logPath)
+	s := testServer(t)
+	body := `{"op":"conn-add","module":"netlab","target":"internet","portal":{"auth":"password","password":"S3cret!"},"text":"contenu du fichier"}`
+	var got string
+	h := s.audited(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = string(b)
+		http.Error(w, "refusé", http.StatusBadRequest)
+	})
+	h(httptest.NewRecorder(), httptest.NewRequest("POST", "/api/config", strings.NewReader(body)))
+	if got != body {
+		t.Fatalf("corps modifié pour le gestionnaire : %q", got)
+	}
+	b, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := string(b)
+	for _, want := range []string{`"event":"gui"`, `"action":"POST /api/config"`, `op=conn-add`, `portal.auth=password`, `"ok":false`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("journal sans %s : %s", want, line)
+		}
+	}
+	for _, secret := range []string{"S3cret!", "contenu du fichier"} {
+		if strings.Contains(line, secret) {
+			t.Errorf("secret ou contenu dans le journal : %s", line)
 		}
 	}
 }
