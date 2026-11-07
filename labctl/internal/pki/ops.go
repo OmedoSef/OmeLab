@@ -162,6 +162,11 @@ func (p *PKI) TrustVM(r Remote, vms ...string) error {
 
 // Deploy copie clé, certificat, chaîne complète et racine d'un certificat émis dans la VM (dossier dest).
 func (p *PKI) Deploy(r Remote, vm, name, dest string) error {
+	// Même règle que pour l'émission : sans elle, « .. » sortirait de certs/ (autre clé de pki/ envoyée dans la
+	// VM) et le nom partirait tel quel dans le script SSH.
+	if !reCertName.MatchString(name) || strings.Contains(name, "..") {
+		return fmt.Errorf("nom de certificat invalide : %q", name)
+	}
 	if dest == "" {
 		dest = "/etc/ssl/lab"
 	}

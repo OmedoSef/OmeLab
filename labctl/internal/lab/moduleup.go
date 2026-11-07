@@ -808,7 +808,7 @@ func (r *run) installCerts(vm string, renew bool) error {
 			return err
 		}
 		sum := func(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
-		have, err := ssh(fmt.Sprintf("sudo sha256sum %q %q 2>/dev/null | cut -d' ' -f1", c.Cert, c.Key), nil)
+		have, err := ssh(fmt.Sprintf("sudo sha256sum %s %s 2>/dev/null | cut -d' ' -f1", shellQuote(c.Cert), shellQuote(c.Key)), nil)
 		if err != nil {
 			return fmt.Errorf("%s injoignable en SSH (%s) : %s", vm, target, strings.TrimSpace(string(have)))
 		}
@@ -820,7 +820,7 @@ func (r *run) installCerts(vm string, renew bool) error {
 		payload := bytes.Join([][]byte{crtB, []byte("--8<-- labctl --8<--\n"), keyB}, nil)
 		script := fmt.Sprintf(`set -e; t=$(mktemp -d); csplit -s -f "$t/p" - '/^--8<-- labctl --8<--$/'
 sed -i 1d "$t/p01"
-sudo install -D -m 0644 "$t/p00" %q; sudo install -D -m 0600 "$t/p01" %q; rm -rf "$t"`, c.Cert, c.Key)
+sudo install -D -m 0644 "$t/p00" %s; sudo install -D -m 0600 "$t/p01" %s; rm -rf "$t"`, shellQuote(c.Cert), shellQuote(c.Key)) // %q n'est pas un échappement shell
 		if b, err := ssh(script, bytes.NewReader(payload)); err != nil {
 			return fmt.Errorf("installation du certificat %s : %s", c.Name, strings.TrimSpace(string(b)))
 		}

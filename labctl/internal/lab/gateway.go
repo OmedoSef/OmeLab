@@ -853,10 +853,12 @@ func (g *Gateway) PortalSessions() ([]portal.Session, error) {
 
 // PortalKick ferme la session de ip sur le portail id.
 func (g *Gateway) PortalKick(id int, ip string) error {
-	if _, err := netip.ParseAddr(ip); err != nil {
+	// IPv4 sans zone : ParseAddr accepte une zone IPv6 arbitraire (fe80::1%$(id)), qui partirait dans le shell
+	a, err := netip.ParseAddr(ip)
+	if err != nil || !a.Is4() || a.Zone() != "" {
 		return fmt.Errorf("adresse invalide : %q", ip)
 	}
-	_, err := g.SSH(fmt.Sprintf("/usr/local/sbin/labctl gw-portal kick %d %s", id, ip), nil)
+	_, err = g.SSH(fmt.Sprintf("/usr/local/sbin/labctl gw-portal kick %d %s", id, a), nil)
 	return err
 }
 
