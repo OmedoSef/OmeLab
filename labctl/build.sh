@@ -66,7 +66,7 @@ Architecture: amd64
 Maintainer: OmeLab <noreply@omelab.internal>
 Section: admin
 Priority: optional
-Recommends: libvirt-clients, libvirt-daemon-system, qemu-system-x86, openssh-client, conntrack
+Recommends: libvirt-clients, libvirt-daemon-system, qemu-system-x86, openssh-client, conntrack, gpgv
 Description: Pilote de labs de virtualisation (QEMU/KVM, libvirt)
  labctl cree et pilote des labs de machines virtuelles declaratifs (reseaux,
  passerelle DHCP/DNS/pare-feu, PKI, modules). Binaire autonome ; « labctl init »

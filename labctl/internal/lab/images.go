@@ -2,6 +2,7 @@ package lab
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -25,6 +26,8 @@ type Image struct {
 	Name   string
 	URL    string
 	Sums   string // fichier d'empreintes publié par la distribution
+	Sig    string // signature détachée de Sums, si l'éditeur en publie une (voir imagesig.go)
+	Key    string // clé embarquée qui doit l'avoir signée (keys/<Key>.asc)
 	Algo   string // sha256 ou sha512
 	OSInfo string // identifiant libosinfo (métadonnée de la VM)
 }
@@ -37,13 +40,13 @@ var Images = map[string]Image{
 	"debian13": {URL: "https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2",
 		Sums: "https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS", Algo: "sha512", OSInfo: "http://debian.org/debian/13"},
 	"ubuntu2404": {URL: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img",
-		Sums: "https://cloud-images.ubuntu.com/noble/current/SHA256SUMS", Algo: "sha256", OSInfo: "http://ubuntu.com/ubuntu/24.04"},
+		Sums: "https://cloud-images.ubuntu.com/noble/current/SHA256SUMS", Sig: "https://cloud-images.ubuntu.com/noble/current/SHA256SUMS.gpg", Key: "ubuntu", Algo: "sha256", OSInfo: "http://ubuntu.com/ubuntu/24.04"},
 	"ubuntu2604": {URL: "https://cloud-images.ubuntu.com/resolute/current/resolute-server-cloudimg-amd64.img",
-		Sums: "https://cloud-images.ubuntu.com/resolute/current/SHA256SUMS", Algo: "sha256", OSInfo: "http://ubuntu.com/ubuntu/24.04"},
+		Sums: "https://cloud-images.ubuntu.com/resolute/current/SHA256SUMS", Sig: "https://cloud-images.ubuntu.com/resolute/current/SHA256SUMS.gpg", Key: "ubuntu", Algo: "sha256", OSInfo: "http://ubuntu.com/ubuntu/24.04"},
 	"rocky9": {URL: "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2",
-		Sums: "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/CHECKSUM", Algo: "sha256", OSInfo: "http://rockylinux.org/rocky/9"},
+		Sums: "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/CHECKSUM", Sig: "https://dl.rockylinux.org/pub/rocky/9/images/x86_64/CHECKSUM.asc", Key: "rocky", Algo: "sha256", OSInfo: "http://rockylinux.org/rocky/9"},
 	"alma9": {URL: "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2",
-		Sums: "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/CHECKSUM", Algo: "sha256", OSInfo: "http://almalinux.org/almalinux/9"},
+		Sums: "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/CHECKSUM", Sig: "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/CHECKSUM.asc", Key: "alma", Algo: "sha256", OSInfo: "http://almalinux.org/almalinux/9"},
 }
 
 // ImageNames renvoie les noms du catalogue, triés.
@@ -68,6 +71,19 @@ var (
 	reSumGNU = regexp.MustCompile(`^([0-9a-fA-F]{64,128})\s+\*?(\S+)$`)
 	reSumBSD = regexp.MustCompile(`^SHA(256|512) \((\S+)\) = ([0-9a-fA-F]{64,128})$`)
 )
+
+// fetchSmall télécharge un petit fichier (empreintes, signature : 4 Mo au plus) en mémoire.
+func fetchSmall(url string) ([]byte, error) {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s : %s", url, resp.Status)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+}
 
 // ParseSums cherche l'empreinte d'un fichier dans un fichier d'empreintes (formats GNU et BSD).
 func ParseSums(r io.Reader, file string) (string, error) {
@@ -111,13 +127,23 @@ func (l *Lab) EnsureImage(name string, force bool, out io.Writer) (string, error
 	}
 	file := path.Base(img.URL)
 
-	// Empreinte attendue, avant le téléchargement
-	resp, err := httpClient.Get(img.Sums)
+	// Empreinte attendue, avant le téléchargement ; fichier d'empreintes authentifié par sa signature si
+	// l'éditeur en publie une
+	sums, err := fetchSmall(img.Sums)
 	if err != nil {
 		return "", fmt.Errorf("empreintes de %s : %w", name, err)
 	}
-	want, err := ParseSums(resp.Body, file)
-	resp.Body.Close()
+	if img.Sig != "" {
+		sig, err := fetchSmall(img.Sig)
+		if err != nil {
+			return "", fmt.Errorf("signature des empreintes de %s : %w", name, err)
+		}
+		if err := verifySums(img.Key, sums, sig); err != nil {
+			return "", fmt.Errorf("%s : %w — image refusée", name, err)
+		}
+		fmt.Fprintf(out, "ok  empreintes de %s signées par l'éditeur (clé %s)\n", name, img.Key)
+	}
+	want, err := ParseSums(bytes.NewReader(sums), file)
 	if err != nil {
 		return "", fmt.Errorf("%s : %w", img.Sums, err)
 	}

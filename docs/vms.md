@@ -19,7 +19,7 @@ labctl vm ssh web1
 | Commande | Rôle |
 |---|---|
 | `labctl check` | vérifie que l'hôte est prêt (KVM, libvirt, outils, clé SSH, accès de qemu au stockage) |
-| `labctl image list` / `get NOM` | catalogue des images cloud ; téléchargement à empreinte vérifiée |
+| `labctl image list` / `get NOM` | catalogue des images cloud ; téléchargement à empreinte vérifiée (et signature de l'éditeur, voir ci-dessous) |
 | `labctl vm create` | crée une VM (CPU, RAM, disque, cartes réseau, IP fixes, lab, paquets, fichiers) |
 | `labctl vm destroy` | supprime une VM et ses disques |
 | `labctl vm list` / `ip` / `ssh` | VMs avec état, lab et IP ; adresse d'une VM ; shell SSH |
@@ -49,6 +49,24 @@ Chaque commande a son aide : `labctl <commande> --help`.
   Posé par cloud-init dès le premier démarrage ; pour une VM existante : `labctl vm keyboard VM...`.
 - **Réglages** : valeurs par défaut dans [config.env](../config.env) (racine de Labs), à surcharger dans
   `config.local.env` (non versionné, `VAR=valeur`) ou par variable d'environnement.
+
+## Images : empreinte et signature
+
+Chaque image téléchargée est vérifiée par son **empreinte** (fichier d'empreintes de l'éditeur, en HTTPS) et sa
+**structure** (aucune référence vers un fichier de l'hôte). Quand l'éditeur **signe** son fichier d'empreintes,
+labctl vérifie aussi cette signature (`gpgv`) avec la clé officielle de l'éditeur, embarquée dans labctl : un miroir
+compromis ne peut alors plus servir une image et une empreinte assorties.
+
+| Images | Vérification |
+|---|---|
+| `ubuntu2404`, `ubuntu2604` | empreinte + signature (clé « UEC Image Automatic Signing Key ») |
+| `rocky9` | empreinte + signature (clé de release Rocky 2022) |
+| `alma9` | empreinte + signature (clé AlmaLinux OS 9) |
+| `debian12`, `debian13` | empreinte seulement : Debian ne publie pas de signature pour ses images cloud |
+
+Si un éditeur change de clé, le téléchargement de ses images échoue (« signature invalide ») jusqu'à une mise à jour
+de labctl : on ne fait jamais confiance à une clé inconnue. `gpgv` est requis (`labctl check` le vérifie ; présent
+d'office sur Debian et Ubuntu).
 
 ## PKI des labs
 

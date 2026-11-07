@@ -42,9 +42,9 @@ func (l *Lab) HostCheck(out io.Writer, tools ...string) int {
 		}
 		chk(active, "réseau libvirt "+def+" actif (sortie Internet de la passerelle)", "virsh -c qemu:///system net-start "+def)
 	}
-	for _, t := range append([]string{"qemu-img", "cloud-localds", "ssh"}, tools...) {
+	for _, t := range append([]string{"qemu-img", "cloud-localds", "ssh", "gpgv"}, tools...) {
 		_, err := exec.LookPath(t)
-		chk(err == nil, "commande "+t, "sudo apt install qemu-utils cloud-image-utils openssh-client p7zip-full")
+		chk(err == nil, "commande "+t, "sudo apt install qemu-utils cloud-image-utils openssh-client p7zip-full gpgv")
 	}
 	key := l.SSHPubKey()
 	_, err = os.Stat(key)
