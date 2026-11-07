@@ -280,6 +280,9 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 	}
 	if s := vm.Source; s != nil {
 		sp := p + ".source"
+		if err := ForbiddenSource(s); err != nil {
+			c.err(sp, "%v", err)
+		}
 		switch {
 		case s.URL != "" && s.Sums != "":
 			c.err(sp, "url et sums à la fois : url + checksum, ou sums + file")

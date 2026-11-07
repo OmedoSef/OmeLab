@@ -69,3 +69,29 @@ func TestValidateRejectsHostFileSource(t *testing.T) {
 		t.Fatalf("attendu 2 erreurs sur files.src, obtenu %d", found)
 	}
 }
+
+// labctl ne télécharge jamais d'ISO, ni rien depuis Microsoft.
+func TestForbiddenSource(t *testing.T) {
+	for _, s := range []*Source{
+		{URL: "https://software-download.microsoft.com/x/Win11.iso", Checksum: "sha256:00"},
+		{URL: "https://go.microsoft.com/fwlink/?linkid=1", Checksum: "sha256:00"},
+		{URL: "https://example.org/win.ISO", Checksum: "sha256:00"},
+		{Sums: "https://download.windowsupdate.com/sums", File: "x.qcow2"},
+		{Sums: "https://example.org/SHA256SUMS", File: "windows.iso"},
+		{URL: "https://example.org/a.zip", Checksum: "sha256:00", Extract: "*.iso"},
+	} {
+		if err := ForbiddenSource(s); err == nil {
+			t.Errorf("source acceptée : %+v", s)
+		}
+	}
+	for _, s := range []*Source{
+		nil,
+		{URL: "https://sourceforge.net/projects/metasploitable/files/metasploitable-linux-2.0.0.zip", Checksum: "md5:00", Extract: "*.vmdk"},
+		{Sums: "https://cdimage.kali.org/current/SHA256SUMS", File: "kali-linux-*-qemu-amd64.7z", Extract: "*.qcow2"},
+		{URL: "https://notmicrosoft.com.example.org/disk.qcow2", Checksum: "sha256:00"},
+	} {
+		if err := ForbiddenSource(s); err != nil {
+			t.Errorf("source légitime refusée : %+v : %v", s, err)
+		}
+	}
+}

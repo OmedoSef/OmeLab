@@ -93,6 +93,9 @@ func (l *Lab) SourceDisk(mod, vm string) string {
 
 // EnsureSource prépare le disque d'une VM à source fournie (rien à faire s'il existe déjà).
 func (l *Lab) EnsureSource(mod, vm string, s *module.Source, out io.Writer) (string, error) {
+	if err := module.ForbiddenSource(s); err != nil { // même règle qu'à la validation, juste avant tout téléchargement
+		return "", err
+	}
 	dst := l.SourceDisk(mod, vm)
 	if _, err := os.Stat(dst); err == nil {
 		return dst, nil
