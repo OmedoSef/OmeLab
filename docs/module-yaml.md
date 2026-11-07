@@ -1,6 +1,25 @@
-# Proposition : modules déclaratifs (`module.yaml`)
+# Modules déclaratifs (`module.yaml`)
 
-> Statut : **validée** (décisions en fin de document), à implémenter.
+Référence du format des modules (les décisions de conception sont en fin de document).
+
+### Dans l'éditeur (VS Code…)
+
+Chaque `module.yaml` commence par une ligne qui désigne son **schéma** à l'éditeur :
+
+```yaml
+# yaml-language-server: $schema=../../module.schema.json
+```
+
+Avec l'extension YAML de Red Hat dans VS Code (ou tout éditeur basé sur yaml-language-server : Neovim, Helix…),
+on obtient la **complétion des clés**, leur **description au survol** et les **fautes de frappe soulignées**
+(`subdomian:`, un nombre attendu…). Le schéma est généré depuis le code de labctl : il suit toujours sa version.
+
+- `labctl init` pose `module.schema.json` à la racine du lab ; créer un module depuis la GUI (« + Nouveau module… ») le pose aussi s'il manque ;
+- après une mise à jour de labctl : `labctl module schema --write` (sans `--write` : affiché) ;
+- il est aussi publié avec chaque release, et installé par le `.deb` dans `/usr/share/labctl/`.
+
+Sans cette ligne, VS Code applique à tort le schéma d'un autre outil (cfgd) dont les fichiers s'appellent aussi
+`module.yaml`, d'où de fausses erreurs (« Property module is not allowed »).
 
 ## Principes
 

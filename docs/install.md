@@ -92,3 +92,4 @@ passerelle tournent sur deux versions différentes. `labctl check`, `labctl core
 la GUI le signalent (« labctl de la passerelle en version …, hôte en … »).
 
 Les labs eux-mêmes (modules, `lab.yaml`, `network.local.yaml`, PKI) ne bougent pas lors d'une mise à jour.
+Pour que l'éditeur suive les nouveautés de `module.yaml`, réécrire son schéma : `labctl module schema --write`.

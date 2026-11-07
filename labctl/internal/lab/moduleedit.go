@@ -108,6 +108,7 @@ func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []mo
 		if err := os.MkdirAll(filepath.Join(dir, "files"), 0o755); err != nil {
 			return "", nil, err
 		}
+		l.ensureSchema() // la 1re ligne du squelette y renvoie : l'éditeur doit le trouver
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
@@ -119,9 +120,18 @@ func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []mo
 	return TextHash([]byte(text)), issues, nil
 }
 
-// ModuleSkeleton renvoie un module.yaml commenté pour un nouveau module.
+// ensureSchema pose le schéma de module.yaml à la racine du lab s'il n'y est pas (lab créé avant qu'init le pose).
+// Sans effet si un fichier (ou un lien, dans le dépôt de développement) est déjà là ; une erreur est sans gravité.
+func (l *Lab) ensureSchema() {
+	p := filepath.Join(l.Root, module.SchemaFile)
+	if _, err := os.Lstat(p); os.IsNotExist(err) {
+		_ = os.WriteFile(p, module.SchemaJSON, 0o644)
+	}
+}
+
+// ModuleSkeleton renvoie un module.yaml commenté pour un nouveau module. Sa 1re ligne désigne le schéma à l'éditeur.
 func ModuleSkeleton(name string) string {
-	return strings.ReplaceAll(`# Module NAME. Voir docs/module-yaml.md pour toutes les clés.
+	return module.SchemaModeline + "\n" + strings.ReplaceAll(`# Module NAME. Voir docs/module-yaml.md pour toutes les clés.
 module: NAME
 description: À décrire
 

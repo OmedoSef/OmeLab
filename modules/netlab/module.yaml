@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../module.schema.json
 # Module netlab : un poste client pour éprouver les fonctions réseau de la passerelle core — pare-feu par
 # connexion, portail captif et proxy transparent. Isolé comme tout module. Voir README.md pour les recettes de test.
 module: netlab

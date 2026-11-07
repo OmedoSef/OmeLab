@@ -52,6 +52,7 @@ jobs:
             dist/labctl \
             dist/labctl.sha256 \
             dist/install.sh \
+            dist/module.schema.json \
             dist/labctl_*_linux-amd64.tar.gz \
             dist/*.deb \
             dist/modules/*.tar.gz

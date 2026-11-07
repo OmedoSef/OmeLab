@@ -47,7 +47,7 @@ var (
 )
 
 // ReservedNames sont des sous-commandes de « labctl module » ou de labctl : pas utilisables comme nom de module.
-var ReservedNames = []string{"list", "validate", "show", "env", "conf", "edit", "core", "module", "vm", "net", "image", "pki", "status", "gui", "hostfw", "completion", "help"}
+var ReservedNames = []string{"list", "validate", "show", "env", "conf", "edit", "schema", "core", "module", "vm", "net", "image", "pki", "status", "gui", "hostfw", "completion", "help"}
 
 type checker struct {
 	m      *Module

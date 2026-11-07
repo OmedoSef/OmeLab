@@ -50,7 +50,7 @@ build_deb() {
   [[ $debver =~ ^[0-9] ]] || debver="0.0.0+$debver"  # une version .deb doit commencer par un chiffre (builds hors tag)
   local out="$distdir/labctl_${debver}_amd64.deb"
   local root; root=$(mktemp -d); chmod 0755 "$root" # sinon la racine du paquet hérite du 0700 de mktemp
-  mkdir -p "$root/DEBIAN" "$root/usr/bin" \
+  mkdir -p "$root/DEBIAN" "$root/usr/bin" "$root/usr/share/labctl" \
     "$root/usr/share/bash-completion/completions" "$root/usr/share/zsh/vendor-completions" \
     "$root/usr/share/doc/labctl"
   install -m0755 "$bin" "$root/usr/bin/labctl"
@@ -58,6 +58,7 @@ build_deb() {
   "$bin" completion zsh >"$root/usr/share/zsh/vendor-completions/_labctl" 2>/dev/null || true
   [[ -f $LABS/docs/install.md ]] && cp "$LABS/docs/install.md" "$root/usr/share/doc/labctl/"
   cp "$LABS/LICENSE" "$LABS/NOTICE" "$root/usr/share/doc/labctl/"   # Apache-2.0 : licence et notice voyagent avec le binaire
+  install -m0644 "$SRC/internal/module/module.schema.json" "$root/usr/share/labctl/" # schéma de module.yaml (éditeurs)
   cat >"$root/DEBIAN/control" <<EOF
 Package: labctl
 Version: $debver
@@ -99,9 +100,9 @@ case ${1:-build} in
     # Binaire statique linux/amd64 (comme l'hôte et la VM passerelle qui en reçoit une copie)
     (cd "$SRC" && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "$dist/labctl" ./cmd/labctl)
     (cd "$dist" && sha256sum labctl >labctl.sha256)
-    cp "$LABS/install.sh" "$LABS/LICENSE" "$LABS/NOTICE" "$dist/"
-    # Archive « prête à installer » : binaire + installeur, avec la licence (Apache-2.0)
-    tar -czf "$dist/labctl_${v}_linux-amd64.tar.gz" -C "$dist" labctl install.sh LICENSE NOTICE
+    cp "$LABS/install.sh" "$LABS/LICENSE" "$LABS/NOTICE" "$SRC/internal/module/module.schema.json" "$dist/"
+    # Archive « prête à installer » : binaire + installeur, avec la licence (Apache-2.0) et le schéma de module.yaml
+    tar -czf "$dist/labctl_${v}_linux-amd64.tar.gz" -C "$dist" labctl install.sh LICENSE NOTICE module.schema.json
     echo "    archive -> labctl_${v}_linux-amd64.tar.gz"
     # Paquet Debian (binaire + complétion + doc)
     build_deb "$v" "$dist/labctl" "$dist"

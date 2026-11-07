@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,6 +43,36 @@ func modulesCmd(l *lab.Lab) *cobra.Command {
 	for _, name := range yamlModules(l) {
 		c.AddCommand(engineCmd(l, name, ""))
 	}
+
+	var schemaWrite bool
+	schema := &cobra.Command{
+		Use:   "schema",
+		Short: "Schéma JSON de module.yaml pour les éditeurs (complétion, descriptions, fautes de frappe)",
+		Long: `Affiche le schéma JSON de module.yaml, généré depuis le code de cette version de labctl. Avec --write, l'écrit
+à la racine du lab (` + module.SchemaFile + `) : chaque module.yaml y renvoie par sa première ligne
+« ` + module.SchemaModeline + ` »
+(VS Code avec l'extension YAML de Red Hat, et tout éditeur basé sur yaml-language-server). « labctl init » le pose
+déjà ; le réécrire après une mise à jour de labctl.`,
+		Args: cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !schemaWrite {
+				_, err := cmd.OutOrStdout().Write(module.SchemaJSON)
+				return err
+			}
+			p := filepath.Join(l.Root, module.SchemaFile)
+			if fi, err := os.Lstat(p); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s est un lien (dépôt de développement) : rien à écrire\n", p)
+				return nil
+			}
+			if err := os.WriteFile(p, module.SchemaJSON, 0o644); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "ok  %s\n", p)
+			return nil
+		},
+	}
+	schema.Flags().BoolVarP(&schemaWrite, "write", "w", false, "écrire "+module.SchemaFile+" à la racine du lab")
+	c.AddCommand(schema)
 
 	c.AddCommand(&cobra.Command{
 		Use:   "list",

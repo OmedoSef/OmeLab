@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../module.schema.json
 # Module attacker : postes d'attaque, branchés sur les modules cibles qui les accueillent (attach: côté cible).
 # Voir docs/module-yaml.md pour toutes les clés.
 module: attacker

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/module"
 )
 
 // Gabarits écrits par « labctl init », embarqués dans le binaire (il n'a pas besoin de l'arborescence source).
@@ -168,6 +169,7 @@ func runInit(out io.Writer, in io.Reader, dir string, force bool, id identity) e
 		{"config.env", cfg},
 		{"lab.yaml", tmplLabYAML},
 		{".gitignore", tmplGitignore},
+		{module.SchemaFile, string(module.SchemaJSON)}, // complétion et contrôle des module.yaml dans l'éditeur
 		{filepath.Join("modules", ".gitkeep"), ""},
 	}
 	for _, f := range files {

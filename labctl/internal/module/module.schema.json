@@ -1,0 +1,975 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Module déclaratif d'OmeLab (labctl). Référence : docs/module-yaml.md. Généré depuis le code de labctl.",
+  "properties": {
+    "attach": {
+      "description": "Attach : VM d'un autre module branchée sur le réseau de celui-ci (ex. l'attaquante du module attacker sur le réseau des cibles). Elle y reçoit une carte de plus, avec IP réservée, sans route par défaut ni DNS (sa carte principale reste celle de son module).",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ip": {
+            "description": "dernier octet sur le réseau de ce module",
+            "type": "integer"
+          },
+          "mac": {
+            "description": "générée au premier up",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "vm": {
+            "description": "\u003cmodule\u003e/\u003cvm\u003e",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "ip",
+          "vm"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "connections": {
+      "description": "Connection est une entrée de connections:.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "description": "VMs ou réservations de ce module (défaut : tout le module)",
+            "items": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "portal": {
+            "additionalProperties": false,
+            "description": "options de via: portal",
+            "properties": {
+              "api": {
+                "description": "annonce RFC 8910 (DHCP 114) + API RFC 8908",
+                "type": "boolean"
+              },
+              "auth": {
+                "description": "click (défaut) | password | terms",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "detect": {
+                "description": "rediriger les tests de connectivité des OS (défaut oui)",
+                "type": "boolean"
+              },
+              "duration": {
+                "description": "durée d'une session (défaut 1h ; 1m à 24h)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "https": {
+                "description": "HTTPS non authentifié : reject (défaut) | drop",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "password": {
+                "description": "auth: password (mot de passe de lab, en clair)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "title": {
+                "description": "titre de la page",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "ports": {
+            "description": "tcp/80, udp/53, tcp/8000-8100, icmp (défaut : tout)",
+            "items": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "proxy": {
+            "additionalProperties": false,
+            "description": "options de via: proxy",
+            "properties": {
+              "allow": {
+                "description": "filter : domaines autorisés (*.debian.org)",
+                "items": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "deny": {
+                "description": "filter : domaines refusés (le reste passe)",
+                "items": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "mode": {
+                "description": "log (défaut) | filter | intercept",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "ports": {
+                "description": "ports HTTP(S) en plus de tcp/80 et tcp/443",
+                "items": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "to": {
+            "description": "module, module/vm, ou internet",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "via": {
+            "description": "direct (défaut), portal, proxy",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "defaults": {
+      "additionalProperties": false,
+      "description": "VMSettings regroupe les réglages qu'une VM hérite de defaults: s'ils ne sont pas donnés.",
+      "properties": {
+        "cpus": {
+          "description": "nombre de vCPU",
+          "type": "integer"
+        },
+        "disk": {
+          "description": "Gio",
+          "type": "integer"
+        },
+        "guest": {
+          "additionalProperties": false,
+          "description": "Guest : intégration avec la VM.",
+          "properties": {
+            "agent": {
+              "description": "agent invité QEMU (clavier, IP, commandes) ; défaut : oui pour une image cloud",
+              "type": "boolean"
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "hardware": {
+          "additionalProperties": false,
+          "description": "Hardware : matériel virtuel (vide = défaut q35/virtio/spice).",
+          "properties": {
+            "disk_bus": {
+              "description": "virtio | sata | ide",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "firmware": {
+              "description": "bios (SeaBIOS) | efi (OVMF)",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "graphics": {
+              "description": "spice | vnc | none",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "machine": {
+              "description": "q35 | pc",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "nic_model": {
+              "description": "virtio | e1000",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "osinfo": {
+              "description": "identifiant osinfo de libvirt (ex. debiantesting, win2k22)",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "secure_boot": {
+              "description": "efi : Secure Boot, clés Microsoft enrôlées",
+              "type": "boolean"
+            },
+            "tpm": {
+              "description": "TPM 2.0 émulé (swtpm), ex. Windows 11",
+              "type": "boolean"
+            },
+            "video": {
+              "description": "virtio | vga | qxl",
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "image": {
+          "description": "image cloud du catalogue (labctl image list) ; défaut debian13",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "internet": {
+          "description": "off | install | never",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "keyboard": {
+          "description": "disposition clavier ; défaut : celle de l'hôte (LABS_KEYBOARD/localectl)",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "memory": {
+          "description": "Mio",
+          "type": "integer"
+        },
+        "snapshot": {
+          "description": "snapshot pris une fois la VM prête (ex. clean), base de restore",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "description": {
+      "description": "affichée par labctl, la GUI et la complétion",
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ]
+    },
+    "dns": {
+      "additionalProperties": false,
+      "description": "DNS : alias, réservations en plus, liens vers d'autres modules (ex-core.conf).",
+      "properties": {
+        "aliases": {
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "description": "\u003calias\u003e.\u003cdomaine\u003e -\u003e VM du module (ou nom complet)",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "hosts": {
+          "description": "réservations DHCP/DNS de machines hors vms:",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "ip": {
+                "description": "dernier octet réservé",
+                "type": "integer"
+              },
+              "mac": {
+                "description": "MAC de la machine (aa:bb:cc:dd:ee:ff)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "name": {
+                "description": "nom DNS (\u003cname\u003e.\u003cdomaine\u003e)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            "required": [
+              "ip",
+              "mac",
+              "name"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "links": {
+          "description": "modules que celui-ci peut joindre et résoudre (tout, tous ports)",
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "module": {
+      "description": "nom du module (= nom de son dossier)",
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ]
+    },
+    "network": {
+      "additionalProperties": false,
+      "description": "Network est le réseau isolé du module.",
+      "properties": {
+        "domain": {
+          "description": "domaine complet, pris tel quel (ex. pjpt.local)",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "name": {
+          "description": "réseau libvirt (défaut : \u003cmodule\u003e-lab)",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "subdomain": {
+          "description": "libellé collé sous le domaine racine : \u003csubdomain\u003e.\u003cracine\u003e",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "subnet": {
+          "description": "10.66.66.0/24",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "pki": {
+      "additionalProperties": false,
+      "description": "PKI : CA dérivée du module.",
+      "properties": {
+        "ca": {
+          "description": "nom de la CA dérivée, limitée au domaine et au sous-réseau du module",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "required": [
+        "ca"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "vars": {
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "description": "valeurs nommées, reprises partout via ${var.\u003cnom\u003e} ; lab.yaml et lab.local.yaml les surchargent",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "vms": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "certificates": {
+            "description": "certificats émis par la CA du module et installés dans la VM",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "cert": {
+                  "description": "chemin absolu du certificat dans la VM",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "dns": {
+                  "description": "noms DNS en plus (SAN)",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "ip": {
+                  "description": "ajoute l'IP de la VM aux SAN",
+                  "type": "boolean"
+                },
+                "key": {
+                  "description": "chemin absolu de la clé dans la VM",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "name": {
+                  "description": "nom du certificat ; SAN \u003cname\u003e.\u003cdomaine du module\u003e",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "reload": {
+                  "description": "commande relancée après installation (ex. systemctl reload nginx)",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                }
+              },
+              "required": [
+                "cert",
+                "key",
+                "name"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cpus": {
+            "description": "nombre de vCPU",
+            "type": "integer"
+          },
+          "disk": {
+            "description": "Gio",
+            "type": "integer"
+          },
+          "files": {
+            "description": "fichiers du module copiés dans la VM",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "dest": {
+                  "description": "chemin absolu dans la VM (Windows : C:/dossier/fichier)",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "mode": {
+                  "description": "droits (ex. 0644)",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "src": {
+                  "description": "relatif au dossier du module (ex. files/x.conf) ; jamais hors du module",
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ]
+                },
+                "template": {
+                  "description": "remplace les ${...} du contenu",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "dest",
+                "src"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "guest": {
+            "additionalProperties": false,
+            "description": "Guest : intégration avec la VM.",
+            "properties": {
+              "agent": {
+                "description": "agent invité QEMU (clavier, IP, commandes) ; défaut : oui pour une image cloud",
+                "type": "boolean"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "hardware": {
+            "additionalProperties": false,
+            "description": "Hardware : matériel virtuel (vide = défaut q35/virtio/spice).",
+            "properties": {
+              "disk_bus": {
+                "description": "virtio | sata | ide",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "firmware": {
+                "description": "bios (SeaBIOS) | efi (OVMF)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "graphics": {
+                "description": "spice | vnc | none",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "machine": {
+                "description": "q35 | pc",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "nic_model": {
+                "description": "virtio | e1000",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "osinfo": {
+                "description": "identifiant osinfo de libvirt (ex. debiantesting, win2k22)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "secure_boot": {
+                "description": "efi : Secure Boot, clés Microsoft enrôlées",
+                "type": "boolean"
+              },
+              "tpm": {
+                "description": "TPM 2.0 émulé (swtpm), ex. Windows 11",
+                "type": "boolean"
+              },
+              "video": {
+                "description": "virtio | vga | qxl",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "image": {
+            "description": "image cloud du catalogue (labctl image list) ; défaut debian13",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "internet": {
+            "description": "off | install | never",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "ip": {
+            "description": "dernier octet ; 0 = DHCP libre",
+            "type": "integer"
+          },
+          "keyboard": {
+            "description": "disposition clavier ; défaut : celle de l'hôte (LABS_KEYBOARD/localectl)",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "mac": {
+            "description": "générée et écrite ici au premier up",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "memory": {
+            "description": "Mio",
+            "type": "integer"
+          },
+          "packages": {
+            "description": "paquets installés par cloud-init",
+            "items": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "role": {
+            "description": "attacker, target, server, client… (affichage, filtres ; une target reste sans Internet)",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "run": {
+            "description": "commandes lancées à la création (shell ; PowerShell sous Windows)",
+            "items": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "snapshot": {
+            "description": "snapshot pris une fois la VM prête (ex. clean), base de restore",
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "source": {
+            "additionalProperties": false,
+            "description": "Source : disque fourni par un éditeur (pas une image cloud du catalogue).",
+            "properties": {
+              "checksum": {
+                "description": "algo:empreinte",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "extract": {
+                "description": "motif du fichier à prendre dans l'archive",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "file": {
+                "description": "fichier cherché dans Sums (peut contenir *)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "sums": {
+                "description": "fichier d'empreintes publié",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "url": {
+                "description": "adresse https du disque ou de l'archive",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "windows": {
+            "additionalProperties": false,
+            "description": "Windows : VM installée depuis un ISO Microsoft (labctl ne le télécharge jamais : formulaire d'inscription de l'Evaluation Center). Installation sans intervention (autounattend.xml), pilotes virtio, agent invité QEMU et OpenSSH Server posés à la fin : la VM se pilote ensuite par SSH (files:, run: en PowerShell) comme une VM Linux.",
+            "properties": {
+              "checksum": {
+                "description": "sha256:… (vérifiée une fois par ISO)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "drivers": {
+                "description": "dossier des pilotes virtio-win (2k22, 2k19, w11…) ; déduit de l'édition",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "edition": {
+                "description": "nom de l'image dans install.wim (ex. Windows Server 2022 SERVERSTANDARD)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "iso": {
+                "description": "chemin de l'ISO (~ accepté)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "password": {
+                "description": "Administrateur et compte lab (mot de passe de lab, en clair)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "timezone": {
+                "description": "fuseau Windows (défaut : Romance Standard Time)",
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              }
+            },
+            "required": [
+              "edition",
+              "iso",
+              "password"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
+      "description": "VM est une VM du module.",
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "module"
+  ],
+  "title": "OmeLab — module.yaml",
+  "type": "object"
+}

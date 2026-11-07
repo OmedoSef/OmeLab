@@ -19,12 +19,12 @@ const FileName = "module.yaml"
 
 // Module est le contenu d'un module.yaml.
 type Module struct {
-	Module      string            `yaml:"module"`
-	Description string            `yaml:"description,omitempty"`
+	Module      string            `yaml:"module"`                // nom du module (= nom de son dossier)
+	Description string            `yaml:"description,omitempty"` // affichée par labctl, la GUI et la complétion
 	Network     *Network          `yaml:"network,omitempty"`
 	PKI         *PKI              `yaml:"pki,omitempty"`
 	DNS         DNS               `yaml:"dns,omitempty"`
-	Vars        map[string]string `yaml:"vars,omitempty"`
+	Vars        map[string]string `yaml:"vars,omitempty"` // valeurs nommées, reprises partout via ${var.<nom>} ; lab.yaml et lab.local.yaml les surchargent
 	Connections []Connection      `yaml:"connections,omitempty"`
 	Attach      []Attach          `yaml:"attach,omitempty"`
 	Defaults    VMSettings        `yaml:"defaults,omitempty"`
@@ -40,7 +40,7 @@ type Module struct {
 
 // Network est le réseau isolé du module.
 type Network struct {
-	Name      string `yaml:"name,omitempty"`
+	Name      string `yaml:"name,omitempty"`      // réseau libvirt (défaut : <module>-lab)
 	Subnet    string `yaml:"subnet,omitempty"`    // 10.66.66.0/24
 	Domain    string `yaml:"domain,omitempty"`    // domaine complet, pris tel quel (ex. pjpt.local)
 	Subdomain string `yaml:"subdomain,omitempty"` // libellé collé sous le domaine racine : <subdomain>.<racine>
@@ -48,14 +48,14 @@ type Network struct {
 
 // PKI : CA dérivée du module.
 type PKI struct {
-	CA string `yaml:"ca"`
+	CA string `yaml:"ca"` // nom de la CA dérivée, limitée au domaine et au sous-réseau du module
 }
 
 // DNS : alias, réservations en plus, liens vers d'autres modules (ex-core.conf).
 type DNS struct {
-	Aliases map[string]string `yaml:"aliases,omitempty"`
-	Hosts   []Host            `yaml:"hosts,omitempty"`
-	Links   []string          `yaml:"links,omitempty"`
+	Aliases map[string]string `yaml:"aliases,omitempty"` // <alias>.<domaine> -> VM du module (ou nom complet)
+	Hosts   []Host            `yaml:"hosts,omitempty"`   // réservations DHCP/DNS de machines hors vms:
+	Links   []string          `yaml:"links,omitempty"`   // modules que celui-ci peut joindre et résoudre (tout, tous ports)
 }
 
 // Attach : VM d'un autre module branchée sur le réseau de celui-ci (ex. l'attaquante du module attacker sur le
@@ -76,46 +76,46 @@ func (a Attach) Split() (mod, vm string) {
 
 // Host est une réservation DHCP/DNS pour une machine hors des VMs du module.
 type Host struct {
-	Name string `yaml:"name"`
-	IP   int    `yaml:"ip"`
-	MAC  string `yaml:"mac"`
+	Name string `yaml:"name"` // nom DNS (<name>.<domaine>)
+	IP   int    `yaml:"ip"`   // dernier octet réservé
+	MAC  string `yaml:"mac"`  // MAC de la machine (aa:bb:cc:dd:ee:ff)
 }
 
 // VMSettings regroupe les réglages qu'une VM hérite de defaults: s'ils ne sont pas donnés.
 type VMSettings struct {
-	Image    string   `yaml:"image,omitempty"`
-	CPUs     int      `yaml:"cpus,omitempty"`
+	Image    string   `yaml:"image,omitempty"`  // image cloud du catalogue (labctl image list) ; défaut debian13
+	CPUs     int      `yaml:"cpus,omitempty"`   // nombre de vCPU
 	Memory   int      `yaml:"memory,omitempty"` // Mio
 	Disk     int      `yaml:"disk,omitempty"`   // Gio
 	Hardware Hardware `yaml:"hardware,omitempty"`
 	Guest    Guest    `yaml:"guest,omitempty"`
 	Internet string   `yaml:"internet,omitempty"` // off | install | never
-	Snapshot string   `yaml:"snapshot,omitempty"`
+	Snapshot string   `yaml:"snapshot,omitempty"` // snapshot pris une fois la VM prête (ex. clean), base de restore
 	Keyboard string   `yaml:"keyboard,omitempty"` // disposition clavier ; défaut : celle de l'hôte (LABS_KEYBOARD/localectl)
 }
 
 // VM est une VM du module.
 type VM struct {
 	VMSettings   `yaml:",inline"`
-	Role         string   `yaml:"role,omitempty"`
-	IP           int      `yaml:"ip,omitempty"` // dernier octet ; 0 = DHCP libre
-	MAC          string   `yaml:"mac,omitempty"`
+	Role         string   `yaml:"role,omitempty"` // attacker, target, server, client… (affichage, filtres ; une target reste sans Internet)
+	IP           int      `yaml:"ip,omitempty"`   // dernier octet ; 0 = DHCP libre
+	MAC          string   `yaml:"mac,omitempty"`  // générée et écrite ici au premier up
 	Source       *Source  `yaml:"source,omitempty"`
 	Windows      *Windows `yaml:"windows,omitempty"`
-	Packages     []string `yaml:"packages,omitempty"`
-	Files        []File   `yaml:"files,omitempty"`
-	Run          []string `yaml:"run,omitempty"`
-	Certificates []Cert   `yaml:"certificates,omitempty"`
+	Packages     []string `yaml:"packages,omitempty"`     // paquets installés par cloud-init
+	Files        []File   `yaml:"files,omitempty"`        // fichiers du module copiés dans la VM
+	Run          []string `yaml:"run,omitempty"`          // commandes lancées à la création (shell ; PowerShell sous Windows)
+	Certificates []Cert   `yaml:"certificates,omitempty"` // certificats émis par la CA du module et installés dans la VM
 }
 
 // Hardware : matériel virtuel (vide = défaut q35/virtio/spice).
 type Hardware struct {
-	Machine    string `yaml:"machine,omitempty"`   // q35 | pc
-	DiskBus    string `yaml:"disk_bus,omitempty"`  // virtio | sata | ide
-	NICModel   string `yaml:"nic_model,omitempty"` // virtio | e1000
-	Graphics   string `yaml:"graphics,omitempty"`  // spice | vnc | none
-	Video      string `yaml:"video,omitempty"`     // virtio | vga | qxl
-	OSInfo     string `yaml:"osinfo,omitempty"`
+	Machine    string `yaml:"machine,omitempty"`     // q35 | pc
+	DiskBus    string `yaml:"disk_bus,omitempty"`    // virtio | sata | ide
+	NICModel   string `yaml:"nic_model,omitempty"`   // virtio | e1000
+	Graphics   string `yaml:"graphics,omitempty"`    // spice | vnc | none
+	Video      string `yaml:"video,omitempty"`       // virtio | vga | qxl
+	OSInfo     string `yaml:"osinfo,omitempty"`      // identifiant osinfo de libvirt (ex. debiantesting, win2k22)
 	Firmware   string `yaml:"firmware,omitempty"`    // bios (SeaBIOS) | efi (OVMF)
 	SecureBoot bool   `yaml:"secure_boot,omitempty"` // efi : Secure Boot, clés Microsoft enrôlées
 	TPM        bool   `yaml:"tpm,omitempty"`         // TPM 2.0 émulé (swtpm), ex. Windows 11
@@ -123,12 +123,12 @@ type Hardware struct {
 
 // Guest : intégration avec la VM.
 type Guest struct {
-	Agent *bool `yaml:"agent,omitempty"`
+	Agent *bool `yaml:"agent,omitempty"` // agent invité QEMU (clavier, IP, commandes) ; défaut : oui pour une image cloud
 }
 
 // Source : disque fourni par un éditeur (pas une image cloud du catalogue).
 type Source struct {
-	URL      string `yaml:"url,omitempty"`
+	URL      string `yaml:"url,omitempty"`      // adresse https du disque ou de l'archive
 	Checksum string `yaml:"checksum,omitempty"` // algo:empreinte
 	Sums     string `yaml:"sums,omitempty"`     // fichier d'empreintes publié
 	File     string `yaml:"file,omitempty"`     // fichier cherché dans Sums (peut contenir *)
@@ -137,20 +137,20 @@ type Source struct {
 
 // File : fichier du module copié dans la VM.
 type File struct {
-	Src      string `yaml:"src"`
-	Dest     string `yaml:"dest"`
-	Mode     string `yaml:"mode,omitempty"`
-	Template bool   `yaml:"template,omitempty"`
+	Src      string `yaml:"src"`                // relatif au dossier du module (ex. files/x.conf) ; jamais hors du module
+	Dest     string `yaml:"dest"`               // chemin absolu dans la VM (Windows : C:/dossier/fichier)
+	Mode     string `yaml:"mode,omitempty"`     // droits (ex. 0644)
+	Template bool   `yaml:"template,omitempty"` // remplace les ${...} du contenu
 }
 
 // Cert : certificat émis par la CA du module et installé dans la VM.
 type Cert struct {
-	Name   string   `yaml:"name"`
-	DNS    []string `yaml:"dns,omitempty"`
-	IP     bool     `yaml:"ip,omitempty"`
-	Cert   string   `yaml:"cert"`
-	Key    string   `yaml:"key"`
-	Reload string   `yaml:"reload,omitempty"`
+	Name   string   `yaml:"name"`             // nom du certificat ; SAN <name>.<domaine du module>
+	DNS    []string `yaml:"dns,omitempty"`    // noms DNS en plus (SAN)
+	IP     bool     `yaml:"ip,omitempty"`     // ajoute l'IP de la VM aux SAN
+	Cert   string   `yaml:"cert"`             // chemin absolu du certificat dans la VM
+	Key    string   `yaml:"key"`              // chemin absolu de la clé dans la VM
+	Reload string   `yaml:"reload,omitempty"` // commande relancée après installation (ex. systemctl reload nginx)
 }
 
 // Issue est un problème trouvé par la lecture ou la validation.

@@ -1,6 +1,7 @@
+# yaml-language-server: $schema=../../module.schema.json
 # Module sample : exemple COMPLET et fonctionnel, à lire pour apprendre et à copier pour démarrer.
 # Un petit serveur web intranet, servi en HTTPS avec le certificat de la CA du module. Isolé comme tout module.
-# Pour un squelette vide à remplir soi-même : `labctl module new <nom>`. Toutes les clés : docs/module-yaml.md.
+# Pour un squelette vide à remplir soi-même : bouton « + Nouveau module… » de la GUI (labctl gui). Toutes les clés : docs/module-yaml.md.
 module: sample
 description: "Exemple : serveur web intranet en HTTPS (CA du module), à lire et à copier"
 
