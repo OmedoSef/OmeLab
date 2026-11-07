@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/virt"
 )
 
 // engineCmd : commandes d'un module (module.yaml), sous « labctl module <m> » et directement sous « labctl <m> ».
@@ -244,7 +245,7 @@ func printModuleStatus(st *lab.ModuleStatus) {
 	}
 	fmt.Printf("module %s — réseau %s %s (%s), domaine %s\n", st.Name, st.Network, sub, st.NetState, st.Domain)
 	gw := "passerelle " + lab.GatewayVM + " : " + st.Gateway
-	if st.Gateway != "absente" {
+	if st.Gateway != virt.StateAbsent {
 		if st.Attached {
 			gw += ", branchée"
 		} else {
@@ -291,7 +292,7 @@ func printModuleStatus(st *lab.ModuleStatus) {
 			ok = false
 			fmt.Printf("attention %s : %s\n", v.Name, p)
 		}
-		if v.State == "absente" {
+		if v.State == virt.StateAbsent {
 			ok = false
 			fmt.Printf("à créer %s : labctl module %s up %s\n", v.Name, st.Name, v.Name)
 		}

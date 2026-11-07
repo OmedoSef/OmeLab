@@ -90,7 +90,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	if !o.DryRun && v.State(s.Name) != "absente" {
+	if !o.DryRun && v.State(s.Name) != virt.StateAbsent {
 		return fmt.Errorf("la VM %s existe déjà", s.Name)
 	}
 

@@ -69,13 +69,13 @@ func (l *Lab) Gateway(out io.Writer) *Gateway {
 func (g *Gateway) logf(format string, a ...any) { fmt.Fprintf(g.Out, format+"\n", a...) }
 
 // Running indique si la passerelle tourne.
-func (g *Gateway) Running() bool { return DomState(GatewayVM) == "running" }
+func (g *Gateway) Running() bool { return DomState(GatewayVM) == virt.StateRunning }
 
 func (g *Gateway) require() error {
 	switch DomState(GatewayVM) {
-	case "running":
+	case virt.StateRunning:
 		return nil
-	case "absente":
+	case virt.StateAbsent:
 		return errors.New("passerelle absente : labctl core gw")
 	}
 	return errors.New("passerelle arrêtée : labctl core start")
@@ -313,7 +313,7 @@ func (g *Gateway) Attach(name string, apply bool) error {
 		return err
 	}
 	v := virt.Shared()
-	if DomState(GatewayVM) == "absente" {
+	if DomState(GatewayVM) == virt.StateAbsent {
 		g.logf("pas de passerelle : labctl core gw (DHCP, DNS et Internet du module %s)", name)
 		return nil
 	}
@@ -340,7 +340,7 @@ func (g *Gateway) Detach(name string) error {
 	if err != nil {
 		return err
 	}
-	if DomState(GatewayVM) == "absente" || !g.attached(m) {
+	if DomState(GatewayVM) == virt.StateAbsent || !g.attached(m) {
 		g.logf("ok  passerelle non branchée sur %s", m.Env.Net)
 		return nil
 	}
@@ -653,7 +653,7 @@ func (g *Gateway) PrintLeases(module string) error {
 	if st.Error != "" {
 		return errors.New(st.Error)
 	}
-	if st.State != "running" {
+	if st.State != virt.StateRunning {
 		return g.require()
 	}
 	prefix := ""
@@ -770,7 +770,7 @@ func (g *Gateway) SetAlias(module, name, target string) error {
 // branche sur chaque module qui a un réseau, puis applique la configuration.
 func (g *Gateway) Create() error {
 	v := virt.Shared()
-	if DomState(GatewayVM) != "absente" {
+	if DomState(GatewayVM) != virt.StateAbsent {
 		g.logf("ok  %s existe déjà", GatewayVM)
 	} else {
 		tmp, err := os.MkdirTemp("", "labctl-gw-")
@@ -914,9 +914,9 @@ func (g *Gateway) Update() error {
 // Start démarre la passerelle (Internet fermé pour tous les modules).
 func (g *Gateway) Start() error {
 	switch DomState(GatewayVM) {
-	case "absente":
+	case virt.StateAbsent:
 		return errors.New("passerelle absente : labctl core gw")
-	case "running":
+	case virt.StateRunning:
 	default:
 		if err := virt.Shared().StartDomain(GatewayVM); err != nil {
 			return err
@@ -947,7 +947,7 @@ func (g *Gateway) Destroy() error {
 // PrintStatus affiche la passerelle, ses cartes et services, l'état Internet et les liens.
 func (g *Gateway) PrintStatus() error {
 	st := g.l.Core()
-	if st.State == "absente" {
+	if st.State == virt.StateAbsent {
 		g.logf("attention: passerelle absente (labctl core gw)")
 		return nil
 	}
@@ -963,7 +963,7 @@ func (g *Gateway) PrintStatus() error {
 	}
 	if st.Error != "" {
 		g.logf("attention: %s", st.Error)
-	} else if st.State == "running" {
+	} else if st.State == virt.StateRunning {
 		if st.LabctlStale {
 			g.logf("attention: %s -> labctl core update", st.LabctlNote())
 		} else {
@@ -981,20 +981,4 @@ func (g *Gateway) PrintStatus() error {
 	}
 	fmt.Fprintln(g.Out)
 	return g.PrintLinks()
-}
-
-// internetText renvoie l'état Internet par module, au format de « core internet status » (GUI).
-func (g *Gateway) internetText() map[string]string {
-	out := map[string]string{}
-	if !g.Running() {
-		return out
-	}
-	st, err := g.Internet()
-	if err != nil {
-		return out
-	}
-	for _, s := range st {
-		out[s.Module] = s.String()
-	}
-	return out
 }

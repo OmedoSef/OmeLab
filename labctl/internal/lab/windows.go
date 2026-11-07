@@ -343,7 +343,7 @@ func (r *run) windowsInstall(vm string, e module.Effective) error {
 	}
 	r.logf("==> Installation de Windows (%s) : 15 à 40 min ; console : virt-viewer -c qemu:///system %s", e.VM.Windows.Edition, lv)
 	start := time.Now()
-	for DomState(lv) == "running" {
+	for DomState(lv) == virt.StateRunning {
 		if time.Since(start) > windowsInstallTimeout {
 			return fmt.Errorf("installation non terminée au bout de %s : voir la console (virt-viewer -c qemu:///system %s)", windowsInstallTimeout, lv)
 		}

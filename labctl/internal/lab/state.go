@@ -1,7 +1,6 @@
 package lab
 
 import (
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -69,19 +68,22 @@ type GatewayState struct {
 }
 
 type ModuleState struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Net         string          `json:"net"`
-	Subnet      string          `json:"subnet"`
-	Domain      string          `json:"domain"`
-	NetActive   bool            `json:"netActive"`
-	Internet    string          `json:"internet"`    // texte brut de « core internet status »
-	InternetAll bool            `json:"internetAll"` // ouvert pour tout le module
-	Vulnerable  bool            `json:"vulnerable"`  // vulnerable: true : jamais d'Internet ni rien de sortant
-	Links       []string        `json:"links"`       // modules que celui-ci peut joindre
-	Commands    []string        `json:"commands"`    // commandes de premier niveau du module
-	VMs         []VMState       `json:"vms"`
-	Attached    []AttachedState `json:"attached"` // VMs d'autres modules branchées sur ce réseau (attach:)
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Net         string `json:"net"`
+	Subnet      string `json:"subnet"`
+	Domain      string `json:"domain"`
+	NetActive   bool   `json:"netActive"`
+	Internet    string `json:"internet"`    // texte brut de « core internet status »
+	InternetAll bool   `json:"internetAll"` // ouvert pour tout le module
+	// InternetOpen : au moins une VM ouverte à la main. À tester plutôt que le texte Internet (« non branché »
+	// n'est pas une ouverture).
+	InternetOpen bool            `json:"internetOpen"`
+	Vulnerable   bool            `json:"vulnerable"` // vulnerable: true : jamais d'Internet ni rien de sortant
+	Links        []string        `json:"links"`      // modules que celui-ci peut joindre
+	Commands     []string        `json:"commands"`   // commandes de premier niveau du module
+	VMs          []VMState       `json:"vms"`
+	Attached     []AttachedState `json:"attached"` // VMs d'autres modules branchées sur ce réseau (attach:)
 }
 
 // AttachedState : une VM d'un autre module branchée sur le réseau du module.
@@ -105,8 +107,6 @@ type VMState struct {
 	Snapshots  []string `json:"snapshots"`
 }
 
-var reOpen = regexp.MustCompile(`^OUVERT : (.*?)(?: \(jamais : .*\))?$`)
-
 // Status rassemble l'état de la passerelle et de chaque module.
 func (l *Lab) Status() (*State, error) {
 	mods, err := l.Modules()
@@ -114,8 +114,8 @@ func (l *Lab) Status() (*State, error) {
 		return nil, err
 	}
 	st := &State{Gateway: GatewayState{State: DomState(GatewayVM)}}
-	internet := map[string]string{}
-	if st.Gateway.State == "running" {
+	internet := map[string]InternetState{}
+	if st.Gateway.State == virt.StateRunning {
 		internet = l.internetStatus()
 	}
 	for _, m := range mods {
@@ -124,18 +124,16 @@ func (l *Lab) Status() (*State, error) {
 		}
 		ms := ModuleState{Vulnerable: m.Vulnerable(),
 			Name: m.Name, Description: m.Description, Net: m.Env.Net, Subnet: m.Env.Subnet,
-			Domain: m.Env.Domain, Links: m.Conf.Links, Internet: internet[m.Name],
+			Domain: m.Env.Domain, Links: m.Conf.Links,
 		}
 		ms.Commands = append(ms.Commands, m.Commands...)
-		if ms.Internet == "" {
-			ms.Internet = "fermé"
-		}
+		// État structuré de la passerelle ; le texte (Internet) ne sert qu'à l'affichage
 		open := map[string]bool{}
-		if r := reOpen.FindStringSubmatch(ms.Internet); r != nil {
-			if r[1] == "tout le module" {
-				ms.InternetAll = true
-			}
-			for _, vm := range strings.Fields(r[1]) {
+		ms.Internet = "fermé"
+		if is, ok := internet[m.Name]; ok {
+			ms.Internet, ms.InternetAll = is.String(), is.All
+			ms.InternetOpen = is.All || len(is.VMs) > 0
+			for _, vm := range is.VMs {
 				open[vm] = true
 			}
 		}
@@ -182,7 +180,19 @@ func (l *Lab) Status() (*State, error) {
 	return st, nil
 }
 
-// internetStatus renvoie l'état Internet de chaque module (texte de « labctl core internet status »).
-func (l *Lab) internetStatus() map[string]string {
-	return l.Gateway(nil).internetText()
+// internetStatus renvoie l'état Internet de chaque module, par module.
+func (l *Lab) internetStatus() map[string]InternetState {
+	out := map[string]InternetState{}
+	g := l.Gateway(nil)
+	if !g.Running() {
+		return out
+	}
+	st, err := g.Internet()
+	if err != nil {
+		return out
+	}
+	for _, s := range st {
+		out[s.Module] = s
+	}
+	return out
 }

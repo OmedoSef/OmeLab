@@ -17,7 +17,7 @@ func (l *Lab) VMIP(name string) string {
 	if ip := v.IPv4(name); ip != "" {
 		return ip
 	}
-	if name == GatewayVM || v.State(GatewayVM) != "running" {
+	if name == GatewayVM || v.State(GatewayVM) != virt.StateRunning {
 		return ""
 	}
 	ifs, err := v.Interfaces(name)

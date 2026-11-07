@@ -118,12 +118,12 @@ func (l *Lab) DetachVM(on, vm string, out io.Writer) error {
 	}
 	owner, ovm, _ := strings.Cut(vm, "/")
 	lv := owner + "-" + ovm
-	if mac != "" && DomState(lv) != "absente" {
+	if mac != "" && DomState(lv) != virt.StateAbsent {
 		v := virt.Shared()
 		if ifs, err := v.Interfaces(lv); err == nil {
 			for _, it := range ifs {
 				if strings.EqualFold(it.MAC, mac) {
-					if err := v.DetachInterface(lv, mac, DomState(lv) == "running"); err != nil {
+					if err := v.DetachInterface(lv, mac, DomState(lv) == virt.StateRunning); err != nil {
 						return fmt.Errorf("carte de %s : %w", lv, err)
 					}
 				}
@@ -174,7 +174,7 @@ func (r *run) ensureAttach() error {
 	for i, a := range r.y.Attach {
 		owner, vm := a.Split()
 		lv := owner + "-" + vm
-		if DomState(lv) == "absente" {
+		if DomState(lv) == virt.StateAbsent {
 			r.logf("attention: %s absente : la créer d'abord (labctl %s up %s), puis labctl %s up", lv, owner, vm, r.y.Module)
 			continue
 		}
@@ -217,7 +217,7 @@ func (r *run) ensureAttach() error {
 		if model == "" {
 			continue // déjà branchée
 		}
-		if err := v.AttachInterface(lv, r.y.NetworkName(), mac, model, DomState(lv) == "running"); err != nil {
+		if err := v.AttachInterface(lv, r.y.NetworkName(), mac, model, DomState(lv) == virt.StateRunning); err != nil {
 			return fmt.Errorf("carte de %s sur %s : %w", lv, r.y.NetworkName(), err)
 		}
 		r.logf("ok  %s branchée sur %s (.%d, sans route par défaut)", lv, r.y.NetworkName(), a.IP)
@@ -231,7 +231,7 @@ func (r *run) detachAll() error {
 	for _, a := range r.y.Attach {
 		owner, vm := a.Split()
 		lv := owner + "-" + vm
-		if DomState(lv) == "absente" || a.MAC == "" {
+		if DomState(lv) == virt.StateAbsent || a.MAC == "" {
 			continue
 		}
 		ifs, err := v.Interfaces(lv)
@@ -240,7 +240,7 @@ func (r *run) detachAll() error {
 		}
 		for _, it := range ifs {
 			if strings.EqualFold(it.MAC, a.MAC) {
-				if err := v.DetachInterface(lv, a.MAC, DomState(lv) == "running"); err != nil {
+				if err := v.DetachInterface(lv, a.MAC, DomState(lv) == virt.StateRunning); err != nil {
 					return fmt.Errorf("carte de %s sur %s : %w", lv, r.y.NetworkName(), err)
 				}
 				r.logf("ok  %s débranchée de %s", lv, r.y.NetworkName())

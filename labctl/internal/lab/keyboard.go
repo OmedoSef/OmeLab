@@ -39,9 +39,9 @@ func (l *Lab) VMKeyboard(name, layout string, out io.Writer) error {
 	}
 	v := virt.Shared()
 	switch DomState(name) {
-	case "absente":
+	case virt.StateAbsent:
 		return fmt.Errorf("%s n'existe pas", name)
-	case "running":
+	case virt.StateRunning:
 	default:
 		return fmt.Errorf("%s est arrêtée", name)
 	}

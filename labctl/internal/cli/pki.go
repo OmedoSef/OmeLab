@@ -11,6 +11,7 @@ import (
 
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/pki"
+	"labs/labctl/internal/virt"
 )
 
 func newPKI(l *lab.Lab) *pki.PKI {
@@ -229,7 +230,7 @@ usages, même durée) les certificats concernés. La PKI est d'abord archivée d
 				if trustVMs {
 					var running []string
 					for _, vm := range l.AllVMNames() {
-						if lab.DomState(vm) == "running" {
+						if lab.DomState(vm) == virt.StateRunning {
 							running = append(running, vm)
 						}
 					}

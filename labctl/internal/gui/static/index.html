@@ -561,7 +561,7 @@ function renderOverview(mods, down, busy) {
         <td class="mono meta">${esc(m.subnet)}.0/24<div>${esc(m.domain)}</div>${m.netActive ? "" : `<span class="pill never">réseau inactif</span>`}</td>
         <td><span class="vmdots">${(m.vms || []).map(v => `<span class="dot ${esc(v.state.replace(" ", "-"))}" title="${esc(v.name)} : ${esc(stLabel(v.state))}"></span>`).join("")}</span>
           <span class="meta">${up}/${n}</span></td>
-        <td><span class="pill ${m.internet !== "fermé" ? "open" : ""}">${esc(m.internet)}</span></td>
+        <td><span class="pill ${m.internetOpen ? "open" : ""}">${esc(m.internet)}</span></td>
         <td>${moduleActions(m, busy)}</td></tr>`;
     }).join("") || `<tr><td colspan="5" class="empty">Aucun module : « Nouveau module… » pour en créer un.</td></tr>`}
     </tbody></table>
@@ -593,15 +593,15 @@ function renderModule(m, name, sub, down, gwUp, busy) {
       <div class="card-head" style="padding-top:8px;padding-bottom:8px">
         <span class="meta">${esc(m.description)}</span>
         <span class="spacer"></span>
-        <span class="pill ${m.internet !== "fermé" ? "open" : ""}" title="Accès complet accordé à la main (core internet on) aux VMs sans connexion dédiée. Les connexions déclarées (direct, proxy, portail) ouvrent leurs ports indépendamment de cet état.">Accès direct : ${esc(m.internet)}</span>
+        <span class="pill ${m.internetOpen ? "open" : ""}" title="Accès complet accordé à la main (core internet on) aux VMs sans connexion dédiée. Les connexions déclarées (direct, proxy, portail) ouvrent leurs ports indépendamment de cet état.">Accès direct : ${esc(m.internet)}</span>
         <span class="actions">
           ${m.vulnerable
             ? `<span class="pill never" title="vulnerable: true dans le module.yaml : Internet n'y est jamais ouvert à la main (seulement pendant l'installation d'une VM internet: install), rien ne sort du module">module vulnérable : jamais d'Internet</span>
-               ${m.internet !== "fermé" ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`
+               ${m.internetOpen ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`
             : openAll
             ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Fermer l'accès direct</button>`
             : `<button ${dis} ${runAttr(["core", "internet", "on", m.name])} data-confirm="Donner un accès Internet COMPLET à toutes les VMs de ${esc(m.name)} (en plus des connexions déclarées ; sauf les VMs « jamais ») ?">Ouvrir à tout le module</button>
-               ${m.internet !== "fermé" ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`}
+               ${m.internetOpen ? `<button ${dis} ${runAttr(["core", "internet", "off", m.name])}>Tout fermer</button>` : ""}`}
         </span>
       </div>`;
   }

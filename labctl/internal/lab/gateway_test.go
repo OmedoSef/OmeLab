@@ -37,9 +37,5 @@ func TestInternetStateText(t *testing.T) {
 		if got := c.s.String(); got != c.want {
 			t.Errorf("%+v : %q, attendu %q", c.s, got, c.want)
 		}
-		// Format relu par Status (onglet Modules de la GUI)
-		if strings.HasPrefix(c.want, "OUVERT") && reOpen.FindStringSubmatch(c.s.String()) == nil {
-			t.Errorf("%q non reconnu par Status", c.s)
-		}
 	}
 }

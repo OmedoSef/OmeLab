@@ -45,7 +45,7 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 			ips := make([]string, len(doms))
 			var wg sync.WaitGroup
 			for i, d := range doms {
-				if d.State != "running" {
+				if d.State != virt.StateRunning {
 					ips[i] = "-"
 					continue
 				}
@@ -83,7 +83,7 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 		Short: "Affiche l'IP d'une VM (bail DHCP, agent invité, ARP, baux de la passerelle)",
 		Args:  cobra.ExactArgs(1), ValidArgsFunction: vmNames,
 		RunE: func(_ *cobra.Command, args []string) error {
-			if virt.Shared().State(args[0]) == "absente" {
+			if virt.Shared().State(args[0]) == virt.StateAbsent {
 				return fmt.Errorf("VM inconnue : %s", args[0])
 			}
 			addr := ""

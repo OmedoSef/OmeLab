@@ -35,6 +35,7 @@ import (
 	"labs/labctl/internal/audit"
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/virt"
 )
 
 //go:embed static
@@ -357,7 +358,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		out = append(out, cm)
 	}
 	resp := map[string]any{"modules": out, "gateway": lab.DomState(lab.GatewayVM)}
-	if resp["gateway"] == "running" {
+	if resp["gateway"] == virt.StateRunning {
 		if changes, err := s.lab.PendingCoreChanges(); err != nil {
 			resp["pendingError"] = err.Error()
 		} else {

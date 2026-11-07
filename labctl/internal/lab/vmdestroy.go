@@ -22,7 +22,7 @@ func (l *Lab) DestroyVM(name string, force bool, out io.Writer) error {
 func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
 	v := virt.Shared()
 	state := v.State(name)
-	if state == "absente" {
+	if state == virt.StateAbsent {
 		return fmt.Errorf("%s n'existe pas", name)
 	}
 	if !force && !strings.Contains(v.Description(name), LabMarker) {
@@ -78,7 +78,7 @@ func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
 // releaseLeases libère sur la passerelle core les baux DHCP de ces MAC : l'IP redevient libre et le nom
 // DNS disparaît tout de suite. Sans passerelle démarrée : rien à faire.
 func (l *Lab) releaseLeases(macs []string, out io.Writer) {
-	if len(macs) == 0 || virt.Shared().State(GatewayVM) != "running" {
+	if len(macs) == 0 || virt.Shared().State(GatewayVM) != virt.StateRunning {
 		return
 	}
 	gw := virt.Shared().IPv4(GatewayVM)

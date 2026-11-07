@@ -103,7 +103,7 @@ type Domain struct {
 }
 
 var stateNames = map[libvirt.DomainState]string{
-	libvirt.DomainNostate: "no state", libvirt.DomainRunning: "running", libvirt.DomainBlocked: "idle",
+	libvirt.DomainNostate: "no state", libvirt.DomainRunning: StateRunning, libvirt.DomainBlocked: "idle",
 	libvirt.DomainPaused: "paused", libvirt.DomainShutdown: "in shutdown", libvirt.DomainShutoff: "shut off",
 	libvirt.DomainCrashed: "crashed", libvirt.DomainPmsuspended: "pmsuspended",
 }
@@ -116,9 +116,17 @@ func (c *Conn) lookup(lv *libvirt.Libvirt, name string) (libvirt.Domain, error) 
 	return d, err
 }
 
+// États d'une VM tels que State les renvoie : les noms de libvirt (running, shut off, paused…), plus StateAbsent
+// pour une VM qui n'existe pas. La GUI reçoit ces mêmes valeurs : les comparer à ces constantes, jamais à des
+// chaînes écrites à la main.
+const (
+	StateAbsent  = "absente"
+	StateRunning = "running"
+)
+
 // State renvoie l'état d'une VM, ou "absente".
 func (c *Conn) State(name string) string {
-	state := "absente"
+	state := StateAbsent
 	_ = c.do(func(lv *libvirt.Libvirt) error {
 		d, err := c.lookup(lv, name)
 		if err != nil {

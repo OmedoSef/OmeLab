@@ -70,7 +70,7 @@ echo '@labctl'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl --versio
 // Core lit l'état détaillé de la passerelle.
 func (l *Lab) Core() *CoreState {
 	cs := &CoreState{State: DomState(GatewayVM)}
-	if cs.State == "absente" {
+	if cs.State == virt.StateAbsent {
 		return cs
 	}
 	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
@@ -81,7 +81,7 @@ func (l *Lab) Core() *CoreState {
 		}
 	}
 	cs.WAN = virt.Shared().IPv4(GatewayVM)
-	if cs.State != "running" {
+	if cs.State != virt.StateRunning {
 		return cs
 	}
 

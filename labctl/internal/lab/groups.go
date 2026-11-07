@@ -54,7 +54,7 @@ func LabUp(lab string, out io.Writer) error {
 		return err
 	}
 	for _, vm := range vms {
-		if DomState(vm) == "running" {
+		if DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "ok  %s déjà démarrée\n", vm)
 			continue
 		}
@@ -74,15 +74,15 @@ func LabDown(lab string, out io.Writer) error {
 	}
 	v := virt.Shared()
 	for _, vm := range vms {
-		if DomState(vm) == "running" {
+		if DomState(vm) == virt.StateRunning {
 			_ = v.ShutdownDomain(vm)
 		}
 	}
 	for _, vm := range vms {
-		for t := 0; t < 120 && DomState(vm) == "running"; t += 2 {
+		for t := 0; t < 120 && DomState(vm) == virt.StateRunning; t += 2 {
 			time.Sleep(2 * time.Second)
 		}
-		if DomState(vm) == "running" {
+		if DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "attention: %s ne s'arrête pas, arrêt forcé\n", vm)
 			_ = v.DestroyDomain(vm)
 		}
