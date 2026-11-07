@@ -5,6 +5,8 @@
 #   labctl/build.sh docker     dans le conteneur officiel golang (aucun Go local nécessaire)
 #   labctl/build.sh test       go vet + tests
 #   labctl/build.sh tools      installe Go et delve dans .tools/ (téléchargement vérifié)
+#   labctl/build.sh release    artefacts distribuables dans dist/ : binaire linux/amd64 statique +
+#                              SHA256, install.sh, et une archive par module (état commité)
 #
 # Tout reste dans le projet : Go, caches et outils sous .tools/, binaire sous bin/ (exclus de git).
 set -euo pipefail
@@ -39,6 +41,24 @@ case ${1:-build} in
       -e GOTOOLCHAIN=local -e GOTELEMETRY=off -e CGO_ENABLED=0 -e HOME=/tmp -w /src \
       "$GO_IMAGE" go build -trimpath -ldflags "$LDFLAGS" -o /out/labctl ./cmd/labctl
     echo "ok  $LABS/bin/labctl (compilé dans $GO_IMAGE)" ;;
+  release)
+    [[ -x $TOOLS/go/bin/go ]] || { echo "Go absent de $TOOLS : labctl/build.sh tools (ou labctl/build.sh docker)" >&2; exit 1; }
+    go_env
+    v=$(version)
+    dist="$LABS/dist"
+    rm -rf "$dist"; mkdir -p "$dist/modules"
+    # Binaire statique linux/amd64 (comme l'hôte et la VM passerelle qui en reçoit une copie)
+    (cd "$SRC" && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "$dist/labctl" ./cmd/labctl)
+    (cd "$dist" && sha256sum labctl >labctl.sha256)
+    cp "$LABS/install.sh" "$dist/"
+    # Une archive par module, depuis l'état commité (git archive) : pas de fichiers non suivis ni locaux
+    while read -r p; do
+      [[ -n $p ]] || continue
+      name=$(basename "$p")
+      git -C "$LABS" archive --format=tar.gz -o "$dist/modules/$name.tar.gz" --prefix="$name/" "HEAD:$p"
+      echo "    module $name -> dist/modules/$name.tar.gz"
+    done < <(git -C "$LABS" ls-tree --name-only HEAD modules/)
+    echo "ok  dist/ : labctl ($v) + SHA256, install.sh, $(find "$dist/modules" -name '*.tar.gz' | wc -l) module(s)" ;;
   test)
     go_env
     (cd "$SRC" && go vet ./... && go test ./...) ;;

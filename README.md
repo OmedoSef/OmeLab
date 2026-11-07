@@ -95,6 +95,9 @@ labctl pentest check
 labctl pentest up              # réseau, CA, VMs : tout ce que décrit modules/pentest/module.yaml
 ```
 
+Pour **installer labctl sur un autre poste** (binaire autonome, sans cloner le dépôt) puis créer un lab
+avec `labctl init`, voir [docs/install.md](docs/install.md).
+
 ## Contrat d'un module
 
 Un module est un dossier `modules/<nom>/` contenant :
