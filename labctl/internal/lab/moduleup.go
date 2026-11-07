@@ -61,6 +61,7 @@ func (r *run) reload() error {
 		return err
 	}
 	r.l.injectLocalAttach(y)
+	r.l.injectLocalConnections(y)
 	if err := y.ExpandVars(r.l.pkiDomain(), r.l.Keyboard(), r.l.LabVars()); err != nil {
 		return err
 	}

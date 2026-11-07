@@ -314,6 +314,7 @@ type configEdit struct {
 	Via    string         `json:"via"`    // conn-add : direct | portal
 	Portal *module.Portal `json:"portal"` // conn-add, via portal
 	Proxy  *module.Proxy  `json:"proxy"`  // conn-add, via proxy
+	Local  bool           `json:"local"`  // conn-add : écrire dans connections.local.yaml (propre au poste), pas le module.yaml
 	Index  int            `json:"index"`  // conn-del
 }
 
@@ -336,9 +337,14 @@ func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	case "host-del":
 		err = s.lab.ConfDelHost(e.Module, e.Name)
 	case "conn-add":
-		err = s.lab.ConfAddConnection(e.Module, module.Connection{To: e.Target, From: e.From, Ports: e.Ports, Via: e.Via, Portal: e.Portal, Proxy: e.Proxy})
+		cn := module.Connection{To: e.Target, From: e.From, Ports: e.Ports, Via: e.Via, Portal: e.Portal, Proxy: e.Proxy}
+		if e.Local {
+			err = s.lab.AddLocalConnection(e.Module, cn)
+		} else {
+			err = s.lab.ConfAddConnection(e.Module, cn)
+		}
 	case "conn-del":
-		err = s.lab.ConfDelConnection(e.Module, e.Index)
+		err = s.lab.DelConnectionAt(e.Module, e.Index)
 	case "alias-add":
 		err = s.lab.ConfAddAlias(e.Module, e.Name, e.Target)
 	case "alias-del":

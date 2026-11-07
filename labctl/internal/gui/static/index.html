@@ -687,7 +687,7 @@ function connCard(m, mods, busy) {
   return `<section class="card"><div class="card-head"><h2>Connexions restreintes</h2>
       <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet. Une connexion <strong>ouvre</strong> ses ports (même « accès direct » fermé) ; un lien de la carte précédente, lui, ouvre tout</span></div>
     <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th>Mode</th><th></th></tr></thead><tbody>
-    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
+    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}${c.local ? ` <span class="pill" title="connexion locale, non distribuée (connections.local.yaml)">local</span>` : ""}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
       <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
       || `<tr><td colspan="5" class="empty">Aucune</td></tr>`}
     </tbody></table>
@@ -709,11 +709,12 @@ function connCard(m, mods, busy) {
         <label>Authentification<select name="auth" data-auth><option value="click">un clic</option><option value="password">mot de passe</option><option value="terms">accepter les conditions</option></select></label>
         <label class="pw" hidden>Mot de passe<input name="password" autocomplete="off"></label>
         <label>Durée d'une session<input name="duration" value="1h" pattern="[0-9]+(m|h)" title="ex. 30m, 2h (1m à 24h)" style="width:80px"></label>
-        <label>Titre<input name="title" placeholder="Portail Omedo Labs"></label>
+        <label>Titre<input name="title" placeholder="Portail du lab"></label>
         <label>HTTPS non authentifié<select name="https"><option value="">refusé (reject)</option><option value="drop">sans réponse (drop)</option></select></label>
         <label class="check" title="Redirige les tests de connectivité d'Android, Apple, Windows… : le système affiche « Se connecter au réseau »"><input type="checkbox" name="detect" checked> détection par les OS</label>
         <label class="check" title="RFC 8910 / 8908 : option DHCP 114 et API JSON du portail"><input type="checkbox" name="api"> annonce DHCP 114 + API</label>
       </div>
+      <label class="check" style="width:100%" title="Écrit la connexion dans connections.local.yaml (propre à ce poste, non distribué) au lieu du module.yaml — pour les bascules de test et les VMs branchées localement"><input type="checkbox" name="local"> local à ce poste (non distribué)</label>
       <button ${busy}>Ajouter</button>
     </form>
     ${incoming.length ? `<div class="card-head" style="border-top:1px solid var(--line);border-bottom:0;display:block">
@@ -1240,7 +1241,7 @@ document.addEventListener("submit", async e => {
   const kind = f.dataset.cfgForm;
   const body = kind === "host" ? { op: "host-add", module, name: v.name, octet: Number(v.octet), mac: v.mac }
     : kind === "conn" ? { op: "conn-add", module, target: v.target, from: fd.getAll("from"), ports: (v.ports || "").split(/[\s,]+/).filter(Boolean),
-        via: v.via,
+        via: v.via, local: !!v.local,
         proxy: v.via !== "proxy" ? null : { mode: v.pmode, allow: v.pmode === "filter" && v.plist === "allow" ? words(v.pdomains) : [],
           deny: v.pmode === "filter" && v.plist === "deny" ? words(v.pdomains) : [], ports: words(v.pports) },
         portal: v.via !== "portal" ? null : { auth: v.auth, password: v.auth === "password" ? v.password : "", duration: v.duration,

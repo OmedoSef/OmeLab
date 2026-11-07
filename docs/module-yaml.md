@@ -210,6 +210,23 @@ connections:
 - Comme le reste de la section réseau : enregistré tout de suite, appliqué sur la passerelle avec
   `labctl core apply` (ou le bandeau *Appliquer* de la GUI).
 
+#### Connexions locales (`connections.local.yaml`)
+
+Comme pour le câblage (`attach.local.yaml`), certaines connexions sont une décision **propre à ta machine**, pas
+une propriété du module : une bascule de test qu'on allume/éteint (portail, proxy `log`/`intercept`), ou l'accès
+d'une VM branchée localement. Elles vivent alors dans `connections.local.yaml` à la racine du lab (git-ignoré,
+**non distribué**), et le module reste autonome. Même forme qu'une connexion, avec `on:` = module cible :
+
+```yaml
+# connections.local.yaml (racine du lab) — fusionné aux connections: du module à son chargement
+connections:
+  - {on: netlab, to: internet, from: [poste], via: proxy, proxy: {mode: log}}
+```
+
+Dans la GUI (onglet *Réseau* → *Connexions*), la case **« local à ce poste »** du formulaire écrit là plutôt que
+dans le `module.yaml` ; ces connexions portent le badge *local* et se retirent au même endroit. Tout le reste
+(pare-feu, proxy, apply) les traite exactement comme les `connections:` du module.
+
 ### Portail captif (`via: portal`)
 
 Pour observer comment des machines se comportent derrière un portail captif, vers Internet ou vers un autre module :
@@ -228,7 +245,7 @@ connections:
 | `auth` | `click` | `click` (un bouton), `password`, `terms` (case « j'accepte ») |
 | `password` | | avec `auth: password` ; mot de passe de lab, en clair dans le fichier |
 | `duration` | `1h` | durée d'une session (`1m` à `24h`) ; ensuite la source est de nouveau captée |
-| `title` | Portail Omedo Labs | titre de la page |
+| `title` | Portail du lab | titre de la page |
 | `detect` | `true` | les tests de connectivité des OS (Android `generate_204`, Apple `hotspot-detect`, Windows `connecttest`, Firefox, NetworkManager) sont redirigés : le système affiche « se connecter au réseau ». `false` : ils reçoivent la réponse « connecté » (portail discret), seule la navigation est captée |
 | `api` | `false` | annonce RFC 8910 (option DHCP 114, pour tout le module) et API RFC 8908 (`/api`) |
 | `https` | `reject` | HTTPS non authentifié : refus immédiat, ou `drop` (sans réponse, délai d'attente) |

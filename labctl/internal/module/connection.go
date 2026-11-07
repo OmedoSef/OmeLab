@@ -25,6 +25,7 @@ type Connection struct {
 	Via    string   `yaml:"via,omitempty" json:"via,omitempty"`       // direct (défaut), portal, proxy
 	Portal *Portal  `yaml:"portal,omitempty" json:"portal,omitempty"` // options de via: portal
 	Proxy  *Proxy   `yaml:"proxy,omitempty" json:"proxy,omitempty"`   // options de via: proxy
+	Local  bool     `yaml:"-" json:"local,omitempty"`                 // injectée depuis connections.local.yaml (propre au poste), pas du module.yaml
 }
 
 // Proxy : options d'une connexion qui passe par le proxy transparent de la passerelle (via: proxy, mitmproxy).
