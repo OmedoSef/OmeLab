@@ -116,7 +116,7 @@ case ${1:-build} in
     done < <(git -C "$LABS" ls-tree --name-only HEAD modules/)
     echo "ok  dist/ : labctl ($v) + SHA256, install.sh, archive, .deb, $(find "$dist/modules" -name '*.tar.gz' | wc -l) module(s)" ;;
   test)
-    go_env
+    go_ready # Go du projet, sinon celui du PATH (CI)
     (cd "$SRC" && go vet ./... && go test ./...) ;;
   tools)
     dl=$(mktemp -d); trap 'rm -rf "$dl"' EXIT

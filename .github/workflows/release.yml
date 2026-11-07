@@ -1,8 +1,9 @@
-# Publie une Release GitHub de labctl : pose un tag de version, compile les artefacts (binaire,
-# installeur, paquet .deb, une archive par module) et les attache à la Release.
+# Publie une Release GitHub de labctl : tests, tag de version, artefacts (binaire, installeur, paquet .deb,
+# schéma de module.yaml, une archive par module) avec leurs empreintes, attachés à la Release.
 #
 # Lancement : onglet Actions -> « Release » -> Run workflow, en saisissant la version (ex. v1.0.0).
-# Le workflow crée le tag correspondant sur le commit choisi, puis publie la Release.
+# Rien n'est publié si les tests ou la compilation échouent : le tag n'est poussé qu'à la fin.
+# Les actions tierces sont épinglées par SHA de commit (Dependabot propose les mises à jour).
 name: Release
 
 on:
@@ -18,41 +19,44 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      # Passée par l'environnement, jamais insérée dans un script : pas d'injection de commande possible
+      VERSION: ${{ github.event.inputs.version }}
     steps:
       - name: Vérifier le format de la version
         run: |
-          echo "${{ github.event.inputs.version }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+' \
-            || { echo "Version invalide : attendue vX.Y.Z"; exit 1; }
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version invalide : attendue vX.Y.Z"; exit 1; }
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # historique complet : git describe doit voir le tag
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27.3"
+          cache-dependency-path: labctl/go.sum
 
-      - name: Poser le tag de version
+      - name: Tests (rien n'est publié s'ils échouent)
+        run: labctl/build.sh test
+
+      - name: Tag de version, local pour l'instant
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ github.event.inputs.version }}" -m "labctl ${{ github.event.inputs.version }}"
-          git push origin "${{ github.event.inputs.version }}"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "labctl $VERSION"
 
       - name: Construire les artefacts
-        run: labctl/build.sh release # git describe voit maintenant le tag -> version gravée dans le binaire
+        run: labctl/build.sh release # git describe voit le tag -> version gravée dans le binaire
 
-      - name: Publier la Release
+      - name: Empreintes de tous les artefacts
+        working-directory: dist
+        run: sha256sum labctl install.sh module.schema.json labctl_*_linux-amd64.tar.gz ./*.deb modules/*.tar.gz > SHA256SUMS
+
+      - name: Pousser le tag et publier la Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.event.inputs.version }}" \
-            --title "labctl ${{ github.event.inputs.version }}" \
-            --generate-notes \
-            dist/labctl \
-            dist/labctl.sha256 \
-            dist/install.sh \
-            dist/module.schema.json \
-            dist/labctl_*_linux-amd64.tar.gz \
-            dist/*.deb \
-            dist/modules/*.tar.gz
+          git push origin "$VERSION"
+          gh release create "$VERSION" --verify-tag --title "labctl $VERSION" --generate-notes \
+            dist/labctl dist/labctl.sha256 dist/SHA256SUMS dist/install.sh dist/module.schema.json \
+            dist/labctl_*_linux-amd64.tar.gz dist/*.deb dist/modules/*.tar.gz
