@@ -35,6 +35,16 @@ sha256sum -c labctl.sha256     # vérifie le binaire
 ./install.sh                   # -> /usr/local/bin/labctl (+ complétion), sudo si nécessaire
 ```
 
+Sur Debian/Ubuntu, le paquet `.deb` fait la même chose via le gestionnaire de paquets :
+
+```bash
+sudo apt install ./labctl_<version>_amd64.deb   # binaire + complétion ; désinstallation : apt remove labctl
+```
+
+Les artefacts (binaire, `install.sh`, archive prête à installer, `.deb`, une archive par module) sont
+aussi publiés automatiquement sur la page **Releases** du dépôt GitHub, par le workflow `Release`
+(`labctl/build.sh release` tourne en CI et pose le tag de version).
+
 Installation sans droits root, sous le home :
 
 ```bash

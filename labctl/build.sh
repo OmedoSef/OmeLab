@@ -26,6 +26,55 @@ go_env() {
   export GOTOOLCHAIN=local GOTELEMETRY=off GOFLAGS=-modcacherw CGO_ENABLED=0
 }
 
+# go_ready prépare un Go utilisable : celui du projet (.tools/go) s'il est là, sinon un « go » du PATH
+# (cas de la CI, où actions/setup-go le fournit). Échoue si aucun des deux.
+go_ready() {
+  if [[ -x $TOOLS/go/bin/go ]]; then
+    go_env
+  elif command -v go >/dev/null 2>&1; then
+    export GOTOOLCHAIN=local GOTELEMETRY=off GOFLAGS=-modcacherw CGO_ENABLED=0
+  else
+    echo "Go introuvable (ni $TOOLS/go, ni \$PATH) : labctl/build.sh tools, ou installer Go" >&2
+    exit 1
+  fi
+}
+
+# build_deb construit un paquet Debian à partir du binaire déjà compilé. Sans outil tiers : dpkg-deb
+# (présent sur Debian/Ubuntu et sur les runners GitHub). Absent → on saute, sans échouer le release.
+build_deb() {
+  local v=$1 bin=$2 distdir=$3
+  if ! command -v dpkg-deb >/dev/null 2>&1; then
+    echo "    (.deb non construit : dpkg-deb absent)"; return 0
+  fi
+  local debver=${v#v}; debver=${debver//-/+}         # deb n'aime ni le préfixe v ni le tiret (séparateur de révision)
+  [[ $debver =~ ^[0-9] ]] || debver="0.0.0+$debver"  # une version .deb doit commencer par un chiffre (builds hors tag)
+  local out="$distdir/labctl_${debver}_amd64.deb"
+  local root; root=$(mktemp -d); chmod 0755 "$root" # sinon la racine du paquet hérite du 0700 de mktemp
+  mkdir -p "$root/DEBIAN" "$root/usr/bin" \
+    "$root/usr/share/bash-completion/completions" "$root/usr/share/zsh/vendor-completions" \
+    "$root/usr/share/doc/labctl"
+  install -m0755 "$bin" "$root/usr/bin/labctl"
+  "$bin" completion bash >"$root/usr/share/bash-completion/completions/labctl" 2>/dev/null || true
+  "$bin" completion zsh >"$root/usr/share/zsh/vendor-completions/_labctl" 2>/dev/null || true
+  [[ -f $LABS/docs/install.md ]] && cp "$LABS/docs/install.md" "$root/usr/share/doc/labctl/"
+  cat >"$root/DEBIAN/control" <<EOF
+Package: labctl
+Version: $debver
+Architecture: amd64
+Maintainer: Omedo Labs <noreply@omedo.lab>
+Section: admin
+Priority: optional
+Recommends: libvirt-clients, libvirt-daemon-system, qemu-system-x86, openssh-client, conntrack
+Description: Pilote de labs de virtualisation (QEMU/KVM, libvirt)
+ labctl cree et pilote des labs de machines virtuelles declaratifs (reseaux,
+ passerelle DHCP/DNS/pare-feu, PKI, modules). Binaire autonome ; « labctl init »
+ cree un lab pret a recevoir des modules.
+EOF
+  dpkg-deb --build --root-owner-group "$root" "$out" >/dev/null
+  rm -rf "$root"
+  echo "    paquet -> $(basename "$out")"
+}
+
 case ${1:-build} in
   build)
     [[ -x $TOOLS/go/bin/go ]] || { echo "Go absent de $TOOLS : labctl/build.sh tools (ou labctl/build.sh docker)" >&2; exit 1; }
@@ -42,8 +91,7 @@ case ${1:-build} in
       "$GO_IMAGE" go build -trimpath -ldflags "$LDFLAGS" -o /out/labctl ./cmd/labctl
     echo "ok  $LABS/bin/labctl (compilé dans $GO_IMAGE)" ;;
   release)
-    [[ -x $TOOLS/go/bin/go ]] || { echo "Go absent de $TOOLS : labctl/build.sh tools (ou labctl/build.sh docker)" >&2; exit 1; }
-    go_env
+    go_ready
     v=$(version)
     dist="$LABS/dist"
     rm -rf "$dist"; mkdir -p "$dist/modules"
@@ -51,6 +99,11 @@ case ${1:-build} in
     (cd "$SRC" && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "$dist/labctl" ./cmd/labctl)
     (cd "$dist" && sha256sum labctl >labctl.sha256)
     cp "$LABS/install.sh" "$dist/"
+    # Archive « prête à installer » : binaire + installeur
+    tar -czf "$dist/labctl_${v}_linux-amd64.tar.gz" -C "$dist" labctl install.sh
+    echo "    archive -> labctl_${v}_linux-amd64.tar.gz"
+    # Paquet Debian (binaire + complétion + doc)
+    build_deb "$v" "$dist/labctl" "$dist"
     # Une archive par module, depuis l'état commité (git archive) : pas de fichiers non suivis ni locaux
     while read -r p; do
       [[ -n $p ]] || continue
@@ -58,7 +111,7 @@ case ${1:-build} in
       git -C "$LABS" archive --format=tar.gz -o "$dist/modules/$name.tar.gz" --prefix="$name/" "HEAD:$p"
       echo "    module $name -> dist/modules/$name.tar.gz"
     done < <(git -C "$LABS" ls-tree --name-only HEAD modules/)
-    echo "ok  dist/ : labctl ($v) + SHA256, install.sh, $(find "$dist/modules" -name '*.tar.gz' | wc -l) module(s)" ;;
+    echo "ok  dist/ : labctl ($v) + SHA256, install.sh, archive, .deb, $(find "$dist/modules" -name '*.tar.gz' | wc -l) module(s)" ;;
   test)
     go_env
     (cd "$SRC" && go vet ./... && go test ./...) ;;

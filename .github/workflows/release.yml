@@ -1,0 +1,57 @@
+# Publie une Release GitHub de labctl : pose un tag de version, compile les artefacts (binaire,
+# installeur, paquet .deb, une archive par module) et les attache à la Release.
+#
+# Lancement : onglet Actions -> « Release » -> Run workflow, en saisissant la version (ex. v1.0.0).
+# Le workflow crée le tag correspondant sur le commit choisi, puis publie la Release.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version à publier (format vX.Y.Z, ex. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write # créer le tag et la Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier le format de la version
+        run: |
+          echo "${{ github.event.inputs.version }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+' \
+            || { echo "Version invalide : attendue vX.Y.Z"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # historique complet : git describe doit voir le tag
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.3"
+
+      - name: Poser le tag de version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ github.event.inputs.version }}" -m "labctl ${{ github.event.inputs.version }}"
+          git push origin "${{ github.event.inputs.version }}"
+
+      - name: Construire les artefacts
+        run: labctl/build.sh release # git describe voit maintenant le tag -> version gravée dans le binaire
+
+      - name: Publier la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.event.inputs.version }}" \
+            --title "labctl ${{ github.event.inputs.version }}" \
+            --generate-notes \
+            dist/labctl \
+            dist/labctl.sha256 \
+            dist/install.sh \
+            dist/labctl_*_linux-amd64.tar.gz \
+            dist/*.deb \
+            dist/modules/*.tar.gz

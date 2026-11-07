@@ -4,6 +4,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,6 +15,20 @@ import (
 
 // Version est fixée à la compilation (-ldflags "-X labs/labctl/internal/cli.Version=...").
 var Version = "dev"
+
+// versionCmd : « labctl version » (fonctionne sans dossier Labs). Le drapeau --version existe aussi.
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "version",
+		Short:   "Affiche la version de labctl",
+		GroupID: "outils",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "labctl %s (%s/%s)\n", Version, runtime.GOOS, runtime.GOARCH)
+			return nil
+		},
+	}
+}
 
 // Execute construit et lance la commande racine.
 func Execute() int {
@@ -42,7 +57,7 @@ func newRoot() *cobra.Command {
 
 	// Commandes qui fonctionnent sans dossier Labs : le service de la passerelle (labctl y est copié seul)
 	// et « init », qui sert justement à créer un lab là où il n'y en a pas encore.
-	root.AddCommand(gwPortalCmd(), initCmd())
+	root.AddCommand(gwPortalCmd(), initCmd(), versionCmd())
 
 	// Les modules sont découverts au lancement : une sous-commande par dossier modules/<nom>/
 	l, err := lab.Find()
