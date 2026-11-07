@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -449,6 +450,17 @@ func (s *server) handleComplete(w http.ResponseWriter, r *http.Request) {
 		items = append(items, completion{v, d})
 	}
 	writeJSON(w, map[string]any{"items": items, "directive": directive})
+}
+
+// ConsoleCommands renvoie les commandes de premier niveau (hors modules) lançables depuis la GUI ; un test vérifie
+// qu'elles existent toutes dans labctl.
+func ConsoleCommands() []string {
+	out := make([]string, 0, len(consoleCmds))
+	for c := range consoleCmds {
+		out = append(out, c)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // consoleAllowed dit si une commande de premier niveau peut être lancée depuis la GUI.
