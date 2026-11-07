@@ -38,8 +38,11 @@ func newRoot() *cobra.Command {
 	root.SetHelpCommand(&cobra.Command{Hidden: true})
 	root.CompletionOptions.HiddenDefaultCmd = true
 
-	// Service de la passerelle : fonctionne sans dossier Labs (labctl y est copié seul)
-	root.AddCommand(gwPortalCmd())
+	root.AddGroup(&cobra.Group{ID: "modules", Title: "Modules :"}, &cobra.Group{ID: "outils", Title: "Outils :"})
+
+	// Commandes qui fonctionnent sans dossier Labs : le service de la passerelle (labctl y est copié seul)
+	// et « init », qui sert justement à créer un lab là où il n'y en a pas encore.
+	root.AddCommand(gwPortalCmd(), initCmd())
 
 	// Les modules sont découverts au lancement : une sous-commande par dossier modules/<nom>/
 	l, err := lab.Find()
@@ -52,7 +55,6 @@ func newRoot() *cobra.Command {
 		root.RunE = func(*cobra.Command, []string) error { return err }
 		return root
 	}
-	root.AddGroup(&cobra.Group{ID: "modules", Title: "Modules :"}, &cobra.Group{ID: "outils", Title: "Outils :"})
 	for _, m := range mods {
 		if m.HasYAML { // un module = un module.yaml, construit par le moteur de labctl
 			root.AddCommand(engineCmd(l, m.Name, "modules"))

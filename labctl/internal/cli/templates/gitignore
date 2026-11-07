@@ -1,0 +1,5 @@
+# Surcharges locales de configuration (non versionnées)
+/config.local.env
+/lab.local.yaml
+# Clés privées de la PKI du lab
+/pki/
