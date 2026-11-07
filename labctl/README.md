@@ -133,6 +133,10 @@ sudo (`pki trust-host`, refusé aussi par labctl lui-même quand il est lancé p
 frontière de sécurité. Les commandes destructives ou qui ouvrent un accès réseau tapées dans la console demandent
 confirmation ; la suppression d'un module entier n'a pas de bouton.
 
+**Confirmations** : en ligne de commande, les commandes destructives (`vm destroy`, `net delete`…) demandent
+confirmation ; `ASSUME_YES=1` y répond oui d'avance (scripts). L'interface lance labctl avec `ASSUME_YES=1` parce
+qu'elle a déjà demandé confirmation elle-même.
+
 **Journal d'audit** : chaque commande labctl (début, fin, résultat, durée, origine ligne de commande ou interface,
 lab, arguments) et chaque modification faite par l'interface elle-même (configuration réseau, fichiers de module…,
 sans le contenu des fichiers ni les mots de passe) est ajoutée à `~/.local/state/labctl/audit.jsonl` (une entrée JSON

@@ -15,6 +15,18 @@ var (
 	reAssign = regexp.MustCompile(`^(?:export\s+)?([A-Z_]+)=("([^"]*)"|'([^']*)'|(\S*))\s*(#.*)?$`)
 )
 
+// Accesseurs des réglages lus à plusieurs endroits : seul endroit où leur nom et leur valeur par défaut sont écrits
+// (référence et commentaires : config.env).
+
+// VMUser : compte créé dans les VMs et utilisé pour s'y connecter (LABS_VM_USER).
+func (l *Lab) VMUser() string { return l.Setting("LABS_VM_USER", "lab") }
+
+// DefaultNetwork : réseau libvirt par défaut, sortie Internet de la passerelle (LABS_DEFAULT_NETWORK).
+func (l *Lab) DefaultNetwork() string { return l.Setting("LABS_DEFAULT_NETWORK", "default") }
+
+// DefaultImage : image cloud par défaut d'une VM (LABS_DEFAULT_IMAGE).
+func (l *Lab) DefaultImage() string { return l.Setting("LABS_DEFAULT_IMAGE", "debian13") }
+
 // Setting renvoie un réglage : variable d'environnement, puis config.local.env, puis la valeur par défaut
 // de config.env (à la racine de Labs). Les défauts qui
 // dépendent d'un calcul shell ($(...)) ne sont pas interprétés : fallback est alors utilisé.

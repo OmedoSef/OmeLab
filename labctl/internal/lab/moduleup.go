@@ -60,9 +60,7 @@ func (r *run) reload() error {
 	if err != nil {
 		return err
 	}
-	r.l.injectLocalAttach(y)
-	r.l.injectLocalConnections(y)
-	if err := y.ExpandVars(r.l.pkiDomain(), r.l.Keyboard(), r.l.LabVars()); err != nil {
+	if err := r.l.prepare(y); err != nil { // même préparation qu'au chargement
 		return err
 	}
 	r.y = y
@@ -620,7 +618,7 @@ func (r *run) waitSourceVM(vm string, e module.Effective) {
 
 // waitSSH attend que la VM accepte une connexion SSH (timeout en secondes).
 func (r *run) waitSSH(vm string, timeout int) bool {
-	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + r.vmIP(vm)
+	target := r.l.VMUser() + "@" + r.vmIP(vm)
 	for t := 0; t < timeout; t += 3 {
 		// « exit 0 » : compris par sh (Linux) comme par PowerShell (Windows)
 		if exec.Command("ssh", r.l.sshArgs(target, "exit 0")...).Run() == nil {
@@ -795,7 +793,7 @@ func (r *run) installCerts(vm string, renew bool) error {
 	if ip == "" {
 		return fmt.Errorf("%s : pas d'IP (VM démarrée ?)", vm)
 	}
-	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + ip
+	target := r.l.VMUser() + "@" + ip
 	ssh := func(script string, stdin io.Reader) ([]byte, error) {
 		cmd := exec.Command("ssh", r.l.sshArgs(target, script)...)
 		cmd.Stdin = stdin

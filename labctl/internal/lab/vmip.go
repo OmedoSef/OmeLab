@@ -28,7 +28,7 @@ func (l *Lab) VMIP(name string) string {
 	if gw == "" {
 		return ""
 	}
-	args := l.sshArgs(l.Setting("LABS_VM_USER", "lab")+"@"+gw, "cat /var/lib/misc/gwdhcp.leases")
+	args := l.sshArgs(l.VMUser()+"@"+gw, "cat /var/lib/misc/gwdhcp.leases")
 	out, err := exec.Command("ssh", args...).Output()
 	if err != nil {
 		return ""

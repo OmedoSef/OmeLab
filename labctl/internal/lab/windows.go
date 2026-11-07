@@ -364,7 +364,7 @@ func (r *run) windowsInstall(vm string, e module.Effective) error {
 	if !r.waitSSH(vm, 600) {
 		return fmt.Errorf("%s ne répond pas en SSH (C:\\labs\\setup.log dans la VM)", vm)
 	}
-	r.logf("ok  %s joignable en SSH (compte %s)", vm, r.l.Setting("LABS_VM_USER", "lab"))
+	r.logf("ok  %s joignable en SSH (compte %s)", vm, r.l.VMUser())
 	return r.windowsProvision(vm, e)
 }
 
@@ -372,7 +372,7 @@ func (r *run) windowsInstall(vm string, e module.Effective) error {
 // « reboot » redémarre la VM et attend son retour.
 func (r *run) windowsProvision(vm string, e module.Effective) error {
 	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard()}
-	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + r.vmIP(vm)
+	target := r.l.VMUser() + "@" + r.vmIP(vm)
 	for _, f := range e.VM.Files {
 		src, err := module.SourcePath(r.y.Dir, f.Src) // jamais un fichier de l'hôte hors du module
 		if err != nil {

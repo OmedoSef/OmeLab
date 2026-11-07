@@ -35,7 +35,7 @@ func (l *Lab) HostCheck(out io.Writer, tools ...string) int {
 	nets, err := virt.Shared().Networks()
 	chk(err == nil, "connexion à libvirt (qemu:///system)", "sudo usermod -aG libvirt $USER (puis reconnexion) ; sudo systemctl enable --now libvirtd.socket")
 	if err == nil {
-		def := l.Setting("LABS_DEFAULT_NETWORK", "default")
+		def := l.DefaultNetwork()
 		active := false
 		for _, n := range nets {
 			active = active || n.Name == def && n.Active

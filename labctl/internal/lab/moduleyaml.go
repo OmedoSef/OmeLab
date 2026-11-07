@@ -14,6 +14,17 @@ import (
 // Les modules déclaratifs (module.yaml) sont la source de vérité. Env (vue réseau) et Conf (réservations,
 // alias, liens) en sont dérivés : structures héritées de l'ancien format bash, gardées comme vue interne.
 
+// prepare complète un module.yaml lu : câblage et connexions propres au poste (network.local.yaml), traités
+// ensuite comme les attach: et connections: du fichier, puis résolution des variables ${...} dans toute la
+// config (sauf module/description/vars) — tout ce qui suit (Env, Conf, pare-feu, création des VMs) travaille sur
+// les valeurs finales. Tolérant au sous-réseau pas encore assigné ; une variable fautive (faute de frappe, cycle)
+// est une erreur. Seul chemin de préparation : au chargement (loadYAML) comme au rechargement pendant un up.
+func (l *Lab) prepare(y *module.Module) error {
+	l.injectLocalAttach(y)
+	l.injectLocalConnections(y)
+	return y.ExpandVars(l.pkiDomain(), l.Keyboard(), l.LabVars())
+}
+
 // loadYAML complète un module à partir de son module.yaml, s'il en a un.
 func (l *Lab) loadYAML(m *Module) {
 	y, err := module.Load(m.Dir)
@@ -26,12 +37,7 @@ func (l *Lab) loadYAML(m *Module) {
 		return
 	}
 	m.YAML = y
-	l.injectLocalAttach(y)      // câblage local (network.local.yaml), traité ensuite comme les attach: du module.yaml
-	l.injectLocalConnections(y) // connexions locales (network.local.yaml), traitées comme les connections: du module.yaml
-	// Résout les variables ${...} dans toute la config (sauf module/description/vars) : tout ce qui suit
-	// (Env, Conf, pare-feu, création des VMs) travaille sur les valeurs finales. Tolérant au sous-réseau pas
-	// encore assigné. Une variable fautive (faute de frappe, cycle) devient une erreur du module.
-	if err := y.ExpandVars(l.pkiDomain(), l.Keyboard(), l.LabVars()); err != nil {
+	if err := l.prepare(y); err != nil {
 		m.YAMLErr = err
 		return
 	}

@@ -117,7 +117,7 @@ func vmCreateCmd(l *lab.Lab) *cobra.Command {
 		Long: `Crée et démarre une VM depuis une image cloud du catalogue (labctl image list).
 
 Réseau : -n RESEAU[:IP/CIDR], répétable ; la 1re carte est la carte de gestion. Sans IP : DHCP.
-La VM reçoit l'utilisateur ` + l.Setting("LABS_VM_USER", "lab") + ` (sudo, ta clé SSH), le clavier de ce poste, la CA racine des labs
+La VM reçoit l'utilisateur ` + l.VMUser() + ` (sudo, ta clé SSH), le clavier de ce poste, la CA racine des labs
 et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 		Example: `  labctl vm create web1 -l demo -w
   labctl vm create db1 -i rocky9 -m 4096 -n default -n lab-demo:10.10.0.11/24 -l demo`,
@@ -138,7 +138,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 				s.DiskGiB = disk
 			}
 			if len(nets) == 0 {
-				nets = []string{l.Setting("LABS_DEFAULT_NETWORK", "default")}
+				nets = []string{l.DefaultNetwork()}
 			}
 			for _, n := range nets {
 				s.Nets = append(s.Nets, lab.ParseNet(n))
@@ -161,7 +161,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 		},
 	}
 	f := c.Flags()
-	f.StringVarP(&image, "image", "i", "", "image du catalogue (défaut : "+l.Setting("LABS_DEFAULT_IMAGE", "debian13")+")")
+	f.StringVarP(&image, "image", "i", "", "image du catalogue (défaut : "+l.DefaultImage()+")")
 	f.IntVarP(&cpus, "cpus", "c", 0, "vCPUs")
 	f.IntVarP(&mem, "memory", "m", 0, "RAM en Mio")
 	f.IntVarP(&disk, "disk", "d", 0, "disque en Gio")
@@ -228,7 +228,7 @@ func vmSSHCmd(l *lab.Lab) *cobra.Command {
 				return fmt.Errorf("pas d'IP pour %s", args[0])
 			}
 			if user == "" {
-				user = l.Setting("LABS_VM_USER", "lab")
+				user = l.VMUser()
 			}
 			// Juste après un démarrage ou une restauration, sshd peut mettre quelques secondes à répondre
 			for i := 0; i < 20; i++ {
@@ -246,7 +246,7 @@ func vmSSHCmd(l *lab.Lab) *cobra.Command {
 			return syscall.Exec(sshPath, append(argv, args[1:]...), os.Environ())
 		},
 	}
-	c.Flags().StringVarP(&user, "user", "u", "", "utilisateur (défaut : "+l.Setting("LABS_VM_USER", "lab")+")")
+	c.Flags().StringVarP(&user, "user", "u", "", "utilisateur (défaut : "+l.VMUser()+")")
 	c.Flags().SetInterspersed(false) // les options après VM appartiennent à la commande distante
 	return c
 }

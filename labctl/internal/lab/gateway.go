@@ -87,7 +87,7 @@ func (g *Gateway) target() (string, error) {
 	if ip == "" {
 		return "", errors.New("passerelle sans adresse IP (encore en démarrage ?)")
 	}
-	return g.l.Setting("LABS_VM_USER", "lab") + "@" + ip, nil
+	return g.l.VMUser() + "@" + ip, nil
 }
 
 // SSH lance un script sur la passerelle ; sortie et erreur renvoyées ensemble.

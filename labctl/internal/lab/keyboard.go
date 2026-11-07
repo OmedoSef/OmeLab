@@ -48,7 +48,7 @@ func (l *Lab) VMKeyboard(name, layout string, out io.Writer) error {
 	script := keyboardScript(layout)
 	var result, how string
 	if ip := l.VMIP(name); ip != "" {
-		target := l.Setting("LABS_VM_USER", "lab") + "@" + ip
+		target := l.VMUser() + "@" + ip
 		args := l.sshArgs(target)
 		if exec.Command("ssh", append(args, "true")...).Run() == nil {
 			how = "SSH"

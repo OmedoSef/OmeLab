@@ -23,7 +23,7 @@ func (l *Lab) DefaultVMSpec(name string) VMSpec {
 	}
 	return VMSpec{
 		Name:      name,
-		Image:     l.Setting("LABS_DEFAULT_IMAGE", "debian13"),
+		Image:     l.DefaultImage(),
 		CPUs:      atoi("LABS_DEFAULT_CPUS", 1),
 		MemoryMiB: atoi("LABS_DEFAULT_MEMORY", 2048),
 		DiskGiB:   atoi("LABS_DEFAULT_DISK", 20),
@@ -117,7 +117,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 		Domain:    l.NetDomain(s.Nets[0].Network),
 		Gateway:   s.Gateway,
 		Keyboard:  keyboard,
-		User:      l.Setting("LABS_VM_USER", "lab"),
+		User:      l.VMUser(),
 		Password:  l.Setting("LABS_VM_PASSWORD", "lab"),
 		Files:     map[string][]byte{},
 		InstantID: instanceID(s.Name),
