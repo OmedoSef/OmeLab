@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -166,7 +167,7 @@ func subnetOf(ip string) string {
 }
 
 func appendUnique(list []string, s string) []string {
-	if contains(list, s) {
+	if slices.Contains(list, s) {
 		return list
 	}
 	return append(list, s)

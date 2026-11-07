@@ -62,7 +62,7 @@ func (l *Lab) DeployedCoreConfig() (coreconf.Files, error) {
 	return files, nil
 }
 
-// PendingCoreChanges compare la configuration générée (module.env, core.conf) à celle de la passerelle.
+// PendingCoreChanges compare la configuration générée (depuis les module.yaml) à celle de la passerelle.
 // Liste vide : rien à appliquer.
 func (l *Lab) PendingCoreChanges() ([]FileChange, error) {
 	in, err := l.CoreInput()

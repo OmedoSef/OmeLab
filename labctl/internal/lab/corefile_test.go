@@ -14,13 +14,18 @@ func testLab(t *testing.T) *Lab {
 	t.Helper()
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "config.env"), nil, 0o644)
-	for name, env := range map[string]string{
-		"pentest": "NET=pentest-lab\nSUBNET=10.66.66\ndeclare -A HOSTS=([kali]=10 [msf2]=20)\ndeclare -A MACS=([kali]=52:54:00:66:66:10 [msf2]=52:54:00:66:66:20)\nNO_INTERNET=\"msf2\"\n",
-		"demo":    "NET=demo-lab\nSUBNET=10.77.77\ndeclare -A HOSTS=()\n",
+	for name, yml := range map[string]string{
+		"pentest": "module: pentest\nnetwork: {name: pentest-lab, subnet: 10.66.66.0/24}\nvms:\n" +
+			"  kali: {ip: 10, mac: \"52:54:00:66:66:10\"}\n  msf2: {ip: 20, mac: \"52:54:00:66:66:20\", internet: never}\n",
+		"demo": "module: demo\nnetwork: {name: demo-lab, subnet: 10.77.77.0/24}\nvms: {}\n",
 	} {
 		dir := filepath.Join(root, "modules", name)
-		os.MkdirAll(dir, 0o755)
-		os.WriteFile(filepath.Join(dir, "module.env"), []byte(env), 0o644)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "module.yaml"), []byte(yml), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("LABS_PKI_DOMAIN", "omedo.lab")
 	return &Lab{Root: root}
@@ -43,7 +48,7 @@ func TestConfEdits(t *testing.T) {
 	ok(l.ConfAddHost("pentest", "dc01", 40, "52:54:00:AA:BB:CC"))
 	bad(l.ConfAddHost("pentest", "dc02", 40, "52:54:00:aa:bb:dd"), "octet déjà pris")
 	bad(l.ConfAddHost("pentest", "dc02", 41, "52:54:00:aa:bb:cc"), "MAC déjà prise (casse ignorée)")
-	bad(l.ConfAddHost("pentest", "kali", 42, "52:54:00:aa:bb:ee"), "nom d'une VM de module.env")
+	bad(l.ConfAddHost("pentest", "kali", 42, "52:54:00:aa:bb:ee"), "nom d'une VM du module")
 	bad(l.ConfAddHost("pentest", "dc03", 10, "52:54:00:aa:bb:ee"), "octet de kali")
 	bad(l.ConfAddHost("pentest", "dc03", 150, "52:54:00:aa:bb:ee"), "octet dans la plage DHCP libre")
 	bad(l.ConfAddHost("pentest", "DC03", 43, "52:54:00:aa:bb:ee"), "majuscules")
@@ -61,15 +66,18 @@ func TestConfEdits(t *testing.T) {
 	bad(l.ConfLink("pentest", "pentest", true), "lien vers soi-même")
 	bad(l.ConfLink("pentest", "absent", true), "module inconnu")
 
-	b, _ := os.ReadFile(filepath.Join(l.Root, "modules", "pentest", "core.conf"))
-	got := string(b)
-	for _, want := range []string{"host dc01 40 52:54:00:aa:bb:cc\n", "alias intranet kali\n", "alias ext srv.demo-lab.omedo.lab\n"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("core.conf : %q absent\n%s", want, got)
+	conf := func() *CoreConf {
+		t.Helper()
+		m, err := l.Module("pentest")
+		if err != nil || m.YAMLErr != nil {
+			t.Fatalf("module relu : %v %v", err, m.YAMLErr)
 		}
+		return m.Conf
 	}
-	if strings.Count(got, "link demo") != 1 || strings.Contains(got, "alias intranet dc01") {
-		t.Errorf("doublon ou ancienne valeur restée :\n%s", got)
+	c := conf()
+	if c.Hosts["dc01"] != 40 || c.HostMACs["dc01"] != "52:54:00:aa:bb:cc" || c.Aliases["intranet"] != "kali" ||
+		c.Aliases["ext"] != "srv.demo-lab.omedo.lab" || strings.Join(c.Links, ",") != "demo" {
+		t.Errorf("éditions mal enregistrées (doublon ou ancienne valeur) : %+v", c)
 	}
 
 	// La configuration générée reflète les éditions
@@ -83,12 +91,30 @@ func TestConfEdits(t *testing.T) {
 	}
 
 	ok(l.ConfDelHost("pentest", "dc01"))
-	bad(l.ConfDelHost("pentest", "kali"), "réservation de module.env")
+	bad(l.ConfDelHost("pentest", "kali"), "VM du module, pas une réservation")
 	ok(l.ConfDelAlias("pentest", "ext"))
 	ok(l.ConfLink("pentest", "demo", false))
-	b, _ = os.ReadFile(filepath.Join(l.Root, "modules", "pentest", "core.conf"))
-	if strings.Contains(string(b), "dc01") || strings.Contains(string(b), "\nlink ") || strings.Contains(string(b), "alias ext") {
-		t.Errorf("suppressions non faites :\n%s", b)
+	if c := conf(); c.Hosts["dc01"] != 0 || len(c.Links) != 0 || c.Aliases["ext"] != "" {
+		t.Errorf("suppressions non faites : %+v", c)
+	}
+}
+
+// La vue réseau (Env) se déduit du module.yaml : domaine par défaut, IP et MAC des VMs, VMs « never », ordre.
+func TestModuleEnvFromYAML(t *testing.T) {
+	l := testLab(t)
+	m, err := l.Module("pentest")
+	if err != nil || m.Env == nil {
+		t.Fatalf("module : %v", err)
+	}
+	e := m.Env
+	if e.Domain != "pentest-lab.omedo.lab" {
+		t.Errorf("domaine par défaut = %q", e.Domain)
+	}
+	if e.IP("msf2") != "10.66.66.20" || e.Macs["kali"] != "52:54:00:66:66:10" {
+		t.Errorf("IP / MAC : %+v", e)
+	}
+	if strings.Join(e.NoInternet, ",") != "msf2" || strings.Join(e.VMs(), ",") != "kali,msf2" {
+		t.Errorf("internet: never / ordre des VMs : %+v", e)
 	}
 }
 

@@ -52,7 +52,7 @@ type PKI struct {
 	CA string `yaml:"ca"` // nom de la CA dérivée, limitée au domaine et au sous-réseau du module
 }
 
-// DNS : alias, réservations en plus, liens vers d'autres modules (ex-core.conf).
+// DNS : alias, réservations en plus, liens vers d'autres modules.
 type DNS struct {
 	Aliases map[string]string `yaml:"aliases,omitempty"` // <alias>.<domaine> -> VM du module (ou nom complet)
 	Hosts   []Host            `yaml:"hosts,omitempty"`   // réservations DHCP/DNS de machines hors vms:

@@ -86,20 +86,17 @@ déjà ; le réécrire après une mise à jour de labctl.`,
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "MODULE\tFORMAT\tRÉSEAU\tSOUS-RÉSEAU\tVMS\tDESCRIPTION")
 			for _, m := range mods {
-				format, net, sub, vms := "module.sh", "-", "-", "-"
+				format, net, sub, vms := "module.yaml", "-", "-", "-"
 				switch {
 				case m.YAMLErr != nil:
 					format = "module.yaml (ILLISIBLE)"
 				case m.YAML != nil:
-					format = "module.yaml"
 					net, vms = m.YAML.NetworkName(), strconv.Itoa(len(m.YAML.VMs))
 					if p := m.YAML.Subnet(); p.IsValid() {
 						sub = p.String()
 					} else {
 						sub = "(choisi au 1er up)"
 					}
-				case m.Env != nil:
-					format, net, sub = "module.env", m.Env.Net, m.Env.Subnet+".0/24"
 				}
 				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", m.Name, format, net, sub, vms, m.Description)
 			}
@@ -134,53 +131,6 @@ réseaux libvirt. Sans argument : tous les modules déclaratifs.`,
 		},
 	})
 
-	// Pont pour les scripts bash qui lisent encore l'ancien format
-	c.AddCommand(&cobra.Command{
-		Use:    "env MODULE",
-		Short:  "Contenu équivalent à l'ancien module.env (pour les scripts bash)",
-		Hidden: true,
-		Args:   cobra.ExactArgs(1), ValidArgsFunction: names,
-		RunE: func(_ *cobra.Command, args []string) error {
-			m, err := l.Module(args[0])
-			if err != nil {
-				return err
-			}
-			if m.Env == nil {
-				if m.YAMLErr != nil {
-					return m.YAMLErr
-				}
-				return fmt.Errorf("le module %s n'a pas encore de réseau", args[0])
-			}
-			e := m.Env
-			fmt.Printf("MODULE=%s\nNET=%s\nSUBNET=%s\nDOMAIN=%s\n", m.Name, e.Net, e.Subnet, e.Domain)
-			fmt.Printf("declare -A HOSTS=(%s)\n", assoc(e.Hosts, func(v int) string { return strconv.Itoa(v) }))
-			fmt.Printf("declare -A MACS=(%s)\n", assoc(e.Macs, func(v string) string { return v }))
-			fmt.Printf("NO_INTERNET=%q\n", strings.Join(e.NoInternet, " "))
-			return nil
-		},
-	})
-	c.AddCommand(&cobra.Command{
-		Use:    "conf MODULE",
-		Short:  "Contenu équivalent à l'ancien core.conf (pour les scripts bash)",
-		Hidden: true,
-		Args:   cobra.ExactArgs(1), ValidArgsFunction: names,
-		RunE: func(_ *cobra.Command, args []string) error {
-			m, err := l.Module(args[0])
-			if err != nil {
-				return err
-			}
-			for _, h := range sortedKeys(m.Conf.Hosts) {
-				fmt.Printf("host %s %d %s\n", h, m.Conf.Hosts[h], m.Conf.HostMACs[h])
-			}
-			for _, a := range sortedKeys(m.Conf.Aliases) {
-				fmt.Printf("alias %s %s\n", a, m.Conf.Aliases[a])
-			}
-			for _, k := range m.Conf.Links {
-				fmt.Printf("link %s\n", k)
-			}
-			return nil
-		},
-	})
 	c.AddCommand(&cobra.Command{
 		Use:   "edit MODULE host-add NOM OCTET MAC | host-del NOM | alias-add NOM CIBLE | alias-del NOM | link AUTRE | unlink AUTRE",
 		Short: "Modifie réservations, alias et liens d'un module (mêmes validations que la GUI)",

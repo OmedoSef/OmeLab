@@ -10,7 +10,7 @@ import (
 )
 
 // CoreInput rassemble ce qu'il faut pour générer la configuration de la passerelle : les modules
-// (module.env + core.conf), ceux sur lesquels la passerelle est branchée, et le DNS amont.
+// (vue réseau dérivée de leur module.yaml), ceux sur lesquels la passerelle est branchée, et le DNS amont.
 func (l *Lab) CoreInput() (coreconf.Input, error) {
 	in := coreconf.Input{RootDomain: l.pkiDomain()}
 	if err := l.NetworkLocalError(); err != nil {
@@ -51,7 +51,7 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 				cm.MACs[vm] = mac
 			}
 		}
-		// Réservations de core.conf (comme load_module côté bash : elles complètent module.env)
+		// Réservations dns.hosts : elles complètent les VMs à IP fixe
 		for h, o := range m.Conf.Hosts {
 			cm.Hosts[h] = o
 			if mac := m.Conf.HostMACs[h]; mac != "" {

@@ -1,18 +1,15 @@
 // Package lab donne accès aux labs : découverte des modules (modules/<nom>/module.yaml, la source de vérité),
 // réglages du lab, moteur des modules (réseaux, VMs, certificats), passerelle core-gw et fichiers propres au poste
 // (lab.local.yaml, network.local.yaml). Les structures Env / CoreConf sont une vue dérivée du module.yaml, héritée
-// de l'ancien format bash (module.env, core.conf), encore lisible pour compatibilité.
+// de l'ancien format bash (module.env, core.conf), qui n'est plus lu.
 package lab
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -68,14 +65,14 @@ func isRoot(d string) bool {
 	return err == nil
 }
 
-// Module décrit un module (dossier modules/<nom>/ avec un module.sh).
+// Module décrit un module : un dossier modules/<nom>/ avec un module.yaml.
 type Module struct {
 	Name        string
 	Dir         string
 	Description string    // description: du module.yaml
-	Env         *Env      // nil pour un module sans module.env (ex. core)
-	Commands    *CmdNode  // arbre des commandes, tiré de l'en-tête d'aide de module.sh
-	Conf        *CoreConf // core.conf du module (vide s'il n'existe pas)
+	Env         *Env      // vue réseau dérivée du module.yaml ; nil tant que le module n'a pas de sous-réseau
+	Commands    []string  // commandes du moteur (labctl <module> …)
+	Conf        *CoreConf // réservations, alias et liens dérivés du module.yaml (vide par défaut)
 
 	// Module déclaratif : module.yaml (source de vérité ; Env et Conf en sont dérivés)
 	HasYAML bool
@@ -83,7 +80,7 @@ type Module struct {
 	YAMLErr error
 }
 
-// Env reprend les variables utiles de module.env.
+// Env : vue réseau d'un module (nom du réseau, préfixe, domaine, VMs à IP fixe), dérivée de son module.yaml.
 type Env struct {
 	Net        string
 	Subnet     string
@@ -111,7 +108,7 @@ func (e *Env) VMs() []string {
 	return vms
 }
 
-// CoreConf reprend core.conf : réservations en plus, alias DNS, liens.
+// CoreConf : réservations en plus, alias DNS, liens, branchements (dns: et attach: du module.yaml).
 type CoreConf struct {
 	Hosts    map[string]int    // réservations en plus : nom -> dernier octet
 	HostMACs map[string]string // réservations en plus : nom -> MAC
@@ -129,23 +126,14 @@ func (l *Lab) Modules() ([]*Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	pkiDomain := l.pkiDomain()
 	var mods []*Module
 	for _, e := range entries {
 		dir := filepath.Join(l.Root, "modules", e.Name())
-		_, errYAML := os.Stat(filepath.Join(dir, module.FileName))
-		_, errEnv := os.Stat(filepath.Join(dir, "module.env"))
-		if errYAML != nil && errEnv != nil {
+		if _, err := os.Stat(filepath.Join(dir, module.FileName)); err != nil {
 			continue
 		}
-		m := &Module{Name: e.Name(), Dir: dir, Commands: ParseUsage(e.Name(), EngineUsage(e.Name()))}
-		if env, err := ParseEnv(filepath.Join(dir, "module.env"), pkiDomain); err == nil {
-			m.Env = env
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("module %s : %w", m.Name, err)
-		}
-		m.Conf, _ = ParseCoreConf(filepath.Join(dir, "core.conf"))
-		l.loadYAML(m) // le YAML, s'il existe, prime sur module.env / core.conf
+		m := &Module{Name: e.Name(), Dir: dir, Commands: EngineCommands, Conf: newCoreConf()}
+		l.loadYAML(m)
 		mods = append(mods, m)
 	}
 	return mods, nil
@@ -184,93 +172,9 @@ func (m *Module) Vulnerable() bool { return m != nil && m.YAML != nil && m.YAML.
 // pkiDomain : ancien nom interne de RootDomain.
 func (l *Lab) pkiDomain() string { return l.RootDomain() }
 
-var (
-	reVar   = regexp.MustCompile(`^([A-Z_]+)=("?)([^"]*)("?)\s*(#.*)?$`)
-	reAssoc = regexp.MustCompile(`^declare -A ([A-Z_]+)=\((.*)\)`)
-	reItem  = regexp.MustCompile(`\[([A-Za-z0-9_-]+)\]=([^\s)]+)`)
-)
-
-// ParseEnv lit un module.env (syntaxe bash simple : VAR=valeur et declare -A VAR=([cle]=valeur ...)).
-func ParseEnv(path, pkiDomain string) (*Env, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	env := &Env{Hosts: map[string]int{}, Macs: map[string]string{}}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if m := reAssoc.FindStringSubmatch(line); m != nil {
-			for _, it := range reItem.FindAllStringSubmatch(m[2], -1) {
-				switch m[1] {
-				case "HOSTS":
-					o, err := strconv.Atoi(it[2])
-					if err != nil {
-						return nil, fmt.Errorf("HOSTS[%s] : octet invalide %q", it[1], it[2])
-					}
-					env.Hosts[it[1]] = o
-				case "MACS":
-					env.Macs[it[1]] = strings.ToLower(it[2])
-				}
-			}
-			continue
-		}
-		if m := reVar.FindStringSubmatch(line); m != nil {
-			switch m[1] {
-			case "NET":
-				env.Net = m[3]
-			case "SUBNET":
-				env.Subnet = m[3]
-			case "DOMAIN":
-				env.Domain = m[3]
-			case "NO_INTERNET":
-				env.NoInternet = strings.Fields(m[3])
-			}
-		}
-	}
-	if err := sc.Err(); err != nil {
-		return nil, err
-	}
-	if env.Net == "" || env.Subnet == "" {
-		return nil, fmt.Errorf("%s : NET et SUBNET sont obligatoires", path)
-	}
-	if env.Domain == "" {
-		env.Domain = env.Net + "." + pkiDomain
-	}
-	return env, nil
-}
-
-// ParseCoreConf lit un core.conf ; un fichier absent donne une configuration vide.
-func ParseCoreConf(path string) (*CoreConf, error) {
-	c := &CoreConf{Hosts: map[string]int{}, HostMACs: map[string]string{}, Aliases: map[string]string{}}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return c, nil
-		}
-		return c, err
-	}
-	for _, line := range strings.Split(string(b), "\n") {
-		f := strings.Fields(line)
-		if len(f) == 0 || strings.HasPrefix(f[0], "#") {
-			continue
-		}
-		switch {
-		case f[0] == "host" && len(f) >= 3:
-			if o, err := strconv.Atoi(f[2]); err == nil {
-				c.Hosts[f[1]] = o
-				if len(f) >= 4 {
-					c.HostMACs[f[1]] = strings.ToLower(f[3])
-				}
-			}
-		case f[0] == "alias" && len(f) >= 3:
-			c.Aliases[f[1]] = f[2]
-		case f[0] == "link" && len(f) >= 2:
-			c.Links = append(c.Links, f[1])
-		}
-	}
-	return c, nil
+// newCoreConf : configuration réseau vide (réservations, alias, liens), complétée depuis le module.yaml.
+func newCoreConf() *CoreConf {
+	return &CoreConf{Hosts: map[string]int{}, HostMACs: map[string]string{}, Aliases: map[string]string{}}
 }
 
 // ExecScript remplace le processus courant par un script du projet.

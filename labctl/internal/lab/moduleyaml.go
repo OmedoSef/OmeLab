@@ -11,9 +11,8 @@ import (
 	"labs/labctl/internal/virt"
 )
 
-// Les modules déclaratifs (module.yaml) sont la source de vérité. Pour le code qui lit encore l'ancien
-// format (module.env, core.conf), Env et Conf sont dérivés du YAML ; le bash y accède par
-// « labctl module env|conf ».
+// Les modules déclaratifs (module.yaml) sont la source de vérité. Env (vue réseau) et Conf (réservations,
+// alias, liens) en sont dérivés : structures héritées de l'ancien format bash, gardées comme vue interne.
 
 // loadYAML complète un module à partir de son module.yaml, s'il en a un.
 func (l *Lab) loadYAML(m *Module) {

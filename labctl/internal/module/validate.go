@@ -50,7 +50,7 @@ var (
 // ReservedNames sont des sous-commandes de « labctl module » ou de labctl : pas utilisables comme nom de module.
 // Tenue à jour par un test (cli/root_test.go) qui la compare aux commandes réelles.
 var ReservedNames = []string{
-	"list", "validate", "show", "env", "conf", "edit", "schema", // labctl module …
+	"list", "validate", "show", "edit", "schema", // labctl module …
 	"core", "core-config", "module", "vm", "net", "image", "pki", "status", "check", "lab", "init", "version",
 	"gui", "gw-portal", "hostfw", "completion", "help",
 }

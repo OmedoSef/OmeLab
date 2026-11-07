@@ -376,7 +376,7 @@
     },
     "dns": {
       "additionalProperties": false,
-      "description": "DNS : alias, réservations en plus, liens vers d'autres modules (ex-core.conf).",
+      "description": "DNS : alias, réservations en plus, liens vers d'autres modules.",
       "properties": {
         "aliases": {
           "additionalProperties": {

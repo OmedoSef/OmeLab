@@ -2,8 +2,6 @@ package lab
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -11,7 +9,7 @@ import (
 	mod "labs/labctl/internal/module"
 )
 
-// Édition de modules/<module>/core.conf : réservations DHCP (host), alias DNS (alias), liens (link).
+// Édition de la section réseau d'un module.yaml : réservations DHCP (dns.hosts), alias DNS (dns.aliases), liens (dns.links).
 // Mêmes règles que les commandes « labctl core dhcp|dns|link » ; rien n'est appliqué sur la
 // passerelle (voir PendingCoreChanges et « core apply »).
 
@@ -20,23 +18,20 @@ var (
 	reMAC      = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
 )
 
-const coreConfHeader = "# Module %s côté core (géré par labctl core dhcp|dns|link et labctl)\n# host NOM OCTET MAC  |  alias NOM CIBLE  |  link MODULE\n"
-
-// confModule renvoie un module qui a un réseau (module.env).
+// confModule renvoie un module qui a un réseau.
 func (l *Lab) confModule(name string) (*Module, error) {
 	m, err := l.Module(name)
 	if err != nil {
 		return nil, err
 	}
 	if m.Env == nil {
-		return nil, fmt.Errorf("le module %s n'a pas de réseau (module.env)", name)
+		return nil, fmt.Errorf("le module %s n'a pas encore de réseau (labctl %s up)", name, name)
 	}
 	return m, nil
 }
 
-// saveEdit enregistre une édition : dans le module.yaml s'il existe (commentaires préservés), sinon
-// dans core.conf (ancien format).
-func saveEdit(m *Module, yamlEdit func(*mod.Module), kind, key, add string) error {
+// saveEdit enregistre une édition dans le module.yaml (commentaires préservés).
+func saveEdit(m *Module, yamlEdit func(*mod.Module)) error {
 	if m.HasYAML {
 		y, err := mod.Load(m.Dir)
 		if err != nil {
@@ -45,35 +40,7 @@ func saveEdit(m *Module, yamlEdit func(*mod.Module), kind, key, add string) erro
 		yamlEdit(y)
 		return y.Save()
 	}
-	return editConf(m, kind, key, add)
-}
-
-// editConf retire les lignes « kind nom ... » correspondantes puis ajoute add (si non vide).
-func editConf(m *Module, kind, key, add string) error {
-	path := filepath.Join(m.Dir, "core.conf")
-	b, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		b, err = []byte(fmt.Sprintf(coreConfHeader, m.Name)), nil
-	}
-	if err != nil {
-		return err
-	}
-	var out []string
-	for _, line := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
-		f := strings.Fields(line)
-		if len(f) >= 2 && f[0] == kind && f[1] == key {
-			continue
-		}
-		out = append(out, line)
-	}
-	if add != "" {
-		out = append(out, add)
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(strings.Join(out, "\n")+"\n"), 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return fmt.Errorf("module %s sans %s", m.Name, mod.FileName)
 }
 
 // ConfAddHost réserve <sous-réseau>.<octet> pour mac, sous le nom name (DHCP + DNS).
@@ -94,7 +61,7 @@ func (l *Lab) ConfAddHost(module, name string, octet int, mac string) error {
 		return fmt.Errorf("MAC réservée à la passerelle")
 	}
 	if _, ok := m.Env.Hosts[name]; ok {
-		return fmt.Errorf("%s est une VM du module (module.env)", name)
+		return fmt.Errorf("%s est une VM du module (vms: du module.yaml)", name)
 	}
 	if _, ok := m.Conf.Hosts[name]; ok {
 		return fmt.Errorf("%s est déjà réservée", name)
@@ -121,11 +88,10 @@ func (l *Lab) ConfAddHost(module, name string, octet int, mac string) error {
 			return err
 		}
 	}
-	return saveEdit(m, func(y *mod.Module) { y.AddHost(mod.Host{Name: name, IP: octet, MAC: mac}) },
-		"host", name, fmt.Sprintf("host %s %d %s", name, octet, mac))
+	return saveEdit(m, func(y *mod.Module) { y.AddHost(mod.Host{Name: name, IP: octet, MAC: mac}) })
 }
 
-// ConfDelHost retire une réservation de core.conf (celles de module.env se changent dans module.env).
+// ConfDelHost retire une réservation (dns.hosts) ; une VM du module, elle, se change dans vms:.
 func (l *Lab) ConfDelHost(module, name string) error {
 	m, err := l.confModule(module)
 	if err != nil {
@@ -137,7 +103,7 @@ func (l *Lab) ConfDelHost(module, name string) error {
 		}
 		return fmt.Errorf("pas de réservation %s dans le module.yaml de %s", name, module)
 	}
-	return saveEdit(m, func(y *mod.Module) { y.DelHost(name) }, "host", name, "")
+	return saveEdit(m, func(y *mod.Module) { y.DelHost(name) })
 }
 
 // ConfAddAlias crée (ou remplace) l'alias name.<domaine> -> target (VM du module ou nom complet).
@@ -164,7 +130,7 @@ func (l *Lab) ConfAddAlias(module, name, target string) error {
 	if target == name {
 		return fmt.Errorf("un alias ne peut pas pointer sur lui-même")
 	}
-	return saveEdit(m, func(y *mod.Module) { y.SetAlias(name, target) }, "alias", name, fmt.Sprintf("alias %s %s", name, target))
+	return saveEdit(m, func(y *mod.Module) { y.SetAlias(name, target) })
 }
 
 // ConfDelAlias retire un alias.
@@ -176,7 +142,7 @@ func (l *Lab) ConfDelAlias(module, name string) error {
 	if _, ok := m.Conf.Aliases[name]; !ok {
 		return fmt.Errorf("pas d'alias %s dans %s", name, module)
 	}
-	return saveEdit(m, func(y *mod.Module) { y.DelAlias(name) }, "alias", name, "")
+	return saveEdit(m, func(y *mod.Module) { y.DelAlias(name) })
 }
 
 // ConfLink ajoute (on) ou retire le lien src -> dst : src peut joindre et résoudre dst.
@@ -191,9 +157,5 @@ func (l *Lab) ConfLink(src, dst string, on bool) error {
 	if src == dst {
 		return fmt.Errorf("un module est toujours relié à lui-même")
 	}
-	add := ""
-	if on {
-		add = "link " + dst
-	}
-	return saveEdit(m, func(y *mod.Module) { y.SetLink(dst, on) }, "link", dst, add)
+	return saveEdit(m, func(y *mod.Module) { y.SetLink(dst, on) })
 }

@@ -35,7 +35,7 @@ type Module struct {
 	Name       string
 	Subnet     string              // trois premiers octets, ex. 10.66.66
 	Domain     string              // domaine DNS du module
-	Hosts      map[string]int      // VM -> dernier octet (module.env + réservations de core.conf)
+	Hosts      map[string]int      // VM -> dernier octet (VMs à IP fixe + réservations dns.hosts)
 	MACs       map[string]string   // VM -> MAC (VMs sans MAC : DNS seulement, pas de réservation DHCP)
 	NoInternet []string            // VMs bloquées comme source (Internet et modules liés)
 	Aliases    map[string]string   // alias -> cible (VM du module ou nom complet)

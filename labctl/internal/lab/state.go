@@ -2,6 +2,7 @@ package lab
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,7 +25,7 @@ func NetActive(name string) bool { return virt.Shared().NetActive(name) }
 
 // --- Complétion
 
-// ModuleNames liste les modules qui ont un réseau (module.env).
+// ModuleNames liste les modules qui ont un réseau.
 func (l *Lab) ModuleNames() []string {
 	mods, _ := l.Modules()
 	var out []string
@@ -36,7 +37,7 @@ func (l *Lab) ModuleNames() []string {
 	return out
 }
 
-// VMs liste les VMs d'un module (module.env + réservations de core.conf).
+// VMs liste les VMs d'un module (VMs à IP fixe + réservations dns.hosts).
 func (l *Lab) VMs(module string) []string {
 	m, err := l.Module(module)
 	if err != nil || m.Env == nil {
@@ -44,7 +45,7 @@ func (l *Lab) VMs(module string) []string {
 	}
 	vms := m.Env.VMs()
 	for h := range m.Conf.Hosts {
-		if !contains(vms, h) && m.Conf.Attached[h] == "" { // VM branchée : elle appartient à son module
+		if !slices.Contains(vms, h) && m.Conf.Attached[h] == "" { // VM branchée : elle appartient à son module
 			vms = append(vms, h)
 		}
 	}
@@ -125,9 +126,7 @@ func (l *Lab) Status() (*State, error) {
 			Name: m.Name, Description: m.Description, Net: m.Env.Net, Subnet: m.Env.Subnet,
 			Domain: m.Env.Domain, Links: m.Conf.Links, Internet: internet[m.Name],
 		}
-		for c := range m.Commands.Children {
-			ms.Commands = append(ms.Commands, c)
-		}
+		ms.Commands = append(ms.Commands, m.Commands...)
 		if ms.Internet == "" {
 			ms.Internet = "fermé"
 		}
@@ -153,7 +152,7 @@ func (l *Lab) Status() (*State, error) {
 				if o, ok := m.Conf.Hosts[vm]; ok && ip == "" {
 					ip = m.Env.Subnet + "." + strconv.Itoa(o)
 				}
-				noNet := contains(m.Env.NoInternet, vm)
+				noNet := slices.Contains(m.Env.NoInternet, vm)
 				ms.VMs[i] = VMState{
 					Name: vm, Libvirt: m.LibvirtName(vm), IP: ip,
 					State: DomState(m.LibvirtName(vm)), NoInternet: noNet,
