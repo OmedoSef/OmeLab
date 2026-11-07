@@ -10,7 +10,10 @@
 #
 # Une variable peut en référencer une autre (${var.autre}) ou ${keyboard}.
 
-vars:
-  # Chemins des ISO Microsoft (labctl ne les télécharge jamais). Adapter à l'emplacement local.
-  iso_server: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
-  iso_win11: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+vars: {}
+  # Exemples (décommenter et adapter ; le nom doit correspondre à un ${var.<nom>} utilisé par un module) :
+  #
+  # iso_win11:  ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+  # iso_server: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
+  # password:   "MonMotDePasse1!"
+  # domain:     monlab.local
