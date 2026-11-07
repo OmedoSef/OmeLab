@@ -165,7 +165,7 @@ La poser dans une VM : labctl pki trust-vm --interception VM.`,
 	})
 	root.AddCommand(&cobra.Command{
 		Use:   "trust-host",
-		Short: "Installe la CA racine sur cet hôte (sudo)",
+		Short: "Installe la CA racine sur cet hôte (sudo) — qui lit pki/ pourrait alors intercepter son HTTPS",
 		Args:  cobra.NoArgs, ValidArgsFunction: noFiles,
 		RunE: func(*cobra.Command, []string) error {
 			if os.Getenv("LABCTL_FROM_GUI") != "" { // sudo dans un terminal seulement (voir la GUI)

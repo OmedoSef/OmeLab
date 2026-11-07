@@ -81,3 +81,16 @@ Organisation : **OmeLab** par défaut (`OmeLab Root CA` → `OmeLab Intermediate
 Un wildcard ne couvre qu'**un seul niveau** : `*.k8s.omelab.internal` couvre `a.k8s.omelab.internal` mais pas
 `b.a.k8s.omelab.internal` ; ajouter un `-d` par niveau nécessaire.
 Les clés privées ne sont pas chiffrées : le dossier `pki/` est exclu de git.
+
+> ⚠️ **Sécurité de la PKI.** `pki/` (droits 0700, clés en 0600) contient en clair la clé de la CA racine et de
+> l'intermédiaire. Qui peut lire ce dossier peut signer un certificat **pour n'importe quel nom** : la racine n'a pas
+> de contrainte de nom (elle signe aussi les CA des modules, dont le domaine peut être hors du domaine racine,
+> ex. `pjpt.local`).
+> - Dans les VMs, c'est sans conséquence au-delà du lab : elles ne font confiance à la racine que pour le lab.
+> - **Sur ton poste**, `labctl pki trust-host` ajoute cette racine aux autorités du système : quiconque lit `pki/`
+>   pourrait alors intercepter le HTTPS de **ton poste** (banque, messagerie…). Ne le fais que si tu en as besoin
+>   (consulter les services du lab depuis l'hôte sans alerte), et retire-la quand ce n'est plus le cas :
+>   `sudo rm /usr/local/share/ca-certificates/labs-root-ca.crt && sudo update-ca-certificates --fresh`.
+> - Un module ne peut pas copier un fichier de `pki/` dans une VM (`files: src` est confiné au module) ; seule
+>   l'autorité d'interception du proxy part sur la passerelle.
+> - Sauvegardes et copies de `pki/` : à traiter comme des secrets.
