@@ -109,17 +109,7 @@ func (c *Conn) Networks() ([]Network, error) {
 			auto, _ := lv.NetworkGetAutostart(n)
 			info.Autostart = auto == 1
 			if x, err := lv.NetworkGetXMLDesc(n, 0); err == nil {
-				var nx NetworkXML
-				if xml.Unmarshal([]byte(x), &nx) == nil {
-					info.Bridge, info.Forward, info.Domain = nx.Bridge.Name, nx.Forward.Mode, nx.Domain.Name
-					if len(nx.IPs) > 0 {
-						ip := nx.IPs[0]
-						info.HostIP, info.Prefix, info.DHCP = ip.Address, ip.Prefix, ip.DHCP != nil
-						if info.Prefix == 0 && ip.Netmask != "" {
-							info.Prefix = maskBits(ip.Netmask)
-						}
-					}
-				}
+				NetworkFromXML(&info, x)
 			}
 			out = append(out, info)
 		}
@@ -127,6 +117,23 @@ func (c *Conn) Networks() ([]Network, error) {
 	})
 	sortBy(out, func(n Network) string { return n.Name })
 	return out, err
+}
+
+// NetworkFromXML complète info (pont, mode, domaine, adresse de l'hôte) d'après la définition x d'un réseau ;
+// une définition illisible laisse info inchangé.
+func NetworkFromXML(info *Network, x string) {
+	var nx NetworkXML
+	if xml.Unmarshal([]byte(x), &nx) != nil {
+		return
+	}
+	info.Bridge, info.Forward, info.Domain = nx.Bridge.Name, nx.Forward.Mode, nx.Domain.Name
+	if len(nx.IPs) > 0 {
+		ip := nx.IPs[0]
+		info.HostIP, info.Prefix, info.DHCP = ip.Address, ip.Prefix, ip.DHCP != nil
+		if info.Prefix == 0 && ip.Netmask != "" {
+			info.Prefix = maskBits(ip.Netmask)
+		}
+	}
 }
 
 // DefineNetwork enregistre (ou remplace) la définition d'un réseau.

@@ -62,7 +62,7 @@ func (l *Lab) NetDomain(network string) string {
 			}
 		}
 	}
-	if nets, err := virt.Shared().Networks(); err == nil {
+	if nets, err := l.Hypervisor().Networks(); err == nil {
 		for _, n := range nets {
 			if n.Name == network && n.Domain != "" {
 				return n.Domain
@@ -86,7 +86,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	if out == nil {
 		out = io.Discard
 	}
-	v := virt.Shared()
+	v := l.Hypervisor()
 	if err := s.Validate(); err != nil {
 		return err
 	}

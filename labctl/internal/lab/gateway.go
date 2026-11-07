@@ -69,10 +69,10 @@ func (l *Lab) Gateway(out io.Writer) *Gateway {
 func (g *Gateway) logf(format string, a ...any) { fmt.Fprintf(g.Out, format+"\n", a...) }
 
 // Running indique si la passerelle tourne.
-func (g *Gateway) Running() bool { return DomState(GatewayVM) == virt.StateRunning }
+func (g *Gateway) Running() bool { return g.l.DomState(GatewayVM) == virt.StateRunning }
 
 func (g *Gateway) require() error {
-	switch DomState(GatewayVM) {
+	switch g.l.DomState(GatewayVM) {
 	case virt.StateRunning:
 		return nil
 	case virt.StateAbsent:
@@ -83,7 +83,7 @@ func (g *Gateway) require() error {
 
 // target renvoie utilisateur@IP de la passerelle (sur le réseau NAT libvirt).
 func (g *Gateway) target() (string, error) {
-	ip := virt.Shared().IPv4(GatewayVM)
+	ip := g.l.Hypervisor().IPv4(GatewayVM)
 	if ip == "" {
 		return "", errors.New("passerelle sans adresse IP (encore en démarrage ?)")
 	}
@@ -203,7 +203,7 @@ func (g *Gateway) gwModules() ([]*gwModule, error) {
 
 // Attached indique si la passerelle a sa carte sur le réseau d'un module.
 func (g *Gateway) attached(m *gwModule) bool {
-	ifs, _ := virt.Shared().Interfaces(GatewayVM)
+	ifs, _ := g.l.Hypervisor().Interfaces(GatewayVM)
 	return slices.ContainsFunc(ifs, func(i virt.Interface) bool { return strings.EqualFold(i.MAC, m.mac()) })
 }
 
@@ -312,8 +312,8 @@ func (g *Gateway) Attach(name string, apply bool) error {
 	if err != nil {
 		return err
 	}
-	v := virt.Shared()
-	if DomState(GatewayVM) == virt.StateAbsent {
+	v := g.l.Hypervisor()
+	if g.l.DomState(GatewayVM) == virt.StateAbsent {
 		g.logf("pas de passerelle : labctl core gw (DHCP, DNS et Internet du module %s)", name)
 		return nil
 	}
@@ -340,7 +340,7 @@ func (g *Gateway) Detach(name string) error {
 	if err != nil {
 		return err
 	}
-	if DomState(GatewayVM) == virt.StateAbsent || !g.attached(m) {
+	if g.l.DomState(GatewayVM) == virt.StateAbsent || !g.attached(m) {
 		g.logf("ok  passerelle non branchée sur %s", m.Env.Net)
 		return nil
 	}
@@ -349,7 +349,7 @@ func (g *Gateway) Detach(name string) error {
 			return err
 		}
 	}
-	if err := virt.Shared().DetachInterface(GatewayVM, m.mac(), g.Running()); err != nil {
+	if err := g.l.Hypervisor().DetachInterface(GatewayVM, m.mac(), g.Running()); err != nil {
 		return fmt.Errorf("débranchement de %s : %w", m.Env.Net, err)
 	}
 	g.logf("ok  passerelle débranchée de %s (le module n'a plus de DHCP, DNS ni Internet)", m.Env.Net)
@@ -769,8 +769,8 @@ func (g *Gateway) SetAlias(module, name, target string) error {
 // Create crée la passerelle si besoin (Debian, nftables, dnsmasq, fichiers système), la démarre, la
 // branche sur chaque module qui a un réseau, puis applique la configuration.
 func (g *Gateway) Create() error {
-	v := virt.Shared()
-	if DomState(GatewayVM) != virt.StateAbsent {
+	v := g.l.Hypervisor()
+	if g.l.DomState(GatewayVM) != virt.StateAbsent {
 		g.logf("ok  %s existe déjà", GatewayVM)
 	} else {
 		tmp, err := os.MkdirTemp("", "labctl-gw-")
@@ -913,12 +913,12 @@ func (g *Gateway) Update() error {
 
 // Start démarre la passerelle (Internet fermé pour tous les modules).
 func (g *Gateway) Start() error {
-	switch DomState(GatewayVM) {
+	switch g.l.DomState(GatewayVM) {
 	case virt.StateAbsent:
 		return errors.New("passerelle absente : labctl core gw")
 	case virt.StateRunning:
 	default:
-		if err := virt.Shared().StartDomain(GatewayVM); err != nil {
+		if err := g.l.Hypervisor().StartDomain(GatewayVM); err != nil {
 			return err
 		}
 	}
@@ -932,7 +932,7 @@ func (g *Gateway) Stop() error {
 		g.logf("ok  %s déjà arrêtée", GatewayVM)
 		return nil
 	}
-	if err := virt.Shared().ShutdownDomain(GatewayVM); err != nil {
+	if err := g.l.Hypervisor().ShutdownDomain(GatewayVM); err != nil {
 		return err
 	}
 	g.logf("ok  %s en cours d'arrêt : les modules n'ont plus de DHCP, DNS ni Internet", GatewayVM)
@@ -956,7 +956,7 @@ func (g *Gateway) PrintStatus() error {
 		wan = "?"
 	}
 	g.logf("==> Passerelle %s : %s, WAN %s", GatewayVM, st.State, wan)
-	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
+	if ifs, err := g.l.Hypervisor().Interfaces(GatewayVM); err == nil {
 		for _, i := range ifs {
 			g.logf("  carte %-18s sur %s", i.MAC, i.Network)
 		}

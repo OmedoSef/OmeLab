@@ -186,6 +186,11 @@ func (c *Conn) Resources(name string) (cpus, memMiB int, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
+	return ResourcesFromXML(x)
+}
+
+// ResourcesFromXML lit les vCPU et la mémoire (Mio) d'une définition de domaine.
+func ResourcesFromXML(x string) (cpus, memMiB int, err error) {
 	var d struct {
 		VCPU   int `xml:"vcpu"`
 		Memory struct {

@@ -365,7 +365,7 @@ func (s *server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, cm)
 	}
-	resp := map[string]any{"modules": out, "gateway": lab.DomState(lab.GatewayVM)}
+	resp := map[string]any{"modules": out, "gateway": s.lab.DomState(lab.GatewayVM)}
 	if resp["gateway"] == virt.StateRunning {
 		if changes, err := s.lab.PendingCoreChanges(); err != nil {
 			resp["pendingError"] = err.Error()

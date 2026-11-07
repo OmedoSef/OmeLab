@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"labs/labctl/internal/coreconf"
-	"labs/labctl/internal/virt"
 	"slices"
 	"strings"
 )
@@ -21,7 +20,7 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		return in, err
 	}
 	gwMACs := map[string]bool{}
-	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
+	if ifs, err := l.Hypervisor().Interfaces(GatewayVM); err == nil {
 		for _, i := range ifs {
 			gwMACs[i.MAC] = true
 		}
@@ -92,7 +91,7 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		}
 	}
 	// DNS amont des instances open : l'hôte sur le réseau NAT libvirt « default »
-	if nets, err := virt.Shared().Networks(); err == nil {
+	if nets, err := l.Hypervisor().Networks(); err == nil {
 		for _, n := range nets {
 			if n.Name == "default" {
 				in.Upstream = n.HostIP

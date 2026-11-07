@@ -9,8 +9,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-
-	"labs/labctl/internal/virt"
 )
 
 // HostCheck vérifie que l'hôte peut faire tourner les labs : KVM, libvirt, outils, réseau NAT, clé SSH,
@@ -32,7 +30,7 @@ func (l *Lab) HostCheck(out io.Writer, tools ...string) int {
 		f.Close()
 	}
 	chk(err == nil, "/dev/kvm accessible", "sudo usermod -aG kvm $USER")
-	nets, err := virt.Shared().Networks()
+	nets, err := l.Hypervisor().Networks()
 	chk(err == nil, "connexion à libvirt (qemu:///system)", "sudo usermod -aG libvirt $USER (puis reconnexion) ; sudo systemctl enable --now libvirtd.socket")
 	if err == nil {
 		def := l.DefaultNetwork()

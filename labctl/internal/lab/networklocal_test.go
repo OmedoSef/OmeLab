@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/virt/virtfake"
 )
 
 // Anciens fichiers séparés : lus tant que network.local.yaml n'existe pas, migrés au premier enregistrement.
@@ -21,7 +23,7 @@ func writeLegacy(t *testing.T, dir string) {
 func TestNetworkLocalMigration(t *testing.T) {
 	dir := t.TempDir()
 	writeLegacy(t, dir)
-	l := &Lab{Root: dir}
+	l := &Lab{Root: dir, Virt: virtfake.New()}
 	f, err := l.loadNetworkLocal()
 	if err != nil || len(f.Attach) != 1 || len(f.Connections) != 1 {
 		t.Fatalf("lecture des anciens fichiers : %+v %v", f, err)
@@ -51,7 +53,7 @@ func TestNetworkLocalWriteFailureKeepsLegacy(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeLegacy(t, dir)
-	l := &Lab{Root: dir}
+	l := &Lab{Root: dir, Virt: virtfake.New()}
 	f, err := l.loadNetworkLocal()
 	if err != nil {
 		t.Fatal(err)

@@ -59,7 +59,7 @@ func labCmd(l *lab.Lab) *cobra.Command {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		g, _ := lab.LabGroups()
+		g, _ := l.LabGroups()
 		return sortedKeys(g), cobra.ShellCompDirectiveNoFileComp
 	}
 	one := func(use, short string, f func(string) error) *cobra.Command {
@@ -68,7 +68,7 @@ func labCmd(l *lab.Lab) *cobra.Command {
 	}
 	c.AddCommand(&cobra.Command{Use: "list", Short: "Labs existants et nombre de VMs", Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			g, err := lab.LabGroups()
+			g, err := l.LabGroups()
 			if err != nil {
 				return err
 			}
@@ -82,20 +82,20 @@ func labCmd(l *lab.Lab) *cobra.Command {
 			return tw.Flush()
 		}},
 		one("status", "VMs du lab, état et IP", func(name string) error {
-			vms, err := lab.LabVMs(name)
+			vms, err := l.LabVMs(name)
 			if err != nil {
 				return err
 			}
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "VM\tÉTAT\tIP\tSNAPSHOTS")
 			for _, vm := range vms {
-				ip, st := "-", lab.DomState(vm)
+				ip, st := "-", l.DomState(vm)
 				if st == virt.StateRunning {
 					if a := l.VMIP(vm); a != "" {
 						ip = a
 					}
 				}
-				snaps := strings.Join(lab.SnapshotsOf(vm), ",")
+				snaps := strings.Join(l.SnapshotsOf(vm), ",")
 				if snaps == "" {
 					snaps = "-"
 				}
@@ -103,17 +103,17 @@ func labCmd(l *lab.Lab) *cobra.Command {
 			}
 			return tw.Flush()
 		}),
-		one("up", "Démarre toutes les VMs du lab", func(n string) error { return lab.LabUp(n, os.Stdout) }),
-		one("down", "Arrête toutes les VMs du lab (ACPI, coupure après 120 s)", func(n string) error { return lab.LabDown(n, os.Stdout) }),
+		one("up", "Démarre toutes les VMs du lab", func(n string) error { return l.LabUp(n, os.Stdout) }),
+		one("down", "Arrête toutes les VMs du lab (ACPI, coupure après 120 s)", func(n string) error { return l.LabDown(n, os.Stdout) }),
 		&cobra.Command{Use: "snapshot LAB NOM", Short: "Snapshot de chaque VM du lab", Args: cobra.ExactArgs(2), ValidArgsFunction: labs,
-			RunE: func(_ *cobra.Command, a []string) error { return lab.LabSnapshot(a[0], a[1], false, os.Stdout) }},
+			RunE: func(_ *cobra.Command, a []string) error { return l.LabSnapshot(a[0], a[1], false, os.Stdout) }},
 		&cobra.Command{Use: "revert LAB NOM", Short: "Restaure chaque VM du lab au snapshot NOM", Args: cobra.ExactArgs(2), ValidArgsFunction: labs,
-			RunE: func(_ *cobra.Command, a []string) error { return lab.LabSnapshot(a[0], a[1], true, os.Stdout) }},
+			RunE: func(_ *cobra.Command, a []string) error { return l.LabSnapshot(a[0], a[1], true, os.Stdout) }},
 	)
 	var yes bool
 	destroy := &cobra.Command{Use: "destroy LAB", Short: "Supprime toutes les VMs du lab", Args: cobra.ExactArgs(1), ValidArgsFunction: labs,
 		RunE: func(_ *cobra.Command, a []string) error {
-			vms, err := lab.LabVMs(a[0])
+			vms, err := l.LabVMs(a[0])
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func vmKeyboardCmd(l *lab.Lab) *cobra.Command {
 		Long: `Règle la disposition du clavier (console et interface graphique) de VMs existantes : par SSH avec
 l'utilisateur des labs si possible, sinon par l'agent invité QEMU (VMs sans SSH par clé, ex. Kali). L'interface
 graphique prend le nouveau clavier à la prochaine ouverture de session (ou au redémarrage).`,
-		Args: cobra.MinimumNArgs(1), ValidArgsFunction: vmNames,
+		Args: cobra.MinimumNArgs(1), ValidArgsFunction: vmNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
 			var errs []error
 			for _, vm := range args {

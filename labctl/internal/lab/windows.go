@@ -335,7 +335,7 @@ func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
 // windowsInstall suit l'installation lancée par CreateVM : touche pour démarrer sur le DVD, attente de l'arrêt
 // par le script de fin, retrait des lecteurs, redémarrage, attente de SSH, puis files: et run:.
 func (r *run) windowsInstall(vm string, e module.Effective) error {
-	lv, v := r.libvirtName(vm), virt.Shared()
+	lv, v := r.libvirtName(vm), r.l.Hypervisor()
 	// « Press any key to boot from CD or DVD » : Entrée pendant 30 s (sans effet une fois Setup lancé)
 	for i := 0; i < 30; i++ {
 		_ = v.SendKey(lv, 28) // KEY_ENTER
@@ -343,7 +343,7 @@ func (r *run) windowsInstall(vm string, e module.Effective) error {
 	}
 	r.logf("==> Installation de Windows (%s) : 15 à 40 min ; console : virt-viewer -c qemu:///system %s", e.VM.Windows.Edition, lv)
 	start := time.Now()
-	for DomState(lv) == virt.StateRunning {
+	for r.l.DomState(lv) == virt.StateRunning {
 		if time.Since(start) > windowsInstallTimeout {
 			return fmt.Errorf("installation non terminée au bout de %s : voir la console (virt-viewer -c qemu:///system %s)", windowsInstallTimeout, lv)
 		}
@@ -406,7 +406,7 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 		}
 		if strings.TrimSpace(cmd) == "reboot" {
 			r.logf("==> redémarrage de %s", vm)
-			if err := virt.Shared().RebootDomain(r.libvirtName(vm)); err != nil {
+			if err := r.l.Hypervisor().RebootDomain(r.libvirtName(vm)); err != nil {
 				return err
 			}
 			time.Sleep(30 * time.Second)

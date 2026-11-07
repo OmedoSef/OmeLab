@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/virt/virtfake"
 )
 
 // testLab crée une arborescence Labs minimale avec deux modules.
@@ -28,7 +29,7 @@ func testLab(t *testing.T) *Lab {
 		}
 	}
 	t.Setenv("LABS_PKI_DOMAIN", "omedo.lab")
-	return &Lab{Root: root}
+	return &Lab{Root: root, Virt: virtfake.New()}
 }
 
 func TestConfEdits(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 // VMIP renvoie la première IPv4 d'une VM : bail DHCP libvirt, agent invité, ARP, puis baux de la passerelle
 // core (réseaux des modules, dont le DHCP est sur core-gw). "" si aucune.
 func (l *Lab) VMIP(name string) string {
-	v := virt.Shared()
+	v := l.Hypervisor()
 	if ip := v.IPv4(name); ip != "" {
 		return ip
 	}

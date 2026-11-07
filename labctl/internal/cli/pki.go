@@ -230,7 +230,7 @@ usages, même durée) les certificats concernés. La PKI est d'abord archivée d
 				if trustVMs {
 					var running []string
 					for _, vm := range l.AllVMNames() {
-						if lab.DomState(vm) == virt.StateRunning {
+						if l.DomState(vm) == virt.StateRunning {
 							running = append(running, vm)
 						}
 					}

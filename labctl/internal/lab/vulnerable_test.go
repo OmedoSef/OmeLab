@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/virt/virtfake"
 )
 
 // Lab de test : un module vulnérable dont le module.yaml a été modifié à la main (connexion et lien sortants,
@@ -29,7 +31,7 @@ func vulnerableLab(t *testing.T) *Lab {
 		"connections:\n  - {to: internet}\nvms:\n  web: {ip: 30}\n")
 	write("good", "module: good\nnetwork: {subnet: 10.81.81.0/24}\nvms:\n  srv: {ip: 10}\n")
 	t.Setenv("LABS_PKI_DOMAIN", "omelab.internal")
-	return &Lab{Root: root}
+	return &Lab{Root: root, Virt: virtfake.New()}
 }
 
 // « core internet on » est refusé pour un module vulnérable, avant tout accès à la passerelle.

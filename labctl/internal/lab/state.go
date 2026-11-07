@@ -14,13 +14,13 @@ import (
 const GatewayVM = "core-gw"
 
 // DomState renvoie l'état libvirt d'une VM : running, shut off... ou "absente".
-func DomState(name string) string { return virt.Shared().State(name) }
+func (l *Lab) DomState(name string) string { return l.Hypervisor().State(name) }
 
 // SnapshotsOf renvoie les noms des snapshots d'une VM libvirt.
-func SnapshotsOf(name string) []string { return virt.Shared().SnapshotNames(name) }
+func (l *Lab) SnapshotsOf(name string) []string { return l.Hypervisor().SnapshotNames(name) }
 
 // NetActive indique si un réseau libvirt est actif.
-func NetActive(name string) bool { return virt.Shared().NetActive(name) }
+func (l *Lab) NetActive(name string) bool { return l.Hypervisor().NetActive(name) }
 
 // --- Complétion
 
@@ -53,7 +53,7 @@ func (l *Lab) VMs(module string) []string {
 
 // Snapshots liste les snapshots d'une VM de module.
 func (l *Lab) Snapshots(module, vm string) []string {
-	return SnapshotsOf(module + "-" + vm)
+	return l.SnapshotsOf(module + "-" + vm)
 }
 
 // --- État complet (GUI, labctl status)
@@ -113,7 +113,7 @@ func (l *Lab) Status() (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	st := &State{Gateway: GatewayState{State: DomState(GatewayVM)}}
+	st := &State{Gateway: GatewayState{State: l.DomState(GatewayVM)}}
 	internet := map[string]InternetState{}
 	if st.Gateway.State == virt.StateRunning {
 		internet = l.internetStatus()
@@ -137,7 +137,7 @@ func (l *Lab) Status() (*State, error) {
 				open[vm] = true
 			}
 		}
-		ms.NetActive = NetActive(m.Env.Net)
+		ms.NetActive = l.NetActive(m.Env.Net)
 
 		vms := l.VMs(m.Name)
 		ms.VMs = make([]VMState, len(vms))
@@ -153,9 +153,9 @@ func (l *Lab) Status() (*State, error) {
 				noNet := slices.Contains(m.Env.NoInternet, vm)
 				ms.VMs[i] = VMState{
 					Name: vm, Libvirt: m.LibvirtName(vm), IP: ip,
-					State: DomState(m.LibvirtName(vm)), NoInternet: noNet,
+					State: l.DomState(m.LibvirtName(vm)), NoInternet: noNet,
 					Internet:  !noNet && (ms.InternetAll || open[vm]),
-					Snapshots: SnapshotsOf(m.LibvirtName(vm)),
+					Snapshots: l.SnapshotsOf(m.LibvirtName(vm)),
 				}
 			}()
 		}
@@ -166,8 +166,8 @@ func (l *Lab) Status() (*State, error) {
 		}
 		for name, ref := range m.Conf.Attached {
 			lv := strings.Replace(ref, "/", "-", 1)
-			a := AttachedState{Name: name, From: ref, Libvirt: lv, IP: m.Env.Subnet + "." + strconv.Itoa(m.Conf.Hosts[name]), State: DomState(lv), Local: localRef[strings.ToLower(ref)]}
-			if ifs, err := virt.Shared().Interfaces(lv); err == nil && m.Conf.HostMACs[name] != "" {
+			a := AttachedState{Name: name, From: ref, Libvirt: lv, IP: m.Env.Subnet + "." + strconv.Itoa(m.Conf.Hosts[name]), State: l.DomState(lv), Local: localRef[strings.ToLower(ref)]}
+			if ifs, err := l.Hypervisor().Interfaces(lv); err == nil && m.Conf.HostMACs[name] != "" {
 				for _, it := range ifs {
 					a.Plugged = a.Plugged || strings.EqualFold(it.MAC, m.Conf.HostMACs[name])
 				}

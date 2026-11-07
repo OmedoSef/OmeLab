@@ -69,18 +69,18 @@ echo '@labctl'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl --versio
 
 // Core lit l'état détaillé de la passerelle.
 func (l *Lab) Core() *CoreState {
-	cs := &CoreState{State: DomState(GatewayVM)}
+	cs := &CoreState{State: l.DomState(GatewayVM)}
 	if cs.State == virt.StateAbsent {
 		return cs
 	}
-	if ifs, err := virt.Shared().Interfaces(GatewayVM); err == nil {
+	if ifs, err := l.Hypervisor().Interfaces(GatewayVM); err == nil {
 		for _, i := range ifs {
 			if i.Type == "network" {
 				cs.Networks = append(cs.Networks, i.Network)
 			}
 		}
 	}
-	cs.WAN = virt.Shared().IPv4(GatewayVM)
+	cs.WAN = l.Hypervisor().IPv4(GatewayVM)
 	if cs.State != virt.StateRunning {
 		return cs
 	}

@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/virt/virtfake"
 )
 
 func TestLocalAttachRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	l := &Lab{Root: dir}
+	l := &Lab{Root: dir, Virt: virtfake.New()}
 
 	// Ajout de deux branchements locaux sur des modules cibles différents.
 	if err := l.AddLocalAttach("pjpt", "attacker/kali", 50); err != nil {

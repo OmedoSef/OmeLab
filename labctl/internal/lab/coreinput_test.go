@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/virt/virtfake"
 )
 
 // Un module déposé dans modules/ mais jamais validé ni lancé ne doit rien pouvoir injecter dans la configuration
@@ -29,7 +30,7 @@ func TestCoreInputSkipsUnsafeModule(t *testing.T) {
 	// Nom de VM piégé (clé YAML entre guillemets) : fermerait la chaîne nft et réécrirait le pare-feu
 	write("evil", "module: evil\nnetwork: {subnet: 10.71.71.0/24}\nvms:\n  \"a\\n}\\nflush chain inet gw forward\\n\": {ip: 10}\n")
 	t.Setenv("LABS_PKI_DOMAIN", "omelab.internal")
-	l := &Lab{Root: root}
+	l := &Lab{Root: root, Virt: virtfake.New()}
 
 	in, err := l.CoreInput()
 	if err != nil {

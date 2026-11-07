@@ -18,13 +18,16 @@ import (
 	"labs/labctl/internal/virt"
 )
 
-func vmNames(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	doms, _ := virt.Shared().Domains()
-	out := make([]string, len(doms))
-	for i, d := range doms {
-		out[i] = d.Name
+// vmNames complète avec les noms connus de l'hyperviseur du lab.
+func vmNames(l *lab.Lab) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		doms, _ := l.Hypervisor().Domains()
+		out := make([]string, len(doms))
+		for i, d := range doms {
+			out[i] = d.Name
+		}
+		return out, cobra.ShellCompDirectiveNoFileComp
 	}
-	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
 func vmCmd(l *lab.Lab) *cobra.Command {
@@ -37,7 +40,7 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 		Short: "Liste les VMs avec leur état, leur lab et leur IP",
 		Args:  cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(*cobra.Command, []string) error {
-			doms, err := virt.Shared().Domains()
+			doms, err := l.Hypervisor().Domains()
 			if err != nil {
 				return err
 			}
@@ -81,9 +84,9 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 	ip := &cobra.Command{
 		Use:   "ip VM",
 		Short: "Affiche l'IP d'une VM (bail DHCP, agent invité, ARP, baux de la passerelle)",
-		Args:  cobra.ExactArgs(1), ValidArgsFunction: vmNames,
+		Args:  cobra.ExactArgs(1), ValidArgsFunction: vmNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
-			if virt.Shared().State(args[0]) == virt.StateAbsent {
+			if l.Hypervisor().State(args[0]) == virt.StateAbsent {
 				return fmt.Errorf("VM inconnue : %s", args[0])
 			}
 			addr := ""
@@ -102,7 +105,7 @@ func vmCmd(l *lab.Lab) *cobra.Command {
 	ip.Flags().IntVarP(&wait, "wait", "w", 0, "attendre jusqu'à N secondes qu'elle en ait une")
 	c.AddCommand(ip)
 
-	c.AddCommand(snapshotCmd(), vmCreateCmd(l), vmDestroyCmd(l), vmSSHCmd(l), vmKeyboardCmd(l))
+	c.AddCommand(snapshotCmd(l), vmCreateCmd(l), vmDestroyCmd(l), vmSSHCmd(l), vmKeyboardCmd(l))
 	return c
 }
 
@@ -177,7 +180,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 	f.BoolVarP(&wait, "wait", "w", false, "attendre la fin de cloud-init")
 	f.BoolVar(&dry, "dry-run", false, "afficher cloud-init et la définition libvirt sans rien créer")
 	_ = c.RegisterFlagCompletionFunc("image", cobra.FixedCompletions(lab.ImageNames(), cobra.ShellCompDirectiveNoFileComp))
-	_ = c.RegisterFlagCompletionFunc("net", netNames)
+	_ = c.RegisterFlagCompletionFunc("net", netNames(l))
 	return c
 }
 
@@ -190,7 +193,7 @@ func vmDestroyCmd(l *lab.Lab) *cobra.Command {
 sur la passerelle. Une VM non créée par les scripts est refusée sauf --force (ses disques hors du dossier
 des VMs sont alors conservés). ASSUME_YES=1 équivaut à -y.`,
 		Args:              cobra.MinimumNArgs(1),
-		ValidArgsFunction: vmNames,
+		ValidArgsFunction: vmNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
 			yes = yes || os.Getenv("ASSUME_YES") == "1"
 			var failed []string
@@ -220,7 +223,7 @@ func vmSSHCmd(l *lab.Lab) *cobra.Command {
 		Use:                   "ssh [-u USER] VM [commande...]",
 		Short:                 "SSH vers une VM par son nom (sans alimenter known_hosts)",
 		Args:                  cobra.MinimumNArgs(1),
-		ValidArgsFunction:     vmNames,
+		ValidArgsFunction:     vmNames(l),
 		DisableFlagsInUseLine: true,
 		RunE: func(_ *cobra.Command, args []string) error {
 			ip := l.WaitVMIP(args[0], 60)
@@ -297,11 +300,11 @@ func imageCmd(l *lab.Lab) *cobra.Command {
 	return c
 }
 
-func snapshotCmd() *cobra.Command {
-	v := virt.Shared()
+func snapshotCmd(l *lab.Lab) *cobra.Command {
+	v := l.Hypervisor()
 	snapNames := func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) == 0 {
-			return vmNames(nil, nil, "")
+			return vmNames(l)(nil, nil, "")
 		}
 		if len(args) == 1 {
 			return v.SnapshotNames(args[0]), cobra.ShellCompDirectiveNoFileComp
@@ -312,7 +315,7 @@ func snapshotCmd() *cobra.Command {
 	c.AddCommand(&cobra.Command{
 		Use:   "create VM NOM [description]",
 		Short: "Prend un snapshot",
-		Args:  cobra.RangeArgs(2, 3), ValidArgsFunction: vmNames,
+		Args:  cobra.RangeArgs(2, 3), ValidArgsFunction: vmNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
 			desc := ""
 			if len(args) == 3 {
@@ -328,7 +331,7 @@ func snapshotCmd() *cobra.Command {
 	c.AddCommand(&cobra.Command{
 		Use:   "list VM",
 		Short: "Liste les snapshots d'une VM",
-		Args:  cobra.ExactArgs(1), ValidArgsFunction: vmNames,
+		Args:  cobra.ExactArgs(1), ValidArgsFunction: vmNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
 			snaps, err := v.Snapshots(args[0])
 			if err != nil {

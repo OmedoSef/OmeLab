@@ -55,7 +55,7 @@ func (l *Lab) mitmTarball(g *Gateway) (string, error) {
 // gatewayMemory porte la mémoire de la passerelle à GatewayProxyMiB (redémarrage : les modules perdent DHCP,
 // DNS et Internet une trentaine de secondes).
 func (g *Gateway) gatewayMemory() error {
-	v := virt.Shared()
+	v := g.l.Hypervisor()
 	cpus, mem, err := v.Resources(GatewayVM)
 	if err != nil || mem >= GatewayProxyMiB {
 		return err
@@ -70,7 +70,7 @@ func (g *Gateway) gatewayMemory() error {
 	if err := v.ShutdownDomain(GatewayVM); err != nil {
 		return err
 	}
-	for t := 0; DomState(GatewayVM) == virt.StateRunning; t++ {
+	for t := 0; g.l.DomState(GatewayVM) == virt.StateRunning; t++ {
 		if t > 90 {
 			return fmt.Errorf("la passerelle ne s'arrête pas : labctl core stop puis start")
 		}
@@ -93,7 +93,7 @@ func (g *Gateway) ensureProxy(files coreconf.Files) error {
 		_, err := g.SSH("if systemctl is-enabled -q gwproxy 2>/dev/null; then sudo systemctl disable -q --now gwproxy; fi", nil)
 		return err
 	}
-	if _, mem, err := virt.Shared().Resources(GatewayVM); err == nil && mem < GatewayProxyMiB {
+	if _, mem, err := g.l.Hypervisor().Resources(GatewayVM); err == nil && mem < GatewayProxyMiB {
 		g.logf("attention: passerelle à %d Mio : %d conseillés pour le proxy (labctl core update)", mem, GatewayProxyMiB)
 	}
 	if out, _ := g.sshOut("cat /opt/mitmproxy/VERSION 2>/dev/null"); strings.TrimSpace(string(out)) != mitmVersion {

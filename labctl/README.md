@@ -175,7 +175,8 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | `cmd/labctl/` | point d'entrée |
 | `internal/module/` | modules déclaratifs : lecture stricte du `module.yaml`, valeurs effectives, variables, validateur, édition préservant la mise en forme |
 | `internal/lab/` | découverte des modules, lecture des `module.yaml` (et anciens `module.env`) / aide, état libvirt, état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
-| `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique |
+| `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique ; interface `Hypervisor` (`hypervisor.go`) par laquelle passe tout le reste de labctl (`Lab.Hypervisor()`) |
+| `internal/virt/virtfake/` | faux libvirt en mémoire pour les tests du moteur (`internal/lab/engine_test.go` : up, plan, start/stop, snapshots, destroy, status) |
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"labs/labctl/internal/module"
-	"labs/labctl/internal/virt"
 )
 
 // Les modules déclaratifs (module.yaml) sont la source de vérité. Env (vue réseau) et Conf (réservations,
@@ -112,7 +111,7 @@ func (l *Lab) ModuleContext(name string) module.Context {
 		ctx.Used = append(ctx.Used, module.NetInfo{Owner: "module " + m.Name, Name: m.Env.Net, Subnet: p, Domain: m.Env.Domain})
 	}
 	// Réseaux libvirt qui n'appartiennent à aucun module (default...)
-	if nets, err := virt.Shared().Networks(); err == nil {
+	if nets, err := l.Hypervisor().Networks(); err == nil {
 		for _, n := range nets {
 			if moduleNets[n.Name] {
 				continue

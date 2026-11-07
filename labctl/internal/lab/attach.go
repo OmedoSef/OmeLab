@@ -118,12 +118,12 @@ func (l *Lab) DetachVM(on, vm string, out io.Writer) error {
 	}
 	owner, ovm, _ := strings.Cut(vm, "/")
 	lv := owner + "-" + ovm
-	if mac != "" && DomState(lv) != virt.StateAbsent {
-		v := virt.Shared()
+	if mac != "" && l.DomState(lv) != virt.StateAbsent {
+		v := l.Hypervisor()
 		if ifs, err := v.Interfaces(lv); err == nil {
 			for _, it := range ifs {
 				if strings.EqualFold(it.MAC, mac) {
-					if err := v.DetachInterface(lv, mac, DomState(lv) == virt.StateRunning); err != nil {
+					if err := v.DetachInterface(lv, mac, l.DomState(lv) == virt.StateRunning); err != nil {
 						return fmt.Errorf("carte de %s : %w", lv, err)
 					}
 				}
@@ -170,11 +170,11 @@ func (l *Lab) attachmentsOf(owner, vm string) []attachment {
 // ensureAttach branche sur le réseau du module les VMs qu'il accueille (MAC générée et écrite au premier
 // branchement). Une VM absente est signalée : elle se crée dans son propre module.
 func (r *run) ensureAttach() error {
-	v := virt.Shared()
+	v := r.l.Hypervisor()
 	for i, a := range r.y.Attach {
 		owner, vm := a.Split()
 		lv := owner + "-" + vm
-		if DomState(lv) == virt.StateAbsent {
+		if r.l.DomState(lv) == virt.StateAbsent {
 			r.logf("attention: %s absente : la créer d'abord (labctl %s up %s), puis labctl %s up", lv, owner, vm, r.y.Module)
 			continue
 		}
@@ -217,7 +217,7 @@ func (r *run) ensureAttach() error {
 		if model == "" {
 			continue // déjà branchée
 		}
-		if err := v.AttachInterface(lv, r.y.NetworkName(), mac, model, DomState(lv) == virt.StateRunning); err != nil {
+		if err := v.AttachInterface(lv, r.y.NetworkName(), mac, model, r.l.DomState(lv) == virt.StateRunning); err != nil {
 			return fmt.Errorf("carte de %s sur %s : %w", lv, r.y.NetworkName(), err)
 		}
 		r.logf("ok  %s branchée sur %s (.%d, sans route par défaut)", lv, r.y.NetworkName(), a.IP)
@@ -227,11 +227,11 @@ func (r *run) ensureAttach() error {
 
 // detachAll retire des VMs accueillies leur carte sur le réseau du module (avant sa suppression).
 func (r *run) detachAll() error {
-	v := virt.Shared()
+	v := r.l.Hypervisor()
 	for _, a := range r.y.Attach {
 		owner, vm := a.Split()
 		lv := owner + "-" + vm
-		if DomState(lv) == virt.StateAbsent || a.MAC == "" {
+		if r.l.DomState(lv) == virt.StateAbsent || a.MAC == "" {
 			continue
 		}
 		ifs, err := v.Interfaces(lv)
@@ -240,7 +240,7 @@ func (r *run) detachAll() error {
 		}
 		for _, it := range ifs {
 			if strings.EqualFold(it.MAC, a.MAC) {
-				if err := v.DetachInterface(lv, a.MAC, DomState(lv) == virt.StateRunning); err != nil {
+				if err := v.DetachInterface(lv, a.MAC, r.l.DomState(lv) == virt.StateRunning); err != nil {
 					return fmt.Errorf("carte de %s sur %s : %w", lv, r.y.NetworkName(), err)
 				}
 				r.logf("ok  %s débranchée de %s", lv, r.y.NetworkName())

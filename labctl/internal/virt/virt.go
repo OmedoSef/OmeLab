@@ -200,17 +200,23 @@ func (c *Conn) Interfaces(name string) ([]Interface, error) {
 		if err != nil {
 			return err
 		}
-		var dx domainXML
-		if err := xml.Unmarshal([]byte(x), &dx); err != nil {
-			return err
-		}
-		out = nil
-		for _, i := range dx.Interfaces {
-			out = append(out, Interface{Type: i.Type, Network: i.Source.Network, MAC: strings.ToLower(i.MAC.Address), Model: i.Model.Type})
-		}
-		return nil
+		out, err = InterfacesFromXML(x)
+		return err
 	})
 	return out, err
+}
+
+// InterfacesFromXML lit les cartes réseau d'une définition de domaine.
+func InterfacesFromXML(x string) ([]Interface, error) {
+	var dx domainXML
+	if err := xml.Unmarshal([]byte(x), &dx); err != nil {
+		return nil, err
+	}
+	var out []Interface
+	for _, i := range dx.Interfaces {
+		out = append(out, Interface{Type: i.Type, Network: i.Source.Network, MAC: strings.ToLower(i.MAC.Address), Model: i.Model.Type})
+	}
+	return out, nil
 }
 
 // Address est une adresse IPv4 vue par libvirt.

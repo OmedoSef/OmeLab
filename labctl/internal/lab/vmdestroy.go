@@ -20,7 +20,7 @@ func (l *Lab) DestroyVM(name string, force bool, out io.Writer) error {
 
 // destroyVM : purge supprime aussi les disques rangés dans un pool libvirt (VMs de module d'avant labctl).
 func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
-	v := virt.Shared()
+	v := l.Hypervisor()
 	state := v.State(name)
 	if state == virt.StateAbsent {
 		return fmt.Errorf("%s n'existe pas", name)
@@ -78,10 +78,10 @@ func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
 // releaseLeases libère sur la passerelle core les baux DHCP de ces MAC : l'IP redevient libre et le nom
 // DNS disparaît tout de suite. Sans passerelle démarrée : rien à faire.
 func (l *Lab) releaseLeases(macs []string, out io.Writer) {
-	if len(macs) == 0 || virt.Shared().State(GatewayVM) != virt.StateRunning {
+	if len(macs) == 0 || l.Hypervisor().State(GatewayVM) != virt.StateRunning {
 		return
 	}
-	gw := virt.Shared().IPv4(GatewayVM)
+	gw := l.Hypervisor().IPv4(GatewayVM)
 	if gw == "" {
 		return
 	}

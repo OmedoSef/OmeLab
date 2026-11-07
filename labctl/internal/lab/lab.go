@@ -14,15 +14,27 @@ import (
 	"syscall"
 
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/virt"
 )
 
 // Lab est la racine d'une arborescence Labs (dossier contenant config.env et modules/).
 type Lab struct {
 	Root    string
 	Verbose bool // affiche sur stderr les commandes lancées
+	// Virt est l'hyperviseur ; nil = libvirt (connexion commune au processus). Les tests y mettent un faux
+	// (virt/virtfake).
+	Virt virt.Hypervisor
 
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
 	labVarsDone  bool
+}
+
+// Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).
+func (l *Lab) Hypervisor() virt.Hypervisor {
+	if l.Virt != nil {
+		return l.Virt
+	}
+	return virt.Shared()
 }
 
 // Find localise la racine : $LABS_ROOT (posé par activate), sinon en remontant depuis l'exécutable,

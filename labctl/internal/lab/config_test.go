@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"labs/labctl/internal/virt/virtfake"
 )
 
 func TestSettingExpansion(t *testing.T) {
@@ -17,7 +19,7 @@ LABS_VM_USER="${LABS_VM_USER:-lab}"
 	for _, v := range []string{"LABS_STORAGE_DIR", "LABS_IMAGES_DIR", "LABS_PKI_DIR", "LABS_VM_USER"} {
 		t.Setenv(v, "")
 	}
-	l := &Lab{Root: root}
+	l := &Lab{Root: root, Virt: virtfake.New()}
 	home, _ := os.UserHomeDir()
 	if got := l.Setting("LABS_IMAGES_DIR", ""); got != home+"/Virt/kvm/images" {
 		t.Errorf("développement imbriqué : %q", got)

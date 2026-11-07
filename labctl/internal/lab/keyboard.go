@@ -37,8 +37,8 @@ func (l *Lab) VMKeyboard(name, layout string, out io.Writer) error {
 	if !reLayout.MatchString(layout) {
 		return fmt.Errorf("disposition invalide : %s", layout)
 	}
-	v := virt.Shared()
-	switch DomState(name) {
+	v := l.Hypervisor()
+	switch l.DomState(name) {
 	case virt.StateAbsent:
 		return fmt.Errorf("%s n'existe pas", name)
 	case virt.StateRunning:

@@ -89,7 +89,7 @@ sont signalés, et appliqués avec --apply-changes (vCPU et mémoire ; arrêt pu
 		Args: cobra.RangeArgs(1, 2),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, s string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 1 {
-				return lab.SnapshotsOf(name + "-" + args[0]), cobra.ShellCompDirectiveNoFileComp
+				return l.SnapshotsOf(name + "-" + args[0]), cobra.ShellCompDirectiveNoFileComp
 			}
 			return oneVM(cmd, args, s)
 		},

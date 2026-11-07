@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"labs/labctl/internal/virt/virtfake"
 )
 
 func TestPublicFileNeverServesKeys(t *testing.T) {
@@ -16,7 +18,7 @@ func TestPublicFileNeverServesKeys(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "certs", "web", "bundle.crt"), []byte("-----BEGIN CERTIFICATE-----\n-----BEGIN RSA PRIVATE KEY-----\n"), 0o644)
 	os.WriteFile(filepath.Join(filepath.Dir(dir), "outside.crt"), []byte("-----BEGIN CERTIFICATE-----\n"), 0o644)
 
-	l := &Lab{Root: t.TempDir()}
+	l := &Lab{Root: t.TempDir(), Virt: virtfake.New()}
 	if _, err := l.PublicFile("certs/web/web.crt"); err != nil {
 		t.Errorf("certificat public refusé : %v", err)
 	}

@@ -81,7 +81,7 @@ func (r *run) vmIP(vm string) string {
 	if e := r.eff(vm); e.IP > 0 && r.y.Prefix3() != "" {
 		return fmt.Sprintf("%s.%d", r.y.Prefix3(), e.IP)
 	}
-	if DomState(r.libvirtName(vm)) == virt.StateRunning {
+	if r.l.DomState(r.libvirtName(vm)) == virt.StateRunning {
 		return r.l.VMIP(r.libvirtName(vm))
 	}
 	return ""
@@ -160,7 +160,7 @@ func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
 	}
 	p := func(format string, a ...any) { fmt.Fprintf(out, "  "+format+"\n", a...) }
 	fmt.Fprintf(out, "Plan de « labctl %s up » — rien n'est créé (--dry-run) :\n", name)
-	v := virt.Shared()
+	v := l.Hypervisor()
 
 	// Réseau et branchement de la passerelle
 	switch {
@@ -172,7 +172,7 @@ func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
 		}
 	case !v.NetExists(r.y.NetworkName()):
 		p("réseau     : %s (%s) à créer", r.y.NetworkName(), r.y.Subnet())
-	case DomState(GatewayVM) == virt.StateAbsent:
+	case l.DomState(GatewayVM) == virt.StateAbsent:
 		p("réseau     : %s présent — pas de passerelle (ni DHCP, ni DNS, ni Internet)", r.y.NetworkName())
 	case !r.gatewayAttached():
 		p("réseau     : %s présent, passerelle à brancher dessus", r.y.NetworkName())
@@ -192,7 +192,7 @@ func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
 	// VMs
 	for _, vm := range vms {
 		e := r.eff(vm)
-		if DomState(r.libvirtName(vm)) == virt.StateAbsent {
+		if l.DomState(r.libvirtName(vm)) == virt.StateAbsent {
 			src := "image " + e.Image
 			if e.Source != nil {
 				src = "source éditeur"
@@ -229,7 +229,7 @@ func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
 			}
 		}
 		switch {
-		case DomState(lv) == virt.StateAbsent:
+		case l.DomState(lv) == virt.StateAbsent:
 			p("branchée   : %s absente — à créer dans %s", a.VM, owner)
 		case plugged:
 			p("branchée   : %s déjà posée (.%d)", a.VM, a.IP)
@@ -239,7 +239,7 @@ func (l *Lab) ModulePlan(name string, vms []string, out io.Writer) error {
 	}
 
 	// Passerelle : configuration DHCP/DNS à appliquer
-	if DomState(GatewayVM) == virt.StateRunning {
+	if l.DomState(GatewayVM) == virt.StateRunning {
 		if ch, err := r.l.PendingCoreChanges(); err == nil && len(ch) > 0 {
 			var files []string
 			for _, c := range ch {
@@ -281,7 +281,7 @@ func (r *run) ensureNetwork() error {
 		}
 		r.logf("ok  sous-réseau choisi : %s (écrit dans %s)", p, module.FileName)
 	}
-	v := virt.Shared()
+	v := r.l.Hypervisor()
 	net, prefix := r.y.NetworkName(), r.y.Prefix3()
 	if !v.NetExists(net) {
 		xml := fmt.Sprintf("<network>\n  <name>%s</name>\n  <bridge name='%s' stp='on' delay='0'/>\n  <dns enable='no'/>\n  <ip address='%s.1' netmask='255.255.255.0'/>\n</network>\n",
@@ -313,7 +313,7 @@ func (r *run) ensureNetwork() error {
 	if err := v.StartNetwork(net); err != nil {
 		return fmt.Errorf("démarrage du réseau %s : %w", net, err)
 	}
-	if DomState(GatewayVM) == virt.StateAbsent {
+	if r.l.DomState(GatewayVM) == virt.StateAbsent {
 		r.logf("attention: pas de passerelle %s : ni DHCP, ni DNS, ni Internet pour le module (labctl core gw)", GatewayVM)
 		return nil
 	}
@@ -325,7 +325,7 @@ func (r *run) ensureNetwork() error {
 
 // gatewayAttached indique si la passerelle a une carte sur le réseau du module.
 func (r *run) gatewayAttached() bool {
-	ifs, _ := virt.Shared().Interfaces(GatewayVM)
+	ifs, _ := r.l.Hypervisor().Interfaces(GatewayVM)
 	return slices.ContainsFunc(ifs, func(i Interface) bool { return i.Network == r.y.NetworkName() })
 }
 
@@ -349,7 +349,7 @@ func (r *run) ensureCA() error {
 
 // applyCore applique sur la passerelle la configuration DHCP/DNS si elle a changé.
 func (r *run) applyCore() error {
-	if DomState(GatewayVM) != virt.StateRunning {
+	if r.l.DomState(GatewayVM) != virt.StateRunning {
 		return nil
 	}
 	changes, err := r.l.PendingCoreChanges()
@@ -380,7 +380,7 @@ func (d Diff) String() string {
 
 // diffs compare une VM existante à sa description ; isolation = erreur bloquante.
 func (r *run) diffs(vm string) ([]Diff, error) {
-	v, lv, e := virt.Shared(), r.libvirtName(vm), r.eff(vm)
+	v, lv, e := r.l.Hypervisor(), r.libvirtName(vm), r.eff(vm)
 	ifs, err := v.Interfaces(lv)
 	if err != nil {
 		return nil, err
@@ -428,14 +428,14 @@ func (r *run) diffs(vm string) ([]Diff, error) {
 // ensureVM crée une VM absente, ou reprend une VM existante (écarts signalés ou appliqués).
 func (r *run) ensureVM(vm string, apply bool) error {
 	lv := r.libvirtName(vm)
-	if DomState(lv) != virt.StateAbsent {
+	if r.l.DomState(lv) != virt.StateAbsent {
 		return r.adoptVM(vm, apply)
 	}
 	return r.createVM(vm)
 }
 
 func (r *run) adoptVM(vm string, apply bool) error {
-	v, lv, e := virt.Shared(), r.libvirtName(vm), r.eff(vm)
+	v, lv, e := r.l.Hypervisor(), r.libvirtName(vm), r.eff(vm)
 	ifs, _ := v.Interfaces(lv)
 	// IP fixe sans MAC dans le YAML : on y écrit celle de la VM existante
 	if e.IP > 0 && e.MAC == "" && len(ifs) > 0 {
@@ -454,7 +454,7 @@ func (r *run) adoptVM(vm string, apply bool) error {
 	if err != nil {
 		return err
 	}
-	state := DomState(lv)
+	state := r.l.DomState(lv)
 	var fix []Diff
 	for _, d := range diffs {
 		if d.Fix && apply {
@@ -498,7 +498,7 @@ func (r *run) adoptVM(vm string, apply bool) error {
 
 func (r *run) createVM(vm string) (err error) {
 	lv, e := r.libvirtName(vm), r.eff(vm)
-	if DomState(GatewayVM) != virt.StateRunning {
+	if r.l.DomState(GatewayVM) != virt.StateRunning {
 		return fmt.Errorf("la passerelle %s doit tourner (DHCP du module) : labctl core start", GatewayVM)
 	}
 	// IP fixe : la MAC est choisie maintenant et écrite dans le YAML, pour que la réservation DHCP soit stable
@@ -607,7 +607,7 @@ func (r *run) waitSourceVM(vm string, e module.Effective) {
 		return
 	}
 	r.logf("==> Attente de l'agent invité de %s...", vm)
-	if !waitAgent(lv, 240) {
+	if !r.waitAgent(lv, 240) {
 		r.logf("attention: l'agent invité de %s ne répond pas : clavier non réglé (labctl module %s keyboard %s)", vm, r.y.Module, vm)
 		return
 	}
@@ -629,9 +629,9 @@ func (r *run) waitSSH(vm string, timeout int) bool {
 	return false
 }
 
-func waitAgent(lv string, timeout int) bool {
+func (r *run) waitAgent(lv string, timeout int) bool {
 	for t := 0; t < timeout; t += 3 {
-		if virt.Shared().AgentReady(lv) {
+		if r.l.Hypervisor().AgentReady(lv) {
 			return true
 		}
 		time.Sleep(3 * time.Second)
@@ -649,11 +649,11 @@ func (r *run) keyboard(vm, layout string) error {
 		return err
 	}
 	r.logf("==> Redémarrage de %s pour que l'interface graphique prenne le clavier %s", vm, layout)
-	if err := virt.Shared().RebootDomain(lv); err != nil {
+	if err := r.l.Hypervisor().RebootDomain(lv); err != nil {
 		return err
 	}
 	time.Sleep(10 * time.Second)
-	waitAgent(lv, 180)
+	r.waitAgent(lv, 180)
 	return nil
 }
 
@@ -860,7 +860,7 @@ func (l *Lab) ModuleCerts(name string, vms []string, renew bool, out io.Writer) 
 			continue
 		}
 		n++
-		if DomState(r.libvirtName(vm)) != virt.StateRunning {
+		if l.DomState(r.libvirtName(vm)) != virt.StateRunning {
 			for _, c := range r.y.VMs[vm].Certificates {
 				if _, _, err := r.ensureCert(vm, c, renew); err != nil {
 					errs = append(errs, err)
@@ -890,13 +890,13 @@ func (l *Lab) ModuleStart(name string, vms []string, out io.Writer) error {
 	if vms, err = r.selectVMs(vms); err != nil {
 		return err
 	}
-	v := virt.Shared()
+	v := l.Hypervisor()
 	if err := v.StartNetwork(r.y.NetworkName()); err != nil {
 		return fmt.Errorf("réseau %s : %w (labctl module %s up)", r.y.NetworkName(), err, name)
 	}
 	for _, vm := range vms {
 		lv := r.libvirtName(vm)
-		switch DomState(lv) {
+		switch l.DomState(lv) {
 		case virt.StateAbsent:
 			r.logf("attention: %s n'existe pas (labctl module %s up %s)", vm, name, vm)
 			continue
@@ -925,15 +925,15 @@ func (l *Lab) ModuleStart(name string, vms []string, out io.Writer) error {
 
 // stopVM arrête proprement une VM (ACPI, 90 s) ; force : coupure si elle ne répond pas.
 func (r *run) stopVM(vm string, force bool) error {
-	v, lv := virt.Shared(), r.libvirtName(vm)
-	if DomState(lv) != virt.StateRunning {
+	v, lv := r.l.Hypervisor(), r.libvirtName(vm)
+	if r.l.DomState(lv) != virt.StateRunning {
 		return nil
 	}
 	if err := v.ShutdownDomain(lv); err != nil {
 		return err
 	}
 	for t := 0; t < 90; t += 2 {
-		if DomState(lv) == "shut off" {
+		if r.l.DomState(lv) == "shut off" {
 			return nil
 		}
 		time.Sleep(2 * time.Second)
@@ -956,7 +956,7 @@ func (l *Lab) ModuleStop(name string, vms []string, force bool, out io.Writer) e
 	}
 	var errs []error
 	for _, vm := range vms {
-		if DomState(r.libvirtName(vm)) != virt.StateRunning {
+		if l.DomState(r.libvirtName(vm)) != virt.StateRunning {
 			continue
 		}
 		r.logf("==> Arrêt de %s", vm)
@@ -985,25 +985,25 @@ func (l *Lab) ModuleRestore(name, vm, snap string, out io.Writer) error {
 		return fmt.Errorf("pas de snapshot déclaré pour %s : préciser son nom", vm)
 	}
 	lv := r.libvirtName(vm)
-	if !slices.Contains(SnapshotsOf(lv), snap) {
-		return fmt.Errorf("pas de snapshot %s sur %s (%s)", snap, vm, strings.Join(SnapshotsOf(lv), ", "))
+	if !slices.Contains(l.SnapshotsOf(lv), snap) {
+		return fmt.Errorf("pas de snapshot %s sur %s (%s)", snap, vm, strings.Join(l.SnapshotsOf(lv), ", "))
 	}
-	if err := virt.Shared().StartNetwork(r.y.NetworkName()); err != nil {
+	if err := l.Hypervisor().StartNetwork(r.y.NetworkName()); err != nil {
 		return err
 	}
 	// UEFI : snapshot pris VM arrêtée ; la VM est coupée (son état est abandonné de toute façon), restaurée,
 	// puis redémarrée si elle tournait
-	efiRunning := virt.Shared().IsEFI(lv) && DomState(lv) == virt.StateRunning
+	efiRunning := l.Hypervisor().IsEFI(lv) && l.DomState(lv) == virt.StateRunning
 	if efiRunning {
-		if err := virt.Shared().DestroyDomain(lv); err != nil {
+		if err := l.Hypervisor().DestroyDomain(lv); err != nil {
 			return err
 		}
 	}
-	if err := virt.Shared().RevertSnapshot(lv, snap); err != nil {
+	if err := l.Hypervisor().RevertSnapshot(lv, snap); err != nil {
 		return err
 	}
 	if efiRunning {
-		if err := virt.Shared().StartDomain(lv); err != nil {
+		if err := l.Hypervisor().StartDomain(lv); err != nil {
 			return err
 		}
 	}
@@ -1029,11 +1029,11 @@ func (l *Lab) ModuleSnapshot(name, vm, snap string, replace bool, out io.Writer)
 	if snap == "" {
 		snap = "clean"
 	}
-	lv, v := r.libvirtName(vm), virt.Shared()
-	if DomState(lv) == virt.StateAbsent {
+	lv, v := r.libvirtName(vm), l.Hypervisor()
+	if l.DomState(lv) == virt.StateAbsent {
 		return fmt.Errorf("%s n'existe pas", vm)
 	}
-	if slices.Contains(SnapshotsOf(lv), snap) {
+	if slices.Contains(l.SnapshotsOf(lv), snap) {
 		if !replace {
 			return fmt.Errorf("le snapshot %s existe déjà sur %s", snap, vm)
 		}
@@ -1051,8 +1051,8 @@ func (l *Lab) ModuleSnapshot(name, vm, snap string, replace bool, out io.Writer)
 // takeSnapshot prend un snapshot interne. Avec un firmware UEFI (pflash), libvirt ne le permet que VM arrêtée :
 // la VM est alors arrêtée (ACPI ; coupure si force), photographiée, puis redémarrée.
 func (r *run) takeSnapshot(vm, snap, desc string, force bool) error {
-	lv, v := r.libvirtName(vm), virt.Shared()
-	if !v.IsEFI(lv) || DomState(lv) != virt.StateRunning {
+	lv, v := r.libvirtName(vm), r.l.Hypervisor()
+	if !v.IsEFI(lv) || r.l.DomState(lv) != virt.StateRunning {
 		return v.CreateSnapshot(lv, snap, desc)
 	}
 	r.logf("==> %s (UEFI) arrêtée le temps du snapshot", vm)
@@ -1074,7 +1074,7 @@ func (l *Lab) ModuleKeyboard(name, vm, layout string, out io.Writer) error {
 	if _, err := r.selectVMs([]string{vm}); err != nil {
 		return err
 	}
-	if DomState(r.libvirtName(vm)) != virt.StateRunning {
+	if l.DomState(r.libvirtName(vm)) != virt.StateRunning {
 		return fmt.Errorf("%s n'est pas démarrée", vm)
 	}
 	return r.keyboard(vm, layout)
@@ -1093,7 +1093,7 @@ func (l *Lab) ModuleDestroy(name string, vms []string, out io.Writer) error {
 	}
 	var errs []error
 	for _, vm := range vms {
-		if DomState(r.libvirtName(vm)) == virt.StateAbsent {
+		if l.DomState(r.libvirtName(vm)) == virt.StateAbsent {
 			continue
 		}
 		if err := l.destroyVM(r.libvirtName(vm), false, true, r.out); err != nil {
@@ -1103,14 +1103,14 @@ func (l *Lab) ModuleDestroy(name string, vms []string, out io.Writer) error {
 	if !all || len(errs) > 0 {
 		return errors.Join(errs...)
 	}
-	v, net := virt.Shared(), r.y.NetworkName()
+	v, net := l.Hypervisor(), r.y.NetworkName()
 	if !v.NetExists(net) {
 		return nil
 	}
 	if err := r.detachAll(); err != nil {
 		return err
 	}
-	if DomState(GatewayVM) != virt.StateAbsent && r.gatewayAttached() {
+	if l.DomState(GatewayVM) != virt.StateAbsent && r.gatewayAttached() {
 		if err := r.l.Gateway(r.out).Detach(name); err != nil {
 			return err
 		}
@@ -1168,8 +1168,8 @@ func (l *Lab) ModuleStatus(name string) (*ModuleStatus, error) {
 		return nil, fmt.Errorf("le module %s n'a pas de %s", name, module.FileName)
 	}
 	r := &run{l: l, y: m.YAML, out: io.Discard}
-	v := virt.Shared()
-	st := &ModuleStatus{Name: name, Network: r.y.NetworkName(), Domain: r.domain(), Gateway: DomState(GatewayVM), NetState: "absent"}
+	v := l.Hypervisor()
+	st := &ModuleStatus{Name: name, Network: r.y.NetworkName(), Domain: r.domain(), Gateway: l.DomState(GatewayVM), NetState: "absent"}
 	if p := r.y.Subnet(); p.IsValid() {
 		st.Subnet = p.String()
 	}
@@ -1192,10 +1192,10 @@ func (l *Lab) ModuleStatus(name string) (*ModuleStatus, error) {
 	}
 	for _, vm := range r.y.VMNames() {
 		e, lv := r.eff(vm), r.libvirtName(vm)
-		vs := ModuleVMStatus{Name: vm, Libvirt: lv, Role: e.Role, State: DomState(lv), Snapshot: e.Snapshot, Diffs: []Diff{}, Problems: []string{}}
+		vs := ModuleVMStatus{Name: vm, Libvirt: lv, Role: e.Role, State: l.DomState(lv), Snapshot: e.Snapshot, Diffs: []Diff{}, Problems: []string{}}
 		if vs.State != virt.StateAbsent {
 			vs.IP = r.vmIP(vm)
-			vs.Snapshots = SnapshotsOf(lv)
+			vs.Snapshots = l.SnapshotsOf(lv)
 			diffs, err := r.diffs(vm)
 			if err != nil {
 				vs.Problems = append(vs.Problems, err.Error())
@@ -1249,7 +1249,7 @@ func (l *Lab) ModuleCheck(name string, out io.Writer) error {
 	if r.y.PKI != nil {
 		chk(l.PKITool(io.Discard).Initialized(), "PKI des labs initialisée", "labctl pki init")
 	}
-	chk(DomState(GatewayVM) != virt.StateAbsent, "passerelle "+GatewayVM+" (DHCP, DNS, Internet des modules)", "labctl core gw")
+	chk(l.DomState(GatewayVM) != virt.StateAbsent, "passerelle "+GatewayVM+" (DHCP, DNS, Internet des modules)", "labctl core gw")
 	if out, err := exec.Command("df", "-BG", "--output=avail", l.VMDir()+"/..").Output(); err == nil {
 		var gb int
 		fmt.Sscanf(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(string(out)), "Avail")), "%dG", &gb)

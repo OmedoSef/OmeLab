@@ -11,20 +11,22 @@ import (
 	"github.com/spf13/cobra"
 
 	"labs/labctl/internal/lab"
-	"labs/labctl/internal/virt"
 )
 
-func netNames(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	nets, _ := virt.Shared().Networks()
-	out := make([]string, len(nets))
-	for i, n := range nets {
-		out[i] = n.Name
+// netNames complète avec les noms connus de l'hyperviseur du lab.
+func netNames(l *lab.Lab) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		nets, _ := l.Hypervisor().Networks()
+		out := make([]string, len(nets))
+		for i, n := range nets {
+			out[i] = n.Name
+		}
+		return out, cobra.ShellCompDirectiveNoFileComp
 	}
-	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
 func netCmd(l *lab.Lab) *cobra.Command {
-	v := virt.Shared()
+	v := l.Hypervisor()
 	c := &cobra.Command{Use: "net", Short: "Réseaux libvirt : liste, création, suppression", GroupID: "outils"}
 
 	c.AddCommand(&cobra.Command{
@@ -135,7 +137,7 @@ Les réseaux des modules sont créés par leur module (labctl <module> up), pas 
 	del := &cobra.Command{
 		Use:   "delete [-y] NOM",
 		Short: "Supprime un réseau (refusé s'il est utilisé par une VM, et pour default)",
-		Args:  cobra.ExactArgs(1), ValidArgsFunction: netNames,
+		Args:  cobra.ExactArgs(1), ValidArgsFunction: netNames(l),
 		RunE: func(_ *cobra.Command, args []string) error {
 			name := args[0]
 			if name == "default" {

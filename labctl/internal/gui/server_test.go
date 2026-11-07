@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/virt/virtfake"
 )
 
 func testServer(t *testing.T) *server {
@@ -21,7 +22,7 @@ func testServer(t *testing.T) *server {
 	if err := os.MkdirAll(filepath.Join(root, "modules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return &server{lab: &lab.Lab{Root: root}, token: "jeton-de-test"}
+	return &server{lab: &lab.Lab{Root: root, Virt: virtfake.New()}, token: "jeton-de-test"}
 }
 
 // Toute l'API exige le jeton (comparé à temps constant).

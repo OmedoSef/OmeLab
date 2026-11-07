@@ -14,8 +14,8 @@ import (
 // (Les VMs des modules y sont aussi : lab=<module>.)
 
 // LabGroups compte les VMs par lab.
-func LabGroups() (map[string]int, error) {
-	doms, err := virt.Shared().Domains()
+func (l *Lab) LabGroups() (map[string]int, error) {
+	doms, err := l.Hypervisor().Domains()
 	if err != nil {
 		return nil, err
 	}
@@ -29,8 +29,8 @@ func LabGroups() (map[string]int, error) {
 }
 
 // LabVMs renvoie les VMs d'un lab, par nom.
-func LabVMs(lab string) ([]string, error) {
-	doms, err := virt.Shared().Domains()
+func (l *Lab) LabVMs(lab string) ([]string, error) {
+	doms, err := l.Hypervisor().Domains()
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +48,17 @@ func LabVMs(lab string) ([]string, error) {
 }
 
 // LabUp démarre les VMs d'un lab.
-func LabUp(lab string, out io.Writer) error {
-	vms, err := LabVMs(lab)
+func (l *Lab) LabUp(lab string, out io.Writer) error {
+	vms, err := l.LabVMs(lab)
 	if err != nil {
 		return err
 	}
 	for _, vm := range vms {
-		if DomState(vm) == virt.StateRunning {
+		if l.DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "ok  %s déjà démarrée\n", vm)
 			continue
 		}
-		if err := virt.Shared().StartDomain(vm); err != nil {
+		if err := l.Hypervisor().StartDomain(vm); err != nil {
 			return fmt.Errorf("%s : %w", vm, err)
 		}
 		fmt.Fprintf(out, "ok  %s démarrée\n", vm)
@@ -67,22 +67,22 @@ func LabUp(lab string, out io.Writer) error {
 }
 
 // LabDown arrête les VMs d'un lab (ACPI ; coupure après 120 s).
-func LabDown(lab string, out io.Writer) error {
-	vms, err := LabVMs(lab)
+func (l *Lab) LabDown(lab string, out io.Writer) error {
+	vms, err := l.LabVMs(lab)
 	if err != nil {
 		return err
 	}
-	v := virt.Shared()
+	v := l.Hypervisor()
 	for _, vm := range vms {
-		if DomState(vm) == virt.StateRunning {
+		if l.DomState(vm) == virt.StateRunning {
 			_ = v.ShutdownDomain(vm)
 		}
 	}
 	for _, vm := range vms {
-		for t := 0; t < 120 && DomState(vm) == virt.StateRunning; t += 2 {
+		for t := 0; t < 120 && l.DomState(vm) == virt.StateRunning; t += 2 {
 			time.Sleep(2 * time.Second)
 		}
-		if DomState(vm) == virt.StateRunning {
+		if l.DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "attention: %s ne s'arrête pas, arrêt forcé\n", vm)
 			_ = v.DestroyDomain(vm)
 		}
@@ -92,17 +92,17 @@ func LabDown(lab string, out io.Writer) error {
 }
 
 // LabSnapshot prend (revert : restaure) le snapshot snap de chaque VM d'un lab.
-func LabSnapshot(lab, snap string, revert bool, out io.Writer) error {
-	vms, err := LabVMs(lab)
+func (l *Lab) LabSnapshot(lab, snap string, revert bool, out io.Writer) error {
+	vms, err := l.LabVMs(lab)
 	if err != nil {
 		return err
 	}
 	var errs []string
 	for _, vm := range vms {
 		if revert {
-			err = virt.Shared().RevertSnapshot(vm, snap)
+			err = l.Hypervisor().RevertSnapshot(vm, snap)
 		} else {
-			err = virt.Shared().CreateSnapshot(vm, snap, "")
+			err = l.Hypervisor().CreateSnapshot(vm, snap, "")
 		}
 		if err != nil {
 			errs = append(errs, vm+" : "+err.Error())
