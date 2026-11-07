@@ -23,7 +23,7 @@ body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-ser
 header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
 header h1 { font-size: 18px; margin: 0; }
 .spacer { flex: 1; }
-main { padding: 20px 24px 280px; display: grid; gap: 18px; align-content: start; max-width: 1200px; width: 100%; }
+main { padding: 20px 24px calc(var(--logh, 240px) + 40px); display: grid; gap: 18px; align-content: start; max-width: 1200px; width: 100%; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .card-head h2 { font-size: 16px; margin: 0; }
@@ -52,12 +52,23 @@ select, input { border: 1px solid var(--line); background: var(--panel); border-
 .links table td, .links table th { text-align: center; padding: 8px 12px; }
 .links table th:first-child, .links table td:first-child { text-align: left; }
 .empty { padding: 18px 16px; color: var(--muted); }
-#log { position: fixed; left: 0; right: 0; bottom: 0; height: 240px; background: var(--log); color: var(--logtext); display: flex; flex-direction: column; border-top: 1px solid var(--line); z-index: 3; }
+#log { position: fixed; left: 0; right: 0; bottom: 0; height: var(--logh, 240px); background: var(--log); color: var(--logtext); display: flex; flex-direction: column; border-top: 1px solid var(--line); z-index: 3; }
 #log.collapsed { height: 38px; }
 #log .bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; font-size: 13px; border-bottom: 1px solid #1f2733; }
 #log .bar button { background: transparent; color: var(--logtext); border-color: #2c3645; padding: 2px 9px; }
 #log pre { margin: 0; padding: 10px 16px; overflow: auto; flex: 1; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
 #log.collapsed pre { display: none; }
+/* Console : poignée de redimensionnement, ligne de commande labctl et propositions de complétion */
+#log-grip { position: absolute; top: -4px; left: 0; right: 0; height: 9px; cursor: ns-resize; z-index: 1; }
+#log-grip:hover { background: color-mix(in srgb, var(--logtext) 18%, transparent); }
+#log.collapsed #log-grip, #log.collapsed #console-form, #log.collapsed #console-sugg { display: none; }
+#console-form { display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-top: 1px solid #1f2733; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+#console-form .prompt { color: var(--ok); white-space: nowrap; }
+#console-in { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--logtext); font: inherit; outline: none; padding: 2px 0; box-shadow: none; }
+#console-sugg { max-height: 45%; overflow: auto; border-top: 1px solid #1f2733; padding: 4px 0; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+#console-sugg div { display: flex; gap: 14px; padding: 1px 16px; cursor: pointer; }
+#console-sugg div.sel, #console-sugg div:hover { background: #1f2733; }
+#console-sugg .d { opacity: .6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .busy { color: var(--warn); }
 .err { color: var(--bad); }
 nav.tabs { display: flex; gap: 4px; }
@@ -201,13 +212,19 @@ textarea.ftext { display: block; width: 100%; height: min(60vh, 600px); border: 
 </div>
 
 <section id="log" class="collapsed">
+  <div id="log-grip" title="Glisser pour redimensionner · double-clic : agrandir / taille normale"></div>
   <div class="bar">
-    <strong>Journal</strong><span id="log-status" class="meta"></span>
+    <strong>Console</strong><span id="log-status" class="meta"></span>
     <span class="spacer"></span>
     <button id="log-clear">Effacer</button>
     <button id="log-toggle">Afficher</button>
   </div>
   <pre id="log-out"></pre>
+  <div id="console-sugg" hidden></div>
+  <form id="console-form" autocomplete="off">
+    <span class="prompt">$ labctl</span>
+    <input id="console-in" spellcheck="false" aria-label="Commande labctl" placeholder="Tab : compléter · ↑ ↓ : historique · ex. status, netlab ssh poste 'ip a'">
+  </form>
 </section>
 <div id="toasts"></div>
 <dialog id="dlg"></dialog>
@@ -232,7 +249,7 @@ const stLabel = s => stateLabel[s] || s;
 function toast(msg, err = false, withLog = false) {
   const t = document.createElement("div");
   t.className = "toast" + (err ? " err" : "");
-  t.innerHTML = `<span>${err ? "✗" : "✓"}</span><span class="msg">${esc(msg)}</span>${withLog ? `<button data-show-log>Journal</button>` : ""}<button data-close aria-label="Fermer">×</button>`;
+  t.innerHTML = `<span>${err ? "✗" : "✓"}</span><span class="msg">${esc(msg)}</span>${withLog ? `<button data-show-log>Console</button>` : ""}<button data-close aria-label="Fermer">×</button>`;
   t.addEventListener("click", e => {
     if (e.target.dataset.showLog !== undefined) openLog();
     if (e.target.closest("button")) t.remove();
@@ -417,7 +434,7 @@ async function run(args, confirmText, danger = false) {
   if (confirmText && !(await ask({ title: "Confirmer", text: confirmText, ok: danger ? "Oui, continuer" : "Continuer", danger }))) return false;
   running = true; current = args; render(); paintEditor();
   const log = $("#log-out");
-  const shown = `labctl ${args.join(" ")}`;
+  const shown = `labctl ${args.map(a => /[\s'"]/.test(a) || !a ? `'${a.replace(/'/g, "'\\''")}'` : a).join(" ")}`;
   $("#log-status").innerHTML = `<span class="busy"><span class="spin"></span>${esc(shown)}</span>`;
   log.textContent += `\n$ ${shown}\n`;
   let out = "", ok = false;
@@ -1611,8 +1628,115 @@ document.addEventListener("keydown", e => {
   if (e.key === "Enter" && e.target.dataset?.cmd) $(`[data-cmd-run="${CSS.escape(e.target.dataset.cmd)}"]`).click();
 });
 $("#refresh").onclick = () => load(true);
-$("#log-toggle").onclick = () => { const l = $("#log"); l.classList.toggle("collapsed"); $("#log-toggle").textContent = l.classList.contains("collapsed") ? "Afficher" : "Masquer"; };
+$("#log-toggle").onclick = () => {
+  const l = $("#log"); l.classList.toggle("collapsed");
+  const shut = l.classList.contains("collapsed");
+  $("#log-toggle").textContent = shut ? "Afficher" : "Masquer";
+  if (!shut) $("#console-in").focus();
+};
 $("#log-clear").onclick = () => { $("#log-out").textContent = ""; };
+
+// --- Console : panneau redimensionnable (hauteur mémorisée dans ce navigateur), et ligne de commande labctl
+// avec la complétion du terminal (cobra, via /api/complete). Seules les commandes labctl : le serveur refuse le
+// reste, et les commandes destructives demandent confirmation (elles tournent ensuite sans autre question).
+const LOGH_MIN = 120, LOGH_DEFAULT = 240;
+function setLogH(h, save = true) {
+  h = Math.round(Math.max(LOGH_MIN, Math.min(h, innerHeight - 80)));
+  document.documentElement.style.setProperty("--logh", h + "px");
+  if (save) try { localStorage.setItem("console-h", String(h)); } catch {}
+}
+try { const h = Number(localStorage.getItem("console-h")); if (h) setLogH(h, false); } catch {}
+$("#log-grip").addEventListener("pointerdown", e => {
+  e.preventDefault();
+  const grip = e.currentTarget;
+  grip.setPointerCapture(e.pointerId);
+  const move = ev => setLogH(innerHeight - ev.clientY);
+  const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); };
+  grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up);
+});
+$("#log-grip").addEventListener("dblclick", () => setLogH($("#log").offsetHeight < innerHeight * 0.6 ? innerHeight - 80 : LOGH_DEFAULT));
+
+const cin = $("#console-in"), sugg = $("#console-sugg");
+let hist = [], hpos = -1, sitems = [], ssel = -1;
+try { hist = JSON.parse(localStorage.getItem("console-hist") || "[]"); } catch {}
+
+// splitArgs découpe comme un shell simple : espaces, '…' et "…" (pour « netlab ssh poste 'ip a' »).
+function splitArgs(s) {
+  const out = []; let cur = "", q = "", any = false;
+  for (const c of s) {
+    if (q) { if (c === q) q = ""; else cur += c; }
+    else if (c === "'" || c === '"') { q = c; any = true; }
+    else if (/\s/.test(c)) { if (cur || any) out.push(cur); cur = ""; any = false; }
+    else cur += c;
+  }
+  if (cur || any) out.push(cur);
+  return { args: out, open: !!q };
+}
+const atWordStart = v => !v.trim() || /\s$/.test(v);
+function hideSugg() { sugg.hidden = true; sitems = []; ssel = -1; }
+function showSugg() {
+  sugg.innerHTML = sitems.slice(0, 60).map((it, i) =>
+    `<div class="${i === ssel ? "sel" : ""}" data-sugg="${i}"><span>${esc(it.v)}</span><span class="d">${esc(it.d || "")}</span></div>`).join("");
+  sugg.hidden = false;
+  sugg.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
+}
+// acceptWord remplace le mot en cours par `word` (suivi d'une espace, sauf directive cobra « pas d'espace »).
+function acceptWord(word, space = true) {
+  const v = cin.value, base = atWordStart(v) ? v : v.slice(0, v.length - (v.match(/\S+$/) || [""])[0].length);
+  cin.value = base + word + (space ? " " : "");
+  hideSugg(); cin.focus();
+}
+async function completeLine() {
+  const v = cin.value, { args } = splitArgs(v);
+  if (args[0] === "labctl") args.shift();
+  const cur = atWordStart(v) ? "" : (args.pop() ?? "");
+  let r;
+  try { r = await (await api("/api/complete", { method: "POST", body: JSON.stringify({ args: [...args, cur] }) })).json(); }
+  catch (e) { toast(e.message, true); return; }
+  if (cin.value !== v) return; // ligne modifiée entre-temps
+  const items = r.items || [], space = !(r.directive & 2);
+  if (!items.length) { hideSugg(); return; }
+  if (items.length === 1) { acceptWord(items[0].v, space); return; }
+  let p = items[0].v; // complète le préfixe commun, puis montre les choix
+  for (const it of items) while (!it.v.startsWith(p)) p = p.slice(0, -1);
+  if (p.length > cur.length) acceptWord(p, false);
+  sitems = items; ssel = -1; showSugg();
+}
+cin.addEventListener("keydown", e => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    if (!sugg.hidden && ssel >= 0) acceptWord(sitems[ssel].v); else completeLine();
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const d = e.key === "ArrowDown" ? 1 : -1;
+    if (!sugg.hidden) { ssel = (ssel + d + sitems.length) % sitems.length; showSugg(); return; }
+    hpos = Math.max(-1, Math.min(hist.length - 1, hpos - d)); // ↑ remonte l'historique
+    cin.value = hpos < 0 ? "" : hist[hpos];
+  } else if (e.key === "Escape") hideSugg();
+  else if (e.key === "Enter" && !sugg.hidden && ssel >= 0) { e.preventDefault(); acceptWord(sitems[ssel].v); }
+});
+cin.addEventListener("input", hideSugg);
+sugg.addEventListener("mousedown", e => {
+  const d = e.target.closest("[data-sugg]");
+  if (d) { e.preventDefault(); acceptWord(sitems[Number(d.dataset.sugg)].v); }
+});
+$("#console-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const line = cin.value.trim();
+  const { args, open } = splitArgs(line);
+  if (args[0] === "labctl") args.shift();
+  if (!args.length) return;
+  if (open) { toast("guillemet non fermé", true); return; }
+  if (running) { toast("une action est déjà en cours", true); return; }
+  const risky = args.find(a => ["destroy", "delete", "del", "release", "renew", "restore"].includes(a));
+  if (risky && !(await ask({ title: "Confirmer", danger: risky !== "restore", ok: "Lancer",
+      text: `labctl ${args.join(" ")}\n\n${risky === "restore" ? "Retour à un snapshot : les changements depuis sont perdus." : "Commande destructive."} Elle s'exécutera sans autre question.` }))) return;
+  hist = [line, ...hist.filter(h => h !== line)].slice(0, 100); hpos = -1;
+  try { localStorage.setItem("console-hist", JSON.stringify(hist)); } catch {}
+  cin.value = ""; hideSugg();
+  await run(args);
+  cin.focus();
+});
 
 if (!token) $("#view-overview").innerHTML = `<div class="empty err">Jeton absent : ouvre l'adresse complète affichée par « labctl gui ».</div>`;
 else {

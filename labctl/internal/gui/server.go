@@ -120,6 +120,7 @@ func Serve(l *lab.Lab, port int, open Open) error {
 	})
 	mux.HandleFunc("GET /api/state", s.api(s.handleState))
 	mux.HandleFunc("POST /api/run", s.api(s.handleRun))
+	mux.HandleFunc("POST /api/complete", s.api(s.handleComplete))
 	mux.HandleFunc("POST /api/console", s.api(s.handleConsole))
 	mux.HandleFunc("GET /api/core", s.api(s.handleCore))
 	mux.HandleFunc("GET /api/pki", s.api(s.handlePKI))
@@ -380,27 +381,99 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 type runRequest struct {
-	Args []string `json:"args"` // [module, commande, ...] ou ["pki", commande, ...]
+	Args []string `json:"args"` // [module, commande, ...], ["pki", commande, ...], ou une commande tapée dans la console
+}
+
+// consoleCmds : commandes de premier niveau que la GUI peut lancer (boutons et console), en plus des modules.
+// Exclues : gui (une autre interface), gw-portal (service de la passerelle), init (crée un lab ailleurs),
+// completion et l'aide (sans intérêt ici).
+var consoleCmds = map[string]bool{
+	"core": true, "pki": true, "status": true, "check": true, "vm": true, "net": true, "image": true,
+	"lab": true, "module": true, "hostfw": true, "version": true,
+}
+
+// completion : une proposition de la console (valeur et description, comme dans le terminal).
+type completion struct {
+	V string `json:"v"`
+	D string `json:"d,omitempty"`
+}
+
+// handleComplete complète une ligne de la console avec la complétion du terminal : « labctl __complete »
+// (cobra), qui connaît modules, VMs, CA, options… Lecture seule, hors du verrou des actions. Le dernier
+// argument est le mot en cours (vide après une espace). Au premier niveau, seules les commandes lançables
+// depuis la GUI sont proposées.
+func (s *server) handleComplete(w http.ResponseWriter, r *http.Request) {
+	var req runRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<14)).Decode(&req); err != nil || len(req.Args) < 1 {
+		http.Error(w, "requête invalide", http.StatusBadRequest)
+		return
+	}
+	for _, a := range req.Args {
+		if strings.ContainsAny(a, "\x00\n") {
+			http.Error(w, "argument invalide", http.StatusBadRequest)
+			return
+		}
+	}
+	self, err := os.Executable()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, self, append([]string{"__complete"}, req.Args...)...)
+	cmd.Dir = s.lab.Root
+	out, _ := cmd.Output() // la directive finale suffit : une erreur de complétion donne une liste vide
+	cur := req.Args[len(req.Args)-1]
+	allowed := func(string) bool { return true }
+	if len(req.Args) == 1 { // premier niveau : modules + commandes lançables (modules lus une seule fois)
+		mods := map[string]bool{}
+		if ms, err := s.lab.Modules(); err == nil {
+			for _, m := range ms {
+				mods[m.Name] = true
+			}
+		}
+		allowed = func(v string) bool { return consoleCmds[v] || mods[v] }
+	}
+	items, directive := []completion{}, 0
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, ":") { // « :N » : directive cobra (2 = pas d'espace après, 4 = pas de fichiers…)
+			fmt.Sscanf(line, ":%d", &directive)
+			break
+		}
+		v, d, _ := strings.Cut(line, "\t")
+		if v == "" || !strings.HasPrefix(v, cur) || !allowed(v) {
+			continue
+		}
+		items = append(items, completion{v, d})
+	}
+	writeJSON(w, map[string]any{"items": items, "directive": directive})
+}
+
+// consoleAllowed dit si une commande de premier niveau peut être lancée depuis la GUI.
+func (s *server) consoleAllowed(top string) bool {
+	if consoleCmds[top] {
+		return true
+	}
+	_, err := s.lab.Module(top)
+	return err == nil
 }
 
 // handleRun exécute « labctl <module|core|pki> ... » et renvoie sa sortie au fil de l'eau.
 func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	var req runRequest
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<14)).Decode(&req); err != nil || len(req.Args) < 2 {
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<14)).Decode(&req); err != nil || len(req.Args) < 1 {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
 	}
-	if req.Args[0] == "pki" {
-		// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
-		if req.Args[1] == "trust-host" {
-			http.Error(w, "pki trust-host demande sudo : à lancer dans un terminal (labctl pki trust-host)", http.StatusBadRequest)
-			return
-		}
-	} else if req.Args[0] != "core" {
-		if _, err := s.lab.Module(req.Args[0]); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	if !s.consoleAllowed(req.Args[0]) {
+		http.Error(w, fmt.Sprintf("« %s » ne se lance pas depuis l'interface (commande inconnue, ou réservée au terminal)", req.Args[0]), http.StatusBadRequest)
+		return
+	}
+	// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
+	if req.Args[0] == "pki" && len(req.Args) > 1 && req.Args[1] == "trust-host" {
+		http.Error(w, "pki trust-host demande sudo : à lancer dans un terminal (labctl pki trust-host)", http.StatusBadRequest)
+		return
 	}
 	for _, a := range req.Args {
 		if strings.ContainsAny(a, "\x00\n") {
