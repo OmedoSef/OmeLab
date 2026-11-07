@@ -183,7 +183,12 @@ La poser dans une VM : labctl pki trust-vm --interception VM.`,
 		Use:   "trust-host",
 		Short: "Installe la CA racine sur cet hôte (sudo)",
 		Args:  cobra.NoArgs, ValidArgsFunction: noFiles,
-		RunE: func(*cobra.Command, []string) error { return p.TrustHost() },
+		RunE: func(*cobra.Command, []string) error {
+			if os.Getenv("LABCTL_FROM_GUI") != "" { // sudo dans un terminal seulement (voir la GUI)
+				return errors.New("pki trust-host demande sudo : à lancer dans un terminal")
+			}
+			return p.TrustHost()
+		},
 	})
 	return root
 }

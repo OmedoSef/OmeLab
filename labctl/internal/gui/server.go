@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -470,8 +471,9 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("« %s » ne se lance pas depuis l'interface (commande inconnue, ou réservée au terminal)", req.Args[0]), http.StatusBadRequest)
 		return
 	}
-	// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande
-	if req.Args[0] == "pki" && len(req.Args) > 1 && req.Args[1] == "trust-host" {
+	// trust-host demande sudo (mot de passe dans un terminal) : uniquement en ligne de commande. Cherché partout
+	// dans les arguments : une option placée avant (pki -v trust-host) ne doit pas suffire à le faire passer.
+	if req.Args[0] == "pki" && slices.Contains(req.Args, "trust-host") {
 		http.Error(w, "pki trust-host demande sudo : à lancer dans un terminal (labctl pki trust-host)", http.StatusBadRequest)
 		return
 	}
@@ -502,7 +504,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command(self, req.Args...)
 	cmd.Dir = s.lab.Root
 	// La GUI demande déjà confirmation : pas de question interactive côté script
-	cmd.Env = append(os.Environ(), "ASSUME_YES=1")
+	cmd.Env = append(os.Environ(), "ASSUME_YES=1", "LABCTL_FROM_GUI=1")
 	cmd.Stdout, cmd.Stderr = pw, pw
 	cmd.Stdin = nil
 	log.Printf("action : %s", strings.Join(req.Args, " "))

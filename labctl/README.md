@@ -124,8 +124,14 @@ résultat (en cas d'échec, avec la dernière ligne d'erreur) ; la sortie compl�
 **Sécurité** : seul ton poste peut s'y connecter (127.0.0.1). Chaque lancement tire un jeton aléatoire, placé
 dans l'adresse ouverte (`#t=...`) et exigé pour chaque action, ce qui empêche un autre site web ouvert dans le
 navigateur de piloter tes labs. L'en-tête `Host` est vérifié contre le *DNS rebinding*. Une seule action tourne
-à la fois, et seules les commandes des modules existants et de la PKI sont acceptées. La suppression d'un module entier
-n'a pas de bouton (seulement le champ de commande, avec confirmation).
+à la fois. **Le jeton vaut tes droits** : l'interface lance labctl lui-même (`/api/run`), y compris depuis la
+console, donc qui l'a peut faire tout ce que labctl fait pour toi — SSH dans les VMs et la passerelle, création et
+suppression de VMs, PKI. Ne partage pas l'adresse ; ferme l'interface sur un poste partagé.
+La liste des commandes acceptées (modules, `core`, `pki`, `status`, `check`, `vm`, `net`, `image`, `lab`,
+`module`, `hostfw`, `version`) écarte ce qui n'a pas de sens ici (`gui`, `init`, `completion`) et ce qui exige
+sudo (`pki trust-host`, refusé aussi par labctl lui-même quand il est lancé par l'interface) ; ce n'est pas une
+frontière de sécurité. Les commandes destructives ou qui ouvrent un accès réseau tapées dans la console demandent
+confirmation ; la suppression d'un module entier n'a pas de bouton.
 
 ## Développer et déboguer
 

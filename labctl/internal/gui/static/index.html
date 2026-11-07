@@ -1732,9 +1732,15 @@ $("#console-form").addEventListener("submit", async e => {
   if (!args.length) return;
   if (open) { toast("guillemet non fermé", true); return; }
   if (running) { toast("une action est déjà en cours", true); return; }
-  const risky = args.find(a => ["destroy", "delete", "del", "release", "renew", "restore"].includes(a));
-  if (risky && !(await ask({ title: "Confirmer", danger: risky !== "restore", ok: "Lancer",
-      text: `labctl ${args.join(" ")}\n\n${risky === "restore" ? "Retour à un snapshot : les changements depuis sont perdus." : "Commande destructive."} Elle s'exécutera sans autre question.` }))) return;
+  // Confirmation avant ce qui détruit, revient en arrière, ou ouvre un accès réseau (Internet, lien vers un autre
+  // module) : une seule ligne ne doit pas exposer une cible vulnérable sans question.
+  const destroys = args.find(a => ["destroy", "delete", "del", "release", "renew"].includes(a));
+  const why = destroys ? "Commande destructive."
+    : args.includes("restore") ? "Retour à un snapshot : les changements depuis sont perdus."
+    : (args.includes("internet") && args.includes("on")) || args.includes("link")
+      ? "Ouvre un accès réseau (Internet ou un autre module) : à éviter vers une cible vulnérable." : "";
+  if (why && !(await ask({ title: "Confirmer", danger: !!destroys || why.startsWith("Ouvre"), ok: "Lancer",
+      text: `labctl ${args.join(" ")}\n\n${why} Elle s'exécutera sans autre question.` }))) return;
   hist = [line, ...hist.filter(h => h !== line)].slice(0, 100); hpos = -1;
   try { localStorage.setItem("console-hist", JSON.stringify(hist)); } catch {}
   cin.value = ""; hideSugg();
