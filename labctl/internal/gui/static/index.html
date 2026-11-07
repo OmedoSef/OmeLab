@@ -1150,6 +1150,10 @@ function renderCore() {
       <dt>WAN (NAT libvirt)</dt><dd class="mono">${esc(c.wan || "—")}</dd>
       <dt>Réseaux branchés</dt><dd>${(c.networks || []).map(n => `<span class="pill">${esc(n)}</span>`).join(" ") || "—"}</dd>
       ${c.error ? `<dt>Erreur</dt><dd class="err">${esc(c.error)}</dd>` : ""}
+      ${up && !c.error ? `<dt>labctl (portails)</dt><dd>${c.labctlStale
+        ? `<span class="err">${c.labctl ? `version ${esc(c.labctl)}, hôte en ${esc(c.hostLabctl)}` : "absent de la passerelle"}</span>
+           <button ${busy} data-run='["core","update"]' title="Copie le labctl de l'hôte sur la passerelle, avec ses fichiers système">Mettre à jour la passerelle</button>`
+        : `<span class="mono">${esc(c.labctl)}</span> <span class="meta">même version que l'hôte</span>`}</dd>` : ""}
     </dl>
   </section>`;
   if (absent) { h += `<section class="card"><div class="empty">La passerelle fournit DHCP, DNS et Internet à tous les modules : la créer d'abord.</div></section>`; }
@@ -1247,7 +1251,7 @@ function renderPKI() {
     </tbody></table>
     <form class="inline" data-form="issue">
       <strong style="width:100%">Émettre un certificat</strong>
-      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9.-]*" placeholder="srv ou srv.pentest-lab.omedo.lab"></label>
+      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9.-]*" placeholder="srv ou srv.pentest.omedo.lab"></label>
       <label>CA émettrice<select name="ca"><option value="">intermédiaire (tout omedo.lab)</option>
         ${subs.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${esc(c.domain || "")})</option>`).join("")}</select></label>
       <label>Noms DNS en plus<input name="dns" placeholder="www.x.omedo.lab,*.apps.x.omedo.lab"></label>

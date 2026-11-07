@@ -76,3 +76,19 @@ vont dans `lab.local.yaml` (non versionné).
 
 labctl retrouve le lab s'il est lancé **depuis son dossier** (ou un sous-dossier), ou via
 `LABS_ROOT=/chemin/du/lab`.
+
+## 4. Mettre à jour labctl
+
+Installer la nouvelle version comme la première (`./install.sh`, ou `sudo apt install ./labctl_<version>_amd64.deb`),
+puis **mettre à jour la passerelle** :
+
+```bash
+labctl core update      # recopie labctl et les fichiers système sur la passerelle, puis applique
+```
+
+La passerelle garde sa propre copie de labctl (elle sert les portails captifs, `via: portal`). Cette copie est
+rafraîchie à chaque démarrage de la passerelle et par `labctl core update` ; tant que ce n'est pas fait, hôte et
+passerelle tournent sur deux versions différentes. `labctl check`, `labctl core status` et la page *Passerelle* de
+la GUI le signalent (« labctl de la passerelle en version …, hôte en … »).
+
+Les labs eux-mêmes (modules, `lab.yaml`, `network.local.yaml`, PKI) ne bougent pas lors d'une mise à jour.

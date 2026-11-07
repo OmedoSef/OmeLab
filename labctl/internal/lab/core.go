@@ -3,6 +3,7 @@ package lab
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net/netip"
 	"sort"
 	"strconv"
@@ -24,6 +25,23 @@ type CoreState struct {
 	Blocked  []string         `json:"blocked"` // sources bloquées (NO_INTERNET + manuelles)
 	Portal   []portal.Session `json:"portal"`  // sessions des portails captifs
 	Error    string           `json:"error,omitempty"`
+	// Copie de labctl sur la passerelle (service des portails captifs) : sa version, et si elle diffère de celle
+	// de l'hôte (absente ou autre version) — à corriger par « labctl core update » (fait aussi à chaque démarrage).
+	Labctl      string `json:"labctl,omitempty"`
+	HostLabctl  string `json:"hostLabctl,omitempty"`
+	LabctlStale bool   `json:"labctlStale,omitempty"`
+}
+
+// Version : version du labctl qui tourne sur l'hôte (fixée par la CLI au démarrage), comparée à la copie de la
+// passerelle.
+var Version = "dev"
+
+// LabctlNote décrit l'écart entre la copie de labctl de la passerelle et celle de l'hôte (si LabctlStale).
+func (cs *CoreState) LabctlNote() string {
+	if cs.Labctl == "" {
+		return "labctl absent de la passerelle (portails captifs indisponibles)"
+	}
+	return fmt.Sprintf("labctl de la passerelle en version %s, hôte en %s", cs.Labctl, cs.HostLabctl)
 }
 
 type ServiceInfo struct {
@@ -45,7 +63,8 @@ type LeaseInfo struct {
 const coreProbe = `echo '@services'; systemctl list-units --all --plain --no-legend 'gwdns@*' gw.service gwportal.service 2>/dev/null
 echo '@leases'; cat /var/lib/misc/gwdhcp.leases 2>/dev/null
 echo '@gwctl'; sudo gwctl status 2>/dev/null; sudo cat /etc/gwdns/blocked 2>/dev/null | sed 's/^/blocked /'
-echo '@portal'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl gw-portal sessions --json 2>/dev/null; echo`
+echo '@portal'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl gw-portal sessions --json 2>/dev/null; echo
+echo '@labctl'; [ -x /usr/local/sbin/labctl ] && /usr/local/sbin/labctl --version 2>/dev/null; true`
 
 // Core lit l'état détaillé de la passerelle.
 func (l *Lab) Core() *CoreState {
@@ -99,8 +118,12 @@ func (l *Lab) Core() *CoreState {
 			cs.Blocked = appendUnique(cs.Blocked, f[1])
 		case section == "portal" && strings.HasPrefix(line, "["):
 			_ = json.Unmarshal([]byte(line), &cs.Portal)
+		case section == "labctl" && len(f) == 3 && f[0] == "labctl" && f[1] == "version": // « labctl version X »
+			cs.Labctl = f[2]
 		}
 	}
+	cs.HostLabctl = Version
+	cs.LabctlStale = cs.Labctl != Version // copie absente (cs.Labctl vide) ou d'une autre version
 	sort.Slice(cs.Services, func(i, j int) bool { return cs.Services[i].Name < cs.Services[j].Name })
 	sort.Slice(cs.Leases, func(i, j int) bool { return ipLess(cs.Leases[i].IP, cs.Leases[j].IP) })
 	return cs

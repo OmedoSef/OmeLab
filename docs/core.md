@@ -46,7 +46,7 @@ labctl core dhcp del pentest dc01
 labctl core dhcp release 52:54:00:aa:bb:cc   # libère un bail (automatique à la suppression d'une VM)
 
 labctl core dns list [MODULE]
-labctl core dns alias add pentest dvwa web   # dvwa.pentest-lab.omedo.lab -> web
+labctl core dns alias add pentest dvwa web   # dvwa.pentest.omedo.lab -> web
 labctl core dns alias del pentest dvwa
 
 labctl core apply                    # régénère tout (réseau, DHCP, DNS, pare-feu) sur la passerelle

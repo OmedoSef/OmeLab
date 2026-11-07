@@ -940,6 +940,12 @@ func (g *Gateway) PrintStatus() error {
 	}
 	if st.Error != "" {
 		g.logf("attention: %s", st.Error)
+	} else if st.State == "running" {
+		if st.LabctlStale {
+			g.logf("attention: %s -> labctl core update", st.LabctlNote())
+		} else {
+			g.logf("  labctl %s (même version que l'hôte)", st.Labctl)
+		}
 	}
 	for _, s := range st.Services {
 		if strings.HasPrefix(s.Name, "gwdns@") {

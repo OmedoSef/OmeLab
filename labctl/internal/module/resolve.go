@@ -196,8 +196,8 @@ var reVar = regexp.MustCompile(`\$\{([^}]*)\}`)
 // VarContext donne les valeurs des variables pour une VM d'un module.
 type VarContext struct {
 	Module   *Module
-	VM       string            // VM courante ("" hors VM)
-	Root     string            // domaine racine des labs
+	VM       string // VM courante ("" hors VM)
+	Root     string // domaine racine des labs
 	Keyboard string
 	LabVars  map[string]string // vars: du lab.yaml : surchargent le vars: du module (même nom)
 }

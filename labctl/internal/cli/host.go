@@ -18,7 +18,18 @@ func checkCmd(l *lab.Lab) *cobra.Command {
 		Use: "check", Short: "Vérifie que l'hôte est prêt (KVM, libvirt, outils, clé SSH, accès au stockage)",
 		GroupID: "outils", Args: cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(*cobra.Command, []string) error {
-			if n := l.HostCheck(os.Stdout); n > 0 {
+			n := l.HostCheck(os.Stdout)
+			// Passerelle démarrée : sa copie de labctl (portails captifs) doit suivre celle de l'hôte après une mise à
+			// jour. Vérifié ici et pas dans HostCheck, qui sert aussi avant un « up » qu'il ne doit pas bloquer.
+			if cs := l.Core(); cs.State == "running" && cs.Error == "" {
+				if cs.LabctlStale {
+					fmt.Printf("attention: %s -> labctl core update\n", cs.LabctlNote())
+					n++
+				} else {
+					fmt.Printf("ok  labctl de la passerelle à jour (%s)\n", cs.Labctl)
+				}
+			}
+			if n > 0 {
 				return fmt.Errorf("%d point(s) à corriger", n)
 			}
 			fmt.Println("ok  hôte prêt")

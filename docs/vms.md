@@ -71,8 +71,8 @@ Pour un serveur, utiliser `<nom>.fullchain.crt` (certificat + CA émettrice).
 Les modules la créent eux-mêmes (`pki: {ca: …}` dans leur `module.yaml`) ; à la main :
 
 ```bash
-labctl pki sub-ca pentest -D pentest-lab.omedo.lab -s 10.66.66.0/24
-labctl pki issue web -C pentest -i 10.66.66.30     # SAN : web.pentest-lab.omedo.lab, 10.66.66.30
+labctl pki sub-ca pentest -D pentest.omedo.lab -s 10.66.66.0/24
+labctl pki issue web -C pentest -i 10.66.66.30     # SAN : web.pentest.omedo.lab, 10.66.66.30
 ```
 
 Un certificat hors de ces limites est refusé à l'émission, et le serait aussi par les clients.

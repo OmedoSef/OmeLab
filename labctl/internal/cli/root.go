@@ -41,6 +41,7 @@ func Execute() int {
 }
 
 func newRoot() *cobra.Command {
+	lab.Version = Version // comparée à la copie de labctl sur la passerelle (core status, check, GUI)
 	var verbose bool
 	root := &cobra.Command{
 		Use:           "labctl",
