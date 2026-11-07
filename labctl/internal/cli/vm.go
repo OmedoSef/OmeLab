@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/virt"
 )
@@ -179,7 +180,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 	f.BoolVar(&noCA, "no-ca", false, "ne pas injecter la CA racine des labs")
 	f.BoolVarP(&wait, "wait", "w", false, "attendre la fin de cloud-init")
 	f.BoolVar(&dry, "dry-run", false, "afficher cloud-init et la définition libvirt sans rien créer")
-	_ = c.RegisterFlagCompletionFunc("image", cobra.FixedCompletions(lab.ImageNames(), cobra.ShellCompDirectiveNoFileComp))
+	_ = c.RegisterFlagCompletionFunc("image", cobra.FixedCompletions(fetch.ImageNames(), cobra.ShellCompDirectiveNoFileComp))
 	_ = c.RegisterFlagCompletionFunc("net", netNames(l))
 	return c
 }
@@ -263,12 +264,12 @@ func imageCmd(l *lab.Lab) *cobra.Command {
 		RunE: func(*cobra.Command, []string) error {
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(tw, "IMAGE\tLOCALE\tSOURCE")
-			for _, n := range lab.ImageNames() {
+			for _, n := range fetch.ImageNames() {
 				state := "-"
 				if st, err := os.Stat(l.ImagePath(n)); err == nil {
 					state = fmt.Sprintf("présente (%d Mo)", st.Size()>>20)
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", n, state, lab.Images[n].URL)
+				fmt.Fprintf(tw, "%s\t%s\t%s\n", n, state, fetch.Images[n].URL)
 			}
 			return tw.Flush()
 		},
@@ -279,7 +280,7 @@ func imageCmd(l *lab.Lab) *cobra.Command {
 		Short: "Télécharge des images (empreinte vérifiée) ; -f : nouvelle version",
 		Args:  cobra.MinimumNArgs(1),
 		ValidArgsFunction: func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-			return lab.ImageNames(), cobra.ShellCompDirectiveNoFileComp
+			return fetch.ImageNames(), cobra.ShellCompDirectiveNoFileComp
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
 			for _, n := range args {

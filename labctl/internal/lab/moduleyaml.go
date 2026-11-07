@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
 )
 
@@ -81,7 +82,7 @@ func (l *Lab) loadYAML(m *Module) {
 
 // ModuleContext rassemble ce que la validation d'un module doit savoir de son environnement.
 func (l *Lab) ModuleContext(name string) module.Context {
-	ctx := module.Context{RootDomain: l.pkiDomain(), Images: ImageNames(), Settings: l.Setting}
+	ctx := module.Context{RootDomain: l.pkiDomain(), Images: fetch.ImageNames(), Settings: l.Setting}
 	mods, _ := l.Modules()
 	moduleNets := map[string]bool{}
 	for _, m := range mods {

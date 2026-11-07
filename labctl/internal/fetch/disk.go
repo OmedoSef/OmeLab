@@ -1,4 +1,4 @@
-package lab
+package fetch
 
 import (
 	"encoding/json"
@@ -56,8 +56,8 @@ func checkDiskInfo(path string, info []byte) (string, error) {
 	return q.Format, nil
 }
 
-// checkDisk décrit l'image avec qemu-img et la vérifie ; renvoie son format, à passer explicitement (-f) ensuite.
-func checkDisk(path string) (string, error) {
+// CheckDisk décrit l'image avec qemu-img et la vérifie ; renvoie son format, à passer explicitement (-f) ensuite.
+func CheckDisk(path string) (string, error) {
 	out, err := exec.Command("qemu-img", "info", "-U", "--output=json", path).Output()
 	if err != nil {
 		return "", fmt.Errorf("image invalide (%s) : %v", filepath.Base(path), err)

@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"labs/labctl/internal/fetch"
 )
 
 // VMSpec décrit une VM à créer depuis une image cloud. C'est la forme générique qu'utilisent
@@ -102,8 +104,8 @@ func (s *VMSpec) Validate() error {
 	switch {
 	case !reVMName.MatchString(s.Name):
 		return fmt.Errorf("nom invalide (lettres, chiffres, tirets) : %q", s.Name)
-	case s.Base == "" && s.Install == nil && Images[s.Image].URL == "":
-		return fmt.Errorf("image inconnue : %q (%s)", s.Image, strings.Join(ImageNames(), ", "))
+	case s.Base == "" && s.Install == nil && fetch.Images[s.Image].URL == "":
+		return fmt.Errorf("image inconnue : %q (%s)", s.Image, strings.Join(fetch.ImageNames(), ", "))
 	case s.CPUs < 1 || s.MemoryMiB < 256 || s.DiskGiB < 1:
 		return fmt.Errorf("ressources invalides : %d vCPU, %d Mio, %d Gio", s.CPUs, s.MemoryMiB, s.DiskGiB)
 	case len(s.Nets) == 0:
@@ -261,7 +263,7 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 	hw := s.HW
 	machine, bus, nic := or(hw.Machine, "q35"), or(hw.DiskBus, "virtio"), or(hw.NICModel, "virtio")
 	graphics, video := or(hw.Graphics, "spice"), or(hw.Video, "virtio")
-	osinfo := or(hw.OSInfo, Images[s.Image].OSInfo)
+	osinfo := or(hw.OSInfo, fetch.Images[s.Image].OSInfo)
 	var b strings.Builder
 	fmt.Fprintf(&b, "<domain type='kvm'>\n  <name>%s</name>\n  <description>%s</description>\n", xmlEsc(s.Name), xmlEsc(description))
 	if osinfo != "" {

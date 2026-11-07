@@ -1,4 +1,4 @@
-package lab
+package fetch
 
 import (
 	"strings"

@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf16"
 
+	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
 )
@@ -50,7 +51,7 @@ func openSSHURL() string {
 func (l *Lab) cachedDownload(name, url, sha256 string, out logWriter) (string, error) {
 	dir := filepath.Join(l.ImagesDir(), "sources", "cache")
 	path := filepath.Join(dir, name)
-	if h, err := fileHash(path, "sha256"); err == nil && h == sha256 {
+	if h, err := fetch.FileHash(path, "sha256"); err == nil && h == sha256 {
 		return path, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -58,10 +59,10 @@ func (l *Lab) cachedDownload(name, url, sha256 string, out logWriter) (string, e
 	}
 	out.logf("==> téléchargement de %s", name)
 	tmp := path + ".part"
-	if err := download(url, tmp, out.writer()); err != nil {
+	if err := fetch.Download(url, tmp, out.writer()); err != nil {
 		return "", err
 	}
-	if h, err := fileHash(tmp, "sha256"); err != nil || h != sha256 {
+	if h, err := fetch.FileHash(tmp, "sha256"); err != nil || h != sha256 {
 		os.Remove(tmp)
 		return "", fmt.Errorf("empreinte de %s incorrecte (%s) : fichier refusé", name, h)
 	}
@@ -85,7 +86,7 @@ func verifyWindowsISO(path, checksum string, out logWriter) error {
 		return nil
 	}
 	out.logf("==> vérification de %s (sha256)", filepath.Base(path))
-	h, err := fileHash(path, "sha256")
+	h, err := fetch.FileHash(path, "sha256")
 	if err != nil {
 		return err
 	}

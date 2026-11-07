@@ -1,4 +1,4 @@
-package lab
+package fetch
 
 import (
 	"embed"
@@ -54,8 +54,8 @@ func dearmor(armored []byte) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(b64.String())
 }
 
-// verifySums vérifie la signature détachée sig du fichier d'empreintes sums avec la clé embarquée key.
-func verifySums(key string, sums, sig []byte) error {
+// VerifySums vérifie la signature détachée sig du fichier d'empreintes sums avec la clé embarquée key.
+func VerifySums(key string, sums, sig []byte) error {
 	armored, err := signingKeys.ReadFile("keys/" + key + ".asc")
 	if err != nil {
 		return fmt.Errorf("clé de signature inconnue : %s", key)

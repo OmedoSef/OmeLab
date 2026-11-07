@@ -1,4 +1,4 @@
-package lab
+package fetch
 
 import (
 	"bytes"
@@ -31,25 +31,25 @@ func TestVerifySumsRealSignature(t *testing.T) {
 	if _, err := exec.LookPath("gpgv"); err != nil {
 		t.Skip("gpgv absent")
 	}
-	sums, err := os.ReadFile(filepath.Join("testdata", "gpg", "CHECKSUM"))
+	sums, err := os.ReadFile(filepath.Join("testdata", "CHECKSUM"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	sig, err := os.ReadFile(filepath.Join("testdata", "gpg", "CHECKSUM.asc"))
+	sig, err := os.ReadFile(filepath.Join("testdata", "CHECKSUM.asc"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := verifySums("rocky", sums, sig); err != nil {
+	if err := VerifySums("rocky", sums, sig); err != nil {
 		t.Fatalf("signature authentique refusée : %v", err)
 	}
 	altered := bytes.Replace(sums, []byte("SHA256"), []byte("SHA257"), 1)
-	if err := verifySums("rocky", altered, sig); err == nil {
+	if err := VerifySums("rocky", altered, sig); err == nil {
 		t.Error("fichier d'empreintes altéré accepté")
 	}
-	if err := verifySums("alma", sums, sig); err == nil {
+	if err := VerifySums("alma", sums, sig); err == nil {
 		t.Error("signature acceptée avec la clé d'un autre éditeur")
 	}
-	if err := verifySums("inconnue", sums, sig); err == nil {
+	if err := VerifySums("inconnue", sums, sig); err == nil {
 		t.Error("clé inconnue acceptée")
 	}
 }

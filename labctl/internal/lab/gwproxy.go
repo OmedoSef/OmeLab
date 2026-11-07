@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/virt"
 )
 
@@ -34,7 +35,7 @@ func mitmURL() string {
 func (l *Lab) mitmTarball(g *Gateway) (string, error) {
 	dir := filepath.Join(l.ImagesDir(), "sources", "cache")
 	path := filepath.Join(dir, fmt.Sprintf("mitmproxy-%s-linux-x86_64.tar.gz", mitmVersion))
-	if h, err := fileHash(path, "sha256"); err == nil && h == mitmSHA256 {
+	if h, err := fetch.FileHash(path, "sha256"); err == nil && h == mitmSHA256 {
 		return path, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -42,10 +43,10 @@ func (l *Lab) mitmTarball(g *Gateway) (string, error) {
 	}
 	g.logf("==> téléchargement de mitmproxy %s (~105 Mo)", mitmVersion)
 	tmp := path + ".part"
-	if err := download(mitmURL(), tmp, g.Out); err != nil {
+	if err := fetch.Download(mitmURL(), tmp, g.Out); err != nil {
 		return "", err
 	}
-	if h, err := fileHash(tmp, "sha256"); err != nil || h != mitmSHA256 {
+	if h, err := fetch.FileHash(tmp, "sha256"); err != nil || h != mitmSHA256 {
 		os.Remove(tmp)
 		return "", fmt.Errorf("empreinte de mitmproxy incorrecte (%s) : archive refusée", h)
 	}

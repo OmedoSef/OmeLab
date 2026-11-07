@@ -1,4 +1,4 @@
-package lab
+package fetch
 
 import (
 	"os"
@@ -64,11 +64,11 @@ func TestCheckDiskRealImages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if f, err := checkDisk(sain); err != nil || f != "qcow2" {
+	if f, err := CheckDisk(sain); err != nil || f != "qcow2" {
 		t.Fatalf("image saine refusée : %q %v", f, err)
 	}
 	for _, p := range []string{base, data, vmdk} {
-		if _, err := checkDisk(p); err == nil || !strings.Contains(err.Error(), "refusée") {
+		if _, err := CheckDisk(p); err == nil || !strings.Contains(err.Error(), "refusée") {
 			t.Errorf("%s acceptée : %v", filepath.Base(p), err)
 		}
 	}
