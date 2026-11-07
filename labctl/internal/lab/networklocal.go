@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
@@ -53,22 +54,28 @@ const networkLocalHeader = `# Câblage et connexions LOCAUX, non distribués (gi
 # ce poste »). « on » = module cible. attach: VMs d'autres modules branchées ici ; connections: accès locaux.
 `
 
-// saveNetworkLocal réécrit network.local.yaml (supprimé si les deux sections sont vides) et retire les anciens
-// fichiers séparés : la migration vers le fichier unique est actée dès le premier enregistrement.
+// saveNetworkLocal réécrit network.local.yaml (supprimé si les deux sections sont vides), puis retire les anciens
+// fichiers séparés : la migration vers le fichier unique n'est actée qu'une fois l'écriture réussie, pour ne
+// jamais perdre le câblage si elle échoue. Écriture atomique (fichier temporaire puis renommage).
 func (l *Lab) saveNetworkLocal(f networkLocalFile) error {
-	defer func() {
-		_ = os.Remove(l.legacyAttachPath())
-		_ = os.Remove(l.legacyConnPath())
-	}()
 	if len(f.Attach) == 0 && len(f.Connections) == 0 {
 		if err := os.Remove(l.networkLocalPath()); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		return nil
+	} else {
+		b, err := yaml.Marshal(f)
+		if err != nil {
+			return err
+		}
+		data := append([]byte(networkLocalHeader), b...)
+		if err := writeAtomic(l.networkLocalPath(), bytes.NewReader(data), int64(len(data))); err != nil {
+			return err
+		}
 	}
-	b, err := yaml.Marshal(f)
-	if err != nil {
-		return err
+	for _, old := range []string{l.legacyAttachPath(), l.legacyConnPath()} {
+		if err := os.Remove(old); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
-	return os.WriteFile(l.networkLocalPath(), append([]byte(networkLocalHeader), b...), 0o644)
+	return nil
 }
