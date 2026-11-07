@@ -189,9 +189,10 @@ var reVar = regexp.MustCompile(`\$\{([^}]*)\}`)
 // VarContext donne les valeurs des variables pour une VM d'un module.
 type VarContext struct {
 	Module   *Module
-	VM       string // VM courante ("" hors VM)
-	Root     string // domaine racine des labs
+	VM       string            // VM courante ("" hors VM)
+	Root     string            // domaine racine des labs
 	Keyboard string
+	LabVars  map[string]string // vars: du lab.yaml : surchargent le vars: du module (même nom)
 }
 
 // lookup renvoie la valeur d'une variable, ou une erreur explicite.
@@ -230,10 +231,13 @@ func (c VarContext) lookup(name string) (string, error) {
 		return c.Keyboard, nil
 	case strings.HasPrefix(name, "var."):
 		key := strings.TrimPrefix(name, "var.")
+		if v, ok := c.LabVars[key]; ok { // le lab.yaml a le dernier mot sur le défaut du module
+			return v, nil
+		}
 		if v, ok := m.Vars[key]; ok {
 			return v, nil
 		}
-		return "", fmt.Errorf("variable ${var.%s} absente de vars: du module", key)
+		return "", fmt.Errorf("variable ${var.%s} absente de vars: (ni du lab, ni du module)", key)
 	case strings.HasPrefix(name, "vm."):
 		if c.VM == "" {
 			return "", fmt.Errorf("${%s} n'a de sens que pour une VM", name)

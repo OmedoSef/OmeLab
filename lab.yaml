@@ -1,0 +1,16 @@
+# Variables de niveau lab, partagées par tous les modules de ce dossier.
+#
+# Un module écrit par exemple « iso: ${var.iso_win11} » ou « password: ${var.password} » ; la valeur
+# vient d'ici si elle y est définie, sinon du défaut que le module donne dans son propre bloc vars:.
+# C'est l'endroit pour ajuster en un seul point ce qui change d'un poste ou d'une install à l'autre
+# (chemins des ISO/images, mot de passe, domaine…) sans toucher aux modules.
+#
+# Pour les secrets ou des réglages propres à ce poste, créer lab.local.yaml à côté (même format,
+# non versionné) : ses valeurs l'emportent sur celles-ci.
+#
+# Une variable peut en référencer une autre (${var.autre}) ou ${keyboard}.
+
+vars:
+  # Chemins des ISO Microsoft (labctl ne les télécharge jamais). Adapter à l'emplacement local.
+  iso_server: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
+  iso_win11: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso

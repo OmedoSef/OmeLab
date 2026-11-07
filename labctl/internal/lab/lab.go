@@ -24,6 +24,9 @@ import (
 type Lab struct {
 	Root    string
 	Verbose bool // affiche sur stderr les commandes lancées
+
+	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
+	labVarsDone  bool
 }
 
 // Find localise la racine : $LABS_ROOT (posé par activate), sinon en remontant depuis l'exécutable,

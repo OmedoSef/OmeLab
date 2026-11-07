@@ -61,7 +61,7 @@ func (r *run) reload() error {
 		return err
 	}
 	r.l.injectLocalAttach(y)
-	if err := y.ExpandVars(r.l.pkiDomain(), r.l.Keyboard()); err != nil {
+	if err := y.ExpandVars(r.l.pkiDomain(), r.l.Keyboard(), r.l.LabVars()); err != nil {
 		return err
 	}
 	r.y = y
@@ -657,7 +657,7 @@ func (r *run) keyboard(vm, layout string) error {
 // remplacés), commandes, certificats.
 func (r *run) cloudContent(vm string, s *VMSpec, tmp string) error {
 	e := r.eff(vm)
-	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard()}
+	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard(), LabVars: r.l.LabVars()}
 	s.Packages = e.VM.Packages
 	for i, f := range e.VM.Files {
 		src := f.Src
@@ -795,7 +795,7 @@ func (r *run) installCerts(vm string, renew bool) error {
 		cmd.Stdin = stdin
 		return cmd.CombinedOutput()
 	}
-	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard()}
+	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard(), LabVars: r.l.LabVars()}
 	for _, c := range e.VM.Certificates {
 		crt, key, err := r.ensureCert(vm, c, renew)
 		if err != nil {

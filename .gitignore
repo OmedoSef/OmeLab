@@ -9,3 +9,5 @@ bin/
 /core/
 # Câblage local des VMs branchées (brancher/débrancher dans la GUI)
 /attach.local.yaml
+# Surcharges locales des variables de lab (secrets, chemins propres au poste), non versionné
+/lab.local.yaml

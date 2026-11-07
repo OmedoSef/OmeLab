@@ -13,15 +13,16 @@ import (
 //   - par VM — ${vm.name|ip|fqdn} — seulement dans les champs d'une VM (contexte = cette VM). Au niveau module
 //     (network:, connections:, dns:...) elles n'ont pas de « VM courante » : on y utilise ${vms.<nom>.*}.
 //
-// root est le domaine racine des labs (pour ${module.domain}, ${vm.fqdn}) ; keyboard la disposition de l'hôte.
+// root est le domaine racine des labs (pour ${module.domain}, ${vm.fqdn}) ; keyboard la disposition de l'hôte ;
+// labVars le bloc vars: du lab.yaml, déjà résolu — une variable de même nom y surcharge le défaut du module.
 // Les champs numériques/structurels (ip, cpus...) ne contiennent pas de chaîne et ne sont pas touchés.
-func (m *Module) ExpandVars(root, keyboard string) error {
+func (m *Module) ExpandVars(root, keyboard string, labVars map[string]string) error {
 	// 1. Résoudre d'abord vars: — une variable peut en référencer une autre, ou une variable globale.
-	if err := m.resolveVars(root, keyboard); err != nil {
+	if err := m.resolveVars(root, keyboard, labVars); err != nil {
 		return err
 	}
 	// 2. Champs de niveau module (hors module/description/vars). VM="" : un ${vm.*} y est une erreur claire.
-	mod := VarContext{Module: m, Root: root, Keyboard: keyboard}
+	mod := VarContext{Module: m, Root: root, Keyboard: keyboard, LabVars: labVars}
 	for _, f := range []any{m.Network, m.PKI, &m.DNS, &m.Connections, &m.Attach, &m.Defaults} {
 		if err := walkStrings(reflect.ValueOf(f), mod.expandKnown); err != nil {
 			return err
@@ -29,12 +30,20 @@ func (m *Module) ExpandVars(root, keyboard string) error {
 	}
 	// 3. Chaque VM avec son propre contexte, pour résoudre ${vm.*} dans n'importe lequel de ses champs.
 	for _, name := range m.VMNames() {
-		vm := VarContext{Module: m, VM: name, Root: root, Keyboard: keyboard}
+		vm := VarContext{Module: m, VM: name, Root: root, Keyboard: keyboard, LabVars: labVars}
 		if err := walkStrings(reflect.ValueOf(m.VMs[name]), vm.expandKnown); err != nil {
 			return fmt.Errorf("vm %s : %w", name, err)
 		}
 	}
 	return nil
+}
+
+// ResolveLabVars résout les ${...} internes d'un bloc vars: de lab.yaml (une var peut en référencer une autre,
+// ou ${keyboard}). Les variables de module/réseau/VM n'ont pas de sens à ce niveau. À appeler une fois, avant
+// de passer la map à ExpandVars des modules.
+func ResolveLabVars(vars map[string]string, keyboard string) error {
+	ctx := VarContext{Module: &Module{Vars: vars}, Keyboard: keyboard}
+	return resolveVarsMap(vars, ctx, "lab.yaml")
 }
 
 // expandKnown comme Expand, mais tolère un sous-réseau pas encore assigné : ${network.*} et ${vm.ip} y sont
@@ -48,22 +57,29 @@ func (c VarContext) expandKnown(s string) (string, error) {
 	return out, err
 }
 
-// resolveVars remplace les ${...} dans les valeurs du bloc vars: (point fixe : une var peut en référencer une
-// autre). Le contexte est sans VM — une variable ne peut pas dépendre d'une ${vm.*}.
-func (m *Module) resolveVars(root, keyboard string) error {
-	if len(m.Vars) == 0 {
+// resolveVars remplace les ${...} dans les valeurs du bloc vars: du module (point fixe : une var peut en
+// référencer une autre, ou une var de lab). Le contexte est sans VM — une variable ne peut pas dépendre
+// d'une ${vm.*}.
+func (m *Module) resolveVars(root, keyboard string, labVars map[string]string) error {
+	ctx := VarContext{Module: m, Root: root, Keyboard: keyboard, LabVars: labVars}
+	return resolveVarsMap(m.Vars, ctx, "vars")
+}
+
+// resolveVarsMap résout en place les ${...} des valeurs d'une map de variables (point fixe), avec le contexte
+// donné. who nomme la source pour les messages d'erreur (vars, lab.yaml...).
+func resolveVarsMap(vars map[string]string, ctx VarContext, who string) error {
+	if len(vars) == 0 {
 		return nil
 	}
-	ctx := VarContext{Module: m, Root: root, Keyboard: keyboard}
-	for pass := 0; pass <= len(m.Vars); pass++ {
+	for pass := 0; pass <= len(vars); pass++ {
 		changed := false
-		for k, v := range m.Vars {
+		for k, v := range vars {
 			nv, err := ctx.expandKnown(v)
 			if err != nil {
-				return fmt.Errorf("vars.%s : %w", k, err)
+				return fmt.Errorf("%s.%s : %w", who, k, err)
 			}
 			if nv != v {
-				m.Vars[k] = nv
+				vars[k] = nv
 				changed = true
 			}
 		}
@@ -72,10 +88,10 @@ func (m *Module) resolveVars(root, keyboard string) error {
 		}
 	}
 	// S'il reste un ${var.*} non résolu, c'est un cycle (a référence b qui référence a).
-	for k, v := range m.Vars {
+	for k, v := range vars {
 		for _, ref := range Vars(v) {
 			if strings.HasPrefix(ref, "var.") {
-				return fmt.Errorf("vars.%s : référence circulaire (${%s})", k, ref)
+				return fmt.Errorf("%s.%s : référence circulaire (${%s})", who, k, ref)
 			}
 		}
 	}

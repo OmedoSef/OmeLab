@@ -373,6 +373,24 @@ vms:
     windows: {iso: "${var.iso_win11}", password: "${var.admin_password}"}   # repris tel quel
 ```
 
+#### Variables de niveau lab (`lab.yaml`)
+
+Un fichier `lab.yaml` à la **racine du lab** peut définir un bloc `vars:` partagé par **tous les modules** du
+dossier. Pour un nom donné, la valeur du lab **l'emporte** sur le défaut que le module écrit dans son propre
+`vars:`. Un module écrit donc un défaut raisonnable (il reste utilisable seul), et l'utilisateur ajuste en **un
+seul endroit** ce qui change d'une install à l'autre — chemins d'ISO, mot de passe, domaine… — sans toucher aux
+modules :
+
+```yaml
+# lab.yaml (racine du lab)
+vars:
+  iso_win11: ~/mes-isos/WIN11_EVAL_X64.iso   # surcharge le défaut de chaque module qui l'utilise
+```
+
+Précédence d'un `${var.X}` : `lab.local.yaml` (non versionné, pour les secrets et les réglages propres au
+poste) puis `lab.yaml`, puis le `vars:` du module. Un lab sans `lab.yaml` ne change rien : chaque module garde
+ses propres valeurs. Dans `lab.yaml`, une variable peut en référencer une autre (`${var.autre}`) ou `${keyboard}`.
+
 ## Commandes
 
 | Commande | Effet |
