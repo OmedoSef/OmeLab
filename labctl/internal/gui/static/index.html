@@ -311,6 +311,7 @@ function go(p) {
   else if (s === "yaml" && p !== "new") { ed.want = m; openEditor(); }
   else if (s === "net") loadConfig();
   else if (s === "files") loadFiles(m);
+  else if (s === "vms" && m && !pki) loadPKI().then(render); // état de la PKI (fichiers locaux) pour le raccourci confiance
 }
 
 async function loadConfig() {
@@ -374,7 +375,19 @@ async function checkTrust() {
   trustChecking = true; renderPKI();
   try { pkiTrust = await (await api("/api/pki/trust")).json(); }
   catch (e) { toast(e.message, true); }
-  finally { trustChecking = false; renderPKI(); }
+  finally { trustChecking = false; renderPKI(); render(); }
+}
+
+// trustLine : raccourci confiance d'une VM dans l'onglet VMs d'un module (pastilles du dernier « Vérifier » +
+// boutons pour poser la racine ou l'autorité d'interception), pour ne pas quitter le module.
+function trustLine(lv, busy) {
+  const t = pkiTrust && pkiTrust[lv];
+  const pill = (ok, label) => !t ? `<span class="pill" title="pas encore vérifié">${label} ?</span>`
+    : !t.reachable ? `<span class="pill" title="${esc(t.err || "injoignable")}">${label} —</span>`
+    : `<span class="pill ${ok ? "on" : "never"}">${label} ${ok ? "✓" : "✗"}</span>`;
+  return `<div class="actions" style="margin-top:4px;align-items:center">${pill(t && t.root, "racine")}${pill(t && t.interception, "interception")}
+    <button class="linkbtn" ${busy} data-trust='${esc(JSON.stringify(["pki", "trust-vm", lv]))}'>poser racine</button>
+    <button class="linkbtn" ${busy} data-trust='${esc(JSON.stringify(["pki", "trust-vm", "--interception", lv]))}'>poser interception</button></div>`;
 }
 
 async function download(path) {
@@ -577,7 +590,11 @@ function renderModule(m, name, sub, down, gwUp, busy) {
   if (sub !== "vms" || !m) { if (sub === "vms") $("#mod-vms").innerHTML = ""; return; }
 
   const vms = m.vms || [], wide = activeOn(m.name, "", true), openAll = m.internetAll;
-  let html = (down ? down : "") + `<section class="card"><table>
+  const pkiOn = !!(pki && pki.pki && pki.pki.initialized);
+  let html = (down ? down : "") + `<section class="card">${pkiOn ? `<div class="card-head" style="padding-top:8px;padding-bottom:8px">
+      <span class="meta">confiance PKI : pastilles du dernier « Vérifier » (sonde SSH à la demande, jamais au rafraîchissement)</span>
+      <span class="spacer"></span>
+      <button ${running || trustChecking ? "disabled" : ""} data-check-trust>${trustChecking ? "Vérification…" : "Vérifier la confiance"}</button></div>` : ""}<table>
     <thead><tr><th>VM</th><th>IP</th><th>Snapshots</th><th>Internet</th><th>Actions</th></tr></thead><tbody>`;
   for (const v of vms) {
     const up = v.state === "running", exists = v.state !== "absente";
@@ -589,7 +606,8 @@ function renderModule(m, name, sub, down, gwUp, busy) {
     else if (v.internet) net = `<span class="pill open">ouvert</span> <button ${dis} ${runAttr(["core", "internet", "off", m.name, v.name])}>Fermer</button>`;
     else net = `<span class="pill">fermé</span> <button ${dis} ${runAttr(["core", "internet", "on", m.name, v.name])}>Ouvrir</button>`;
     html += `<tr>
-      <td><span class="dot ${esc(v.state.replace(" ", "-"))}"></span><strong>${esc(v.name)}</strong> <span class="meta">${esc(stLabel(v.state))}</span></td>
+      <td><span class="dot ${esc(v.state.replace(" ", "-"))}"></span><strong>${esc(v.name)}</strong> <span class="meta">${esc(stLabel(v.state))}</span>
+        ${pkiOn && exists && v.libvirt ? trustLine(v.libvirt, busy) : ""}</td>
       <td class="mono">${esc(v.ip)}</td>
       <td class="meta">${snaps.length ? esc(snaps.join(", ")) : "—"}</td>
       <td>${net}</td>
