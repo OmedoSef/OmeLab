@@ -21,7 +21,7 @@ vars:
   iso_server: SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
   iso_win11: WIN11_EVAL_X64.iso
 
-# Les postes d'attaque se branchent sur ce réseau via le câblage LOCAL (attach.local.yaml, non distribué) :
+# Les postes d'attaque se branchent sur ce réseau via le câblage LOCAL (network.local.yaml, non distribué) :
 # bouton « Brancher une VM… » dans la GUI. Le module reste autonome et distribuable (rien de personnel ici).
 
 defaults:

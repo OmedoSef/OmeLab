@@ -547,7 +547,7 @@ vms:
 
 ## Décisions
 
-1. **`core.conf` rejoint le `module.yaml`** : une seule source par module. La GUI (onglet Configuration) et les
+1. **`core.conf` rejoint le `module.yaml`** : une seule source par module. La GUI (onglet Réseau) et les
    commandes `core dhcp|dns|link` écrivent dans le YAML en préservant commentaires et mise en forme ; les
    `core.conf` existants sont importés une fois puis retirés.
 2. **Sous-réseaux en `/24`** (convention .1 hôte, .2-.99 IP fixes, .100-.199 DHCP libre, .254 passerelle).

@@ -17,7 +17,7 @@ labctl netlab ssh poste          # shell sur le poste ; ou  labctl netlab ssh po
 Pour chaque test : choisir la forme de la connexion, puis **appliquer** (`labctl core apply` ou le bouton
 *Appliquer* / la pilule de l'en-tête). Ces bascules étant **propres à ton poste**, le mieux est de les garder
 locales : dans la GUI (**Réseau → Connexions**), coche **« local à ce poste »** — elles vont alors dans
-`connections.local.yaml` (non distribué) et le `module.yaml` reste propre. Les blocs commentés ci-dessous
+`network.local.yaml` (non distribué) et le `module.yaml` reste propre. Les blocs commentés ci-dessous
 restent utiles comme antisèche des formes possibles.
 
 ## 1. Pare-feu par connexion (`via: direct`) — forme active par défaut

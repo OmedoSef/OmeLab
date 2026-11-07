@@ -14,8 +14,7 @@ import (
 	"labs/labctl/internal/lab"
 )
 
-// engineCmd : commandes d'un module déclaratif, sous « labctl module <m> » et, pour un module sans
-// module.sh, directement sous « labctl <m> ».
+// engineCmd : commandes d'un module (module.yaml), sous « labctl module <m> » et directement sous « labctl <m> ».
 func engineCmd(l *lab.Lab, name string, group string) *cobra.Command {
 	m, _ := l.Module(name)
 	short := "module déclaratif"
@@ -192,7 +191,7 @@ les VMs démarrées s'ils diffèrent de ceux en place, et lance leur commande re
 		Use:   "attach MODULE/VM [IP]",
 		Short: "Branche une VM d'un autre module sur ce réseau (câblage local, non distribué)",
 		Long: `Branche une VM d'un autre module sur le réseau de ce module, comme un attaquant sur le LAN des cibles.
-Le câblage est enregistré dans attach.local.yaml (racine, non distribué), pas dans le module.yaml. Sans IP,
+Le câblage est enregistré dans network.local.yaml (racine, non distribué), pas dans le module.yaml. Sans IP,
 une adresse libre est choisie. La carte est posée à chaud si la VM tourne ; la VM reste gérée dans son module.`,
 		Args: cobra.RangeArgs(1, 2),
 		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {

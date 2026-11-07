@@ -65,7 +65,7 @@ type Attach struct {
 	VM    string `yaml:"vm" json:"vm"`                       // <module>/<vm>
 	IP    int    `yaml:"ip" json:"ip"`                       // dernier octet sur le réseau de ce module
 	MAC   string `yaml:"mac,omitempty" json:"mac,omitempty"` // générée au premier up
-	Local bool   `yaml:"-" json:"-"`                         // injectée depuis attach.local.yaml (câblage local), pas du module.yaml
+	Local bool   `yaml:"-" json:"-"`                         // injectée depuis network.local.yaml (câblage local), pas du module.yaml
 }
 
 // Split renvoie le module et la VM d'un attach.

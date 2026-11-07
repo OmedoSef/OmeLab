@@ -1,8 +1,7 @@
-// Package lab donne accès aux labs : découverte des modules, lecture de leur configuration
-// (module.env, core.conf, en-tête d'aide de module.sh) et exécution de leurs commandes.
-//
-// Les scripts bash des modules restent la source de vérité : labctl les lit et les appelle,
-// il ne réimplémente pas leur logique.
+// Package lab donne accès aux labs : découverte des modules (modules/<nom>/module.yaml, la source de vérité),
+// réglages du lab, moteur des modules (réseaux, VMs, certificats), passerelle core-gw et fichiers propres au poste
+// (lab.local.yaml, network.local.yaml). Les structures Env / CoreConf sont une vue dérivée du module.yaml, héritée
+// de l'ancien format bash (module.env, core.conf), encore lisible pour compatibilité.
 package lab
 
 import (

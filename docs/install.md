@@ -21,6 +21,9 @@ labctl/build.sh release
 | `labctl` | binaire statique linux/amd64 (même archi que l'hôte et que la VM passerelle) |
 | `labctl.sha256` | somme de contrôle du binaire |
 | `install.sh` | installe le binaire sur le PATH + l'autocomplétion |
+| `labctl_<version>_linux-amd64.tar.gz` | archive prête à installer : binaire, `install.sh`, licence, schéma |
+| `labctl_<version>_amd64.deb` | paquet Debian/Ubuntu : binaire, autocomplétion, doc, schéma (`/usr/share/labctl/`) |
+| `module.schema.json` | schéma de `module.yaml` pour les éditeurs (voir [module-yaml.md](module-yaml.md)) |
 | `modules/<nom>.tar.gz` | une archive par module (état **commité** : ni fichiers non suivis, ni surcharges locales) |
 
 On distribue ensuite ce qu'on veut : le binaire seul suffit à faire tourner labctl ; les

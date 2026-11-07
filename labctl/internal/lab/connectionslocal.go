@@ -11,7 +11,7 @@ import (
 // voyager avec le module. Typiquement les bascules de test (portail captif, proxy log/intercept) et les accès
 // d'une VM branchée localement. Elles sont fusionnées dans y.Connections au chargement (marquées Local), si bien
 // que tout le reste du code (apply de la passerelle, GUI) les traite comme les connections: du module.yaml ;
-// seuls l'ajout et le retrait visent ce fichier. Même rôle que attach.local.yaml pour le câblage.
+// seuls l'ajout et le retrait visent ce fichier (section connections de network.local.yaml, avec le câblage).
 
 // localConn : une connexion locale. « on » = module cible (dont les VMs sont la source) ; le reste est une
 // connexion ordinaire (to, from, ports, via, portal, proxy), inline pour un fichier lisible.

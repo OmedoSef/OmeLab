@@ -90,7 +90,7 @@ type AttachedState struct {
 	IP      string `json:"ip"`
 	State   string `json:"state"`
 	Plugged bool   `json:"plugged"` // carte présente sur ce réseau
-	Local   bool   `json:"local"`   // câblage local (attach.local.yaml) : débranchable depuis la GUI
+	Local   bool   `json:"local"`   // câblage local (network.local.yaml) : débranchable depuis la GUI
 }
 
 type VMState struct {

@@ -324,11 +324,11 @@ type configEdit struct {
 	Via    string         `json:"via"`    // conn-add : direct | portal
 	Portal *module.Portal `json:"portal"` // conn-add, via portal
 	Proxy  *module.Proxy  `json:"proxy"`  // conn-add, via proxy
-	Local  bool           `json:"local"`  // conn-add : écrire dans connections.local.yaml (propre au poste), pas le module.yaml
+	Local  bool           `json:"local"`  // conn-add : écrire dans network.local.yaml (propre au poste), pas le module.yaml
 	Index  int            `json:"index"`  // conn-del
 }
 
-// handleConfigEdit modifie la section dns du module.yaml (sans appliquer : voir « Appliquer » dans l'onglet Configuration).
+// handleConfigEdit modifie la section dns du module.yaml (sans appliquer : voir « Appliquer » dans l'onglet Réseau).
 func (s *server) handleConfigEdit(w http.ResponseWriter, r *http.Request) {
 	var e configEdit
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<12)).Decode(&e); err != nil {

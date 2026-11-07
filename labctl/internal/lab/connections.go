@@ -21,7 +21,7 @@ func (l *Lab) ConfAddConnection(module string, cn mod.Connection) error {
 
 // DelConnectionAt retire la connexion n° i de la liste telle que la GUI l'affiche (connexions du module.yaml,
 // puis connexions locales). Les locales étant injectées à la fin, un index au-delà de celles du module.yaml
-// vise connections.local.yaml ; sinon c'est une connexion du module.
+// vise network.local.yaml ; sinon c'est une connexion du module.
 func (l *Lab) DelConnectionAt(module string, i int) error {
 	m, err := l.confModule(module)
 	if err != nil {

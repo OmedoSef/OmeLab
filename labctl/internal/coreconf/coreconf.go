@@ -148,7 +148,7 @@ func Render(in Input) (Files, error) {
 		}
 		for _, vm := range m.NoInternet {
 			if _, ok := m.Hosts[vm]; !ok {
-				return nil, fmt.Errorf("module %s : NO_INTERNET cite %s, absente de HOSTS", m.Name, vm)
+				return nil, fmt.Errorf("module %s : VM « internet: never » %s sans IP fixe", m.Name, vm)
 			}
 			fmt.Fprintln(&blocked, m.IP(vm))
 		}

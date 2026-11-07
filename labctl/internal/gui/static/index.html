@@ -343,7 +343,7 @@ async function editConfig(body) {
 
 const lastOctet = ip => { const m = /(\d+)\s*$/.exec(ip || ""); return m ? parseInt(m[1], 10) : 0; };
 
-// Débrancher une VM externe (câblage local) : retire la carte et l'entrée de attach.local.yaml.
+// Débrancher une VM externe (câblage local) : retire la carte et l'entrée de network.local.yaml.
 async function detachVM({ module, vm, name }) {
   if (!await ask({ title: "Débrancher", text: `Retirer ${vm} du réseau de ${module} ?`, ok: "Débrancher", danger: true })) return;
   if (await editConfig({ op: "attach-del", module, target: vm })) { toast(`${name} débranchée de ${module}`); load(true); }
@@ -731,7 +731,7 @@ function connCard(m, mods, busy) {
   return `<section class="card"><div class="card-head"><h2>Connexions restreintes</h2>
       <span class="meta">ports précis, depuis certaines VMs, vers un module, une VM ou Internet. Une connexion <strong>ouvre</strong> ses ports (même « accès direct » fermé) ; un lien de la carte précédente, lui, ouvre tout</span></div>
     <table><thead><tr><th>Vers</th><th>Depuis (${esc(m.name)})</th><th>Ports</th><th>Mode</th><th></th></tr></thead><tbody>
-    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}${c.local ? ` <span class="pill" title="connexion locale, non distribuée (connections.local.yaml)">local</span>` : ""}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
+    ${out.map((c, i) => `<tr><td class="mono">${c.to === "internet" ? "Internet" : esc(c.to)}${c.local ? ` <span class="pill" title="connexion locale, non distribuée (network.local.yaml)">local</span>` : ""}</td><td>${desc(c)}</td><td>${ports(c)}</td><td>${mode(c)}</td>
       <td><button class="danger" ${busy} data-cfg='${esc(JSON.stringify({ op: "conn-del", module: m.name, index: i }))}'>Retirer</button></td></tr>`).join("")
       || `<tr><td colspan="5" class="empty">Aucune</td></tr>`}
     </tbody></table>
@@ -758,7 +758,7 @@ function connCard(m, mods, busy) {
         <label class="check" title="Redirige les tests de connectivité d'Android, Apple, Windows… : le système affiche « Se connecter au réseau »"><input type="checkbox" name="detect" checked> détection par les OS</label>
         <label class="check" title="RFC 8910 / 8908 : option DHCP 114 et API JSON du portail"><input type="checkbox" name="api"> annonce DHCP 114 + API</label>
       </div>
-      <label class="check" style="width:100%" title="Écrit la connexion dans connections.local.yaml (propre à ce poste, non distribué) au lieu du module.yaml — pour les bascules de test et les VMs branchées localement"><input type="checkbox" name="local"> local à ce poste (non distribué)</label>
+      <label class="check" style="width:100%" title="Écrit la connexion dans network.local.yaml (propre à ce poste, non distribué) au lieu du module.yaml — pour les bascules de test et les VMs branchées localement"><input type="checkbox" name="local"> local à ce poste (non distribué)</label>
       <button ${busy}>Ajouter</button>
     </form>
     ${incoming.length ? `<div class="card-head" style="border-top:1px solid var(--line);border-bottom:0;display:block">

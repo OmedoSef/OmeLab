@@ -74,15 +74,15 @@ Vérifiées par des tests depuis des VMs de deux modules :
 |---|---|
 | Module fermé (défaut) | Pas d'Internet. Noms externes : **REFUSED immédiat**. Noms du lab : résolus |
 | Ouvert pour certaines VMs | Seules ces VMs sortent et résolvent les noms externes |
-| Module ouvert | Internet OK pour ses VMs, sauf `NO_INTERNET` (msf2) : `internet on pentest msf2` est refusé |
+| Module ouvert | Internet OK pour ses VMs, sauf les VMs `internet: never` (msf2) : `internet on pentest msf2` est refusé |
 | Toujours | LAN, `192.168.122.1` et tous les réseaux privés injoignables ; rien n'entre depuis le WAN sauf SSH |
 | Sans lien (défaut) | Un module ne joint ni ne résout aucun autre module |
 | `link A B` | A joint et résout B ; B ne joint pas A (les réponses reviennent, c'est tout) |
 | `link A B --both` | Dans les deux sens |
-| VM `NO_INTERNET` | N'initie rien hors de son module, même vers un module lié (elle reste joignable) |
+| VM `internet: never` | N'initie rien hors de son module, même vers un module lié (elle reste joignable) |
 | Lien ouvert | N'ouvre pas Internet |
 | Redémarrage de `core-gw` | Internet refermé partout ; DHCP, DNS et liens rechargés depuis la configuration |
-| Suppression d'une VM (`vm-destroy.sh`, `<module> destroy`) | Son bail est libéré : IP disponible, nom DNS retiré tout de suite |
+| Suppression d'une VM (`labctl vm destroy`, `<module> destroy`) | Son bail est libéré : IP disponible, nom DNS retiré tout de suite |
 | `core apply` | Les baux des réseaux qui ne sont plus branchés sont purgés |
 | Module à l'identifiant douteux | Un nom de module, de VM ou d'alias, une MAC, un domaine ou une cible de connexion qui pourrait casser la configuration (saut de ligne, accolade, guillemet, `/`…) : le module est **écarté** de la passerelle avec un message (`core apply`, `core-config`), même s'il n'a jamais été validé ni lancé. Les autres modules restent servis (tests automatisés) |
 
@@ -108,6 +108,9 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 | `gw.service` | `/etc/systemd/system/` | applique le pare-feu au démarrage (Internet fermé) |
 | `gwdns@.service` | `/etc/systemd/system/` | instances dnsmasq : `dhcp`, et `<module>-open` / `<module>-closed` par module |
 | `90-gw.conf` | `/etc/sysctl.d/` | routage IPv4 activé, IPv6 désactivé |
+| `gwportal.service` | `/etc/systemd/system/` | portails captifs (`connections: … via: portal`) : `labctl gw-portal serve` (copie de labctl sur la passerelle) |
+| `gwproxy.service` | `/etc/systemd/system/` | proxy transparent (`via: proxy`) : mitmproxy avec `gwproxy.py` |
+| `gwproxy.py` | `/usr/local/lib/gwproxy/` | extension mitmproxy : journal, filtrage par domaine (`mode: filter`) |
 
 Ces fichiers sont embarqués dans l'exécutable. Pour en mettre un au point sans recompiler, déposer sa version
 dans `core/files/<nom>` à la racine de `Labs/` : elle remplace celle de labctl. Puis `labctl core update`

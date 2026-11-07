@@ -22,7 +22,7 @@ type CoreState struct {
 	Services []ServiceInfo    `json:"services"`
 	Leases   []LeaseInfo      `json:"leases"`
 	Allowed  []string         `json:"allowed"` // sources autorisées à sortir (gwctl)
-	Blocked  []string         `json:"blocked"` // sources bloquées (NO_INTERNET + manuelles)
+	Blocked  []string         `json:"blocked"` // sources bloquées (VMs internet: never + manuelles)
 	Portal   []portal.Session `json:"portal"`  // sessions des portails captifs
 	Error    string           `json:"error,omitempty"`
 	// Copie de labctl sur la passerelle (service des portails captifs) : sa version, et si elle diffère de celle

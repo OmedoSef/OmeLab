@@ -26,7 +26,7 @@ FWD_MODULES=/etc/gwdns/forward-modules.nft    # règles des liens et connexions 
 FWD_INTERNET=/etc/gwdns/forward-internet.nft  # restrictions de ports d'un accès Internet ouvert (générées par labctl)
 SETS=/etc/gwdns/sets.nft                      # ensembles des portails captifs (sources authentifiées, à expiration)
 PRE=/etc/gwdns/prerouting.nft                 # redirections des portails captifs (HTTP non authentifié, DNS)
-BLOCKED=/etc/gwdns/blocked       # VMs NO_INTERNET des modules, bloquées en permanence comme source
+BLOCKED=/etc/gwdns/blocked       # VMs « internet: never » des modules, bloquées en permanence comme source
 mkdir -p "$STATE"; touch "$STATE"/{allowed,blocked}
 
 valid() { [[ $1 =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$ ]] || { echo "adresse invalide : $1" >&2; exit 2; }; }
