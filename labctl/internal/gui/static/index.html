@@ -751,7 +751,7 @@ function connCard(m, mods, busy) {
         <label class="pxf" hidden>Liste<select name="plist"><option value="allow">seuls ces domaines</option><option value="deny">tout sauf ces domaines</option></select></label>
         <label class="pxf" hidden>Domaines<input name="pdomains" class="mono" placeholder="*.debian.org github.com" style="min-width:240px"></label>
         <label>Autres ports HTTP(S)<input name="pports" class="mono" placeholder="tcp/8080" style="width:120px"></label>
-        <span class="meta">80 et 443 passent toujours par le proxy ; les autres ports suivent « Ports »</span>
+        <span class="meta">80 et 443 passent toujours par le proxy ; les autres ports suivent « Ports ». Le filtrage par domaine se fie au nom annoncé par le client : il sert à observer, pas à contenir une machine hostile</span>
       </div>
       <div class="portal-opts" hidden style="width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:8px 0;border-top:1px dashed var(--line)">
         <label>Authentification<select name="auth" data-auth><option value="click">un clic</option><option value="password">mot de passe</option><option value="terms">accepter les conditions</option></select></label>

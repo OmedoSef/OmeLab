@@ -326,6 +326,12 @@ connections:
 | `ports` | | ports HTTP(S) en plus de `tcp/80` et `tcp/443` (ex. `tcp/8080`) |
 
 - Seuls 80, 443 et `proxy.ports` passent par le proxy ; les autres ports suivent `ports:` de la connexion, en direct.
+- ⚠️ **`mode: filter` n'est pas une frontière de sécurité.** Il décide d'après le nom que le client annonce (SNI en
+  HTTPS, en-tête `Host` en HTTP), pas d'après l'adresse réellement jointe : un programme qui annonce un nom autorisé
+  peut joindre n'importe quelle adresse, et en mode `deny` une connexion sans nom annoncé passe. C'est la limite de
+  tout filtrage par nom de domaine. Il sert à **observer** le comportement d'une machine face à un filtrage (mise à
+  jour, télémétrie…), pas à contenir une machine hostile : pour cela, pas de connexion vers Internet du tout
+  (et `vulnerable: true` pour un module de cibles).
 - Vers Internet, le proxy **ouvre** le HTTP(S) de ses sources (Internet ouvert à la main ou non) en le faisant passer par mitmproxy.
 - Refus du filtre : HTTPS coupé, HTTP avec une page 403 du proxy.
 - **Autorité d'interception** : racine à part (« OmeLab Interception CA », `pki/interception/`, hors de la chaîne
