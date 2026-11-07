@@ -285,8 +285,8 @@ connections:
 - Seuls 80, 443 et `proxy.ports` passent par le proxy ; les autres ports suivent `ports:` de la connexion, en direct.
 - Vers Internet, le proxy **ouvre** le HTTP(S) de ses sources (Internet ouvert à la main ou non) en le faisant passer par mitmproxy.
 - Refus du filtre : HTTPS coupé, HTTP avec une page 403 du proxy.
-- **Autorité d'interception** : racine à part (« Omedo Labs Interception CA », `pki/interception/`, hors de la chaîne
-  Omedo Labs), créée à la première utilisation, dont la clé n'est copiée que dans la passerelle. Elle n'est installée
+- **Autorité d'interception** : racine à part (« OmeLab Interception CA », `pki/interception/`, hors de la chaîne
+  OmeLab), créée à la première utilisation, dont la clé n'est copiée que dans la passerelle. Elle n'est installée
   que dans les VMs choisies : `labctl pki trust-vm --interception VM` (ou la page PKI de la GUI). Une VM qui ne lui
   fait pas confiance voit un certificat inconnu, ce qui permet d'observer son comportement.
 - Journal : `labctl core proxy [-n N]`, ou la page **Trafic** de la GUI (filtres par module, action, texte) ;
@@ -330,7 +330,7 @@ vms:
       iso: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
       checksum: sha256:3e4fa6d8507b554856fc9ca6079cc402df11a8b79344871669f0251535255325
       edition: Windows Server 2022 SERVERSTANDARD      # nom de l'image dans install.wim
-      password: Labs-Omedo1!                          # Administrateur et compte lab
+      password: Labs-P4ssw0rd!                          # Administrateur et compte lab
     files:
       - {src: files/setup.ps1, dest: C:/labs/setup.ps1}
     run:
@@ -383,7 +383,7 @@ chemin d'ISO partagé par plusieurs VMs :
 ```yaml
 vars:
   domain: pjptlab.local
-  admin_password: "Labs-Omedo1!"
+  admin_password: "Labs-P4ssw0rd!"
   iso_win11: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso   # écrit une fois
 vms:
   dc01:
@@ -510,7 +510,7 @@ Tout ce qui n'est pas écrit prend sa valeur par défaut :
 ```yaml
 module: demo
 vms:
-  srv: {}          # tout par défaut : debian13, 1 vCPU, 2 Gio, DHCP libre, srv.demo-lab.omedo.lab
+  srv: {}          # tout par défaut : debian13, 1 vCPU, 2 Gio, DHCP libre, srv.demo-lab.omelab.internal
   db: {ip: 20}     # IP fixe .20 : MAC générée et ajoutée au fichier à la création
 ```
 

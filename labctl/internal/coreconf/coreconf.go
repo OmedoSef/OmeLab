@@ -382,7 +382,7 @@ func connRules(m *Module, cn module.Connection, byName map[string]*Module, attac
 		pt := cn.Portal
 		pc := &PortalConf{ID: id, Port: PortalFirstPort + id, Set: fmt.Sprintf("portal_%d", id), Module: m.Name,
 			Gateway: fmt.Sprintf("%s.%d", m.Subnet, GatewayOctet), Sources: sources, Target: cn.To,
-			Auth: "click", Title: "Portail Omedo Labs", Seconds: int(pt.Session().Seconds()), Detect: pt.Detects()}
+			Auth: "click", Title: "Portail du lab", Seconds: int(pt.Session().Seconds()), Detect: pt.Detects()}
 		if pt != nil {
 			pc.Password, pc.API = pt.Password, pt.API
 			if pt.Auth != "" {

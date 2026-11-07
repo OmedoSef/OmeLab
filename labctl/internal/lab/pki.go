@@ -19,8 +19,8 @@ import (
 func (l *Lab) PKITool(out io.Writer) *pki.PKI {
 	return &pki.PKI{
 		Dir:    l.PKIDir(),
-		Org:    l.Setting("LABS_PKI_ORG", "Omedo Labs"),
-		Domain: l.Setting("LABS_PKI_DOMAIN", "omedo.lab"),
+		Org:    l.Org(),
+		Domain: l.RootDomain(),
 		Out:    out,
 	}
 }
@@ -52,6 +52,8 @@ func (l *Lab) TrustStatus(vms ...string) map[string]pki.VMTrust {
 // PKIState décrit la PKI telle qu'elle est sur disque (lue directement dans les certificats).
 type PKIState struct {
 	Initialized  bool       `json:"initialized"`
+	Org          string     `json:"org"`                    // organisation du lab (LABS_PKI_ORG) : nom des CA
+	Domain       string     `json:"domain"`                 // domaine racine (LABS_PKI_DOMAIN)
 	CAs          []CertInfo `json:"cas"`                    // racine, intermédiaire, CA dérivées
 	Interception *CertInfo  `json:"interception,omitempty"` // autorité du proxy (mode intercept), racine à part ; absente tant que non générée
 	Certs        []CertInfo `json:"certs"`                  // certificats émis (certs/<nom>/<nom>.crt)
@@ -76,7 +78,7 @@ type CertInfo struct {
 // PKI lit l'état de la PKI.
 func (l *Lab) PKI() (*PKIState, error) {
 	dir := l.PKIDir()
-	st := &PKIState{}
+	st := &PKIState{Org: l.Org(), Domain: l.RootDomain()}
 	add := func(list *[]CertInfo, name, kind, rel string, extra ...string) {
 		c, err := readCert(filepath.Join(dir, rel))
 		if err != nil {

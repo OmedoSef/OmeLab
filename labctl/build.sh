@@ -57,11 +57,12 @@ build_deb() {
   "$bin" completion bash >"$root/usr/share/bash-completion/completions/labctl" 2>/dev/null || true
   "$bin" completion zsh >"$root/usr/share/zsh/vendor-completions/_labctl" 2>/dev/null || true
   [[ -f $LABS/docs/install.md ]] && cp "$LABS/docs/install.md" "$root/usr/share/doc/labctl/"
+  cp "$LABS/LICENSE" "$LABS/NOTICE" "$root/usr/share/doc/labctl/"   # Apache-2.0 : licence et notice voyagent avec le binaire
   cat >"$root/DEBIAN/control" <<EOF
 Package: labctl
 Version: $debver
 Architecture: amd64
-Maintainer: Omedo Labs <noreply@omedo.lab>
+Maintainer: OmeLab <noreply@omelab.internal>
 Section: admin
 Priority: optional
 Recommends: libvirt-clients, libvirt-daemon-system, qemu-system-x86, openssh-client, conntrack
@@ -98,9 +99,9 @@ case ${1:-build} in
     # Binaire statique linux/amd64 (comme l'hôte et la VM passerelle qui en reçoit une copie)
     (cd "$SRC" && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o "$dist/labctl" ./cmd/labctl)
     (cd "$dist" && sha256sum labctl >labctl.sha256)
-    cp "$LABS/install.sh" "$dist/"
-    # Archive « prête à installer » : binaire + installeur
-    tar -czf "$dist/labctl_${v}_linux-amd64.tar.gz" -C "$dist" labctl install.sh
+    cp "$LABS/install.sh" "$LABS/LICENSE" "$LABS/NOTICE" "$dist/"
+    # Archive « prête à installer » : binaire + installeur, avec la licence (Apache-2.0)
+    tar -czf "$dist/labctl_${v}_linux-amd64.tar.gz" -C "$dist" labctl install.sh LICENSE NOTICE
     echo "    archive -> labctl_${v}_linux-amd64.tar.gz"
     # Paquet Debian (binaire + complétion + doc)
     build_deb "$v" "$dist/labctl" "$dist"
@@ -108,7 +109,8 @@ case ${1:-build} in
     while read -r p; do
       [[ -n $p ]] || continue
       name=$(basename "$p")
-      git -C "$LABS" archive --format=tar.gz -o "$dist/modules/$name.tar.gz" --prefix="$name/" "HEAD:$p"
+      git -C "$LABS" archive --format=tar.gz -o "$dist/modules/$name.tar.gz" --prefix="$name/" \
+        --add-file="$LABS/LICENSE" --add-file="$LABS/NOTICE" "HEAD:$p"
       echo "    module $name -> dist/modules/$name.tar.gz"
     done < <(git -C "$LABS" ls-tree --name-only HEAD modules/)
     echo "ok  dist/ : labctl ($v) + SHA256, install.sh, archive, .deb, $(find "$dist/modules" -name '*.tar.gz' | wc -l) module(s)" ;;

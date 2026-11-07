@@ -46,7 +46,7 @@ labctl core dhcp del pentest dc01
 labctl core dhcp release 52:54:00:aa:bb:cc   # libère un bail (automatique à la suppression d'une VM)
 
 labctl core dns list [MODULE]
-labctl core dns alias add pentest dvwa web   # dvwa.pentest.omedo.lab -> web
+labctl core dns alias add pentest dvwa web   # dvwa.pentest.omelab.internal -> web
 labctl core dns alias del pentest dvwa
 
 labctl core apply                    # régénère tout (réseau, DHCP, DNS, pare-feu) sur la passerelle
@@ -92,11 +92,11 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 
 ## DNS
 
-- Le domaine d'un module est `network.domain` dans son `module.yaml` (défaut `<réseau>.omedo.lab`). Il peut avoir
-  plusieurs niveaux (`k8s.client-a.omedo.lab`). En changer après coup impose de recréer la CA dérivée du module.
+- Le domaine d'un module est `network.domain` dans son `module.yaml` (défaut `<réseau>.omelab.internal`). Il peut avoir
+  plusieurs niveaux (`k8s.client-a.omelab.internal`). En changer après coup impose de recréer la CA dérivée du module.
 - Le DHCP fournit le domaine de recherche : `kali`, `dvwa`… marchent aussi en nom court.
 - Les VMs en DHCP libre (plage `.100`–`.199`) sont aussi résolues, sous le nom qu'elles annoncent.
-- Les domaines des modules non liés et tout `omedo.lab` répondent NXDOMAIN, sans jamais être relayés vers Internet.
+- Les domaines des modules non liés et tout `omelab.internal` répondent NXDOMAIN, sans jamais être relayés vers Internet.
 
 ## Fonctionnement interne
 

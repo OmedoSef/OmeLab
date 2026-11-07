@@ -166,8 +166,21 @@ func (l *Lab) Module(name string) (*Module, error) {
 	return nil, fmt.Errorf("module inconnu : %s", name)
 }
 
-// pkiDomain renvoie le domaine racine des labs (LABS_PKI_DOMAIN).
-func (l *Lab) pkiDomain() string { return l.Setting("LABS_PKI_DOMAIN", "omedo.lab") }
+// Identité par défaut d'un lab : organisation des CA et domaine racine. Réglables par lab dans config.env
+// (LABS_PKI_ORG, LABS_PKI_DOMAIN), choisis au « labctl init ». .internal est réservé aux réseaux privés.
+const (
+	DefaultOrg    = "OmeLab"
+	DefaultDomain = "omelab.internal"
+)
+
+// Org renvoie l'organisation du lab (nom des CA, du propriétaire des VMs Windows…) : LABS_PKI_ORG.
+func (l *Lab) Org() string { return l.Setting("LABS_PKI_ORG", DefaultOrg) }
+
+// RootDomain renvoie le domaine racine des labs (LABS_PKI_DOMAIN).
+func (l *Lab) RootDomain() string { return l.Setting("LABS_PKI_DOMAIN", DefaultDomain) }
+
+// pkiDomain : ancien nom interne de RootDomain.
+func (l *Lab) pkiDomain() string { return l.RootDomain() }
 
 var (
 	reVar   = regexp.MustCompile(`^([A-Z_]+)=("?)([^"]*)("?)\s*(#.*)?$`)

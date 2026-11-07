@@ -1205,7 +1205,7 @@ function renderPKI() {
   if (!p) return;
   if (!p.initialized) {
     $("#view-pki").innerHTML = `<section class="card"><div class="card-head"><h2>PKI</h2></div>
-      <div class="empty">Pas encore de PKI : la CA racine Omedo Labs (20 ans) et la CA intermédiaire (10 ans) seront créées.
+      <div class="empty">Pas encore de PKI : la CA racine « ${esc(p.org)} Root CA » (20 ans) et la CA intermédiaire (10 ans) seront créées, pour le domaine ${esc(p.domain)}.
       <p><button class="primary" ${busy} data-run='["pki","init"]' data-confirm="Créer la CA racine et la CA intermédiaire ?">Initialiser la PKI</button></p></div></section>`;
     return;
   }
@@ -1222,7 +1222,7 @@ function renderPKI() {
     <form class="inline" data-form="subca">
       <strong style="width:100%">Nouvelle CA dérivée</strong>
       <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9-]*" placeholder="k8s"></label>
-      <label>Domaine autorisé<input name="domain" required placeholder="k8s.omedo.lab"></label>
+      <label>Domaine autorisé<input name="domain" required placeholder="k8s.${esc(p.domain)}"></label>
       <label>Sous-réseau autorisé (IP)<input name="subnet" placeholder="10.70.70.0/24"></label>
       <button ${busy}>Créer</button>
     </form>
@@ -1251,10 +1251,10 @@ function renderPKI() {
     </tbody></table>
     <form class="inline" data-form="issue">
       <strong style="width:100%">Émettre un certificat</strong>
-      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9.-]*" placeholder="srv ou srv.pentest.omedo.lab"></label>
-      <label>CA émettrice<select name="ca"><option value="">intermédiaire (tout omedo.lab)</option>
+      <label>Nom<input name="name" required pattern="[A-Za-z0-9][A-Za-z0-9.-]*" placeholder="srv ou srv.pentest.${esc(p.domain)}"></label>
+      <label>CA émettrice<select name="ca"><option value="">intermédiaire (tout ${esc(p.domain)})</option>
         ${subs.map(c => `<option value="${esc(c.name)}">${esc(c.name)} (${esc(c.domain || "")})</option>`).join("")}</select></label>
-      <label>Noms DNS en plus<input name="dns" placeholder="www.x.omedo.lab,*.apps.x.omedo.lab"></label>
+      <label>Noms DNS en plus<input name="dns" placeholder="www.x.${esc(p.domain)},*.apps.x.${esc(p.domain)}"></label>
       <label>Adresses IP<input name="ip" placeholder="10.66.66.40"></label>
       <label>Validité (jours)<input name="days" type="number" min="1" max="825" placeholder="825" style="width:90px"></label>
       <label class="check"><input type="checkbox" name="client"> client seulement</label>

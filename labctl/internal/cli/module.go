@@ -256,7 +256,7 @@ func showModule(l *lab.Lab, name string) error {
 	if y == nil {
 		return errors.New("module illisible : labctl module validate " + name)
 	}
-	root := l.Setting("LABS_PKI_DOMAIN", "omedo.lab")
+	root := l.RootDomain()
 	sub := "(choisi au premier up)"
 	if p := y.Subnet(); p.IsValid() {
 		sub = p.String()

@@ -102,7 +102,7 @@ Les réseaux des modules sont créés par leur module (labctl <module> up), pas 
 				}
 			}
 			if domain == "" {
-				domain = name + "." + l.Setting("LABS_PKI_DOMAIN", "omedo.lab")
+				domain = name + "." + l.RootDomain()
 			}
 			if err := v.DefineNetwork(networkXML(name, mode, domain, pfx, !noDHCP)); err != nil {
 				return fmt.Errorf("définition du réseau refusée par libvirt : %w", err)

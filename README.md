@@ -1,4 +1,4 @@
-# Labs
+# OmeLab
 
 Labs de VMs locaux sur **QEMU/KVM + libvirt**, organisés en **modules**.
 
@@ -27,7 +27,7 @@ Labs/
 │   ├── pjpt/         lab Active Directory d'entraînement (préparation PJPT)
 │   ├── sample/       exemple complet et commenté, à lire et à copier
 │   └── netlab/       poste client pour tester la passerelle (pare-feu, portail, proxy)
-├── pki/              PKI Omedo Labs (non versionnée : contient les clés privées)
+├── pki/              PKI du lab (non versionnée : contient les clés privées)
 ├── bin/, .tools/     labctl compilé, Go et delve du projet (non versionnés)
 └── .vscode/          configuration de débogage de labctl
 ```
@@ -82,14 +82,15 @@ En clair :
 - **DNS** : `<vm>.<domaine du module>`, des alias, et les noms Internet seulement pour les VMs autorisées à sortir.
 - **Adressage** d'un module : `.1` = hôte, `.2`–`.99` = VMs à IP réservée, `.100`–`.199` = DHCP libre,
   `.254` = passerelle core (routeur, DHCP, DNS).
-- **PKI** : racine *Omedo Labs Root CA*. Chaque module a sa CA dérivée, limitée à son domaine et à son
+- **PKI** : racine *OmeLab Root CA* (organisation et domaine racine réglables : `LABS_PKI_ORG`,
+  `LABS_PKI_DOMAIN`, choisis au `labctl init`). Chaque module a sa CA dérivée, limitée à son domaine et à son
   sous-réseau. Toutes les VMs créées par labctl font confiance à la racine.
 
 ## Démarrage
 
 ```bash
 labctl check                   # prérequis de l'hôte
-labctl pki init                # une fois : CA racine Omedo Labs
+labctl pki init                # une fois : CA racine du lab
 labctl core gw               # passerelle Internet + DNS
 labctl pentest check
 labctl pentest up              # réseau, CA, VMs : tout ce que décrit modules/pentest/module.yaml
@@ -118,3 +119,8 @@ effectives de chaque VM et leur origine.
 
 labctl découvre les modules automatiquement : un nouveau dossier avec un `module.yaml` apparaît dans `labctl`,
 sa complétion et la GUI sans aucune modification du code Go ni recompilation.
+
+## Licence
+
+OmeLab est distribué sous la [licence Apache 2.0](LICENSE). Copyright 2026 Romain VOLPI et les contributeurs
+d'OmeLab (voir [NOTICE](NOTICE) et [CONTRIBUTORS.md](CONTRIBUTORS.md) : chaque contributeur peut y ajouter son nom).

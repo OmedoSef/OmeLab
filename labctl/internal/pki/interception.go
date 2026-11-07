@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Autorité d'interception : racine à part (hors de la chaîne Omedo Labs), utilisée par le proxy de la passerelle
+// Autorité d'interception : racine à part (hors de la chaîne racine → intermédiaire), utilisée par le proxy de la passerelle
 // (mitmproxy, connexions via: proxy en mode intercept) pour signer à la volée un certificat pour n'importe quel
 // site. Elle n'est installée que dans les VMs choisies (TrustInterceptionVM) : les autres voient des erreurs de
 // certificat, ce qui fait partie de ce qu'on observe. Sa clé ne sort de pki/ que vers la passerelle.

@@ -42,9 +42,9 @@ Chaque commande a son aide : `labctl <commande> --help`.
 - **Réseaux** : la 1re carte est la carte de gestion. `-n reseau` = DHCP, `-n reseau:IP/CIDR` = IP fixe.
   Sur un réseau créé par `labctl net create`, l'hôte a l'adresse `.1` et le DHCP sert la 2e moitié de la plage
   (la 1re moitié est pour les IP fixes).
-- **Noms DNS** : domaine racine `omedo.lab`. Chaque réseau a son sous-domaine (`net create k8s` → `k8s.omedo.lab`,
-  modifiable avec `-D`, y compris sur plusieurs niveaux : `-D prod.k8s.omedo.lab`). Une VM prend le domaine de sa
-  1re carte (`web1.k8s.omedo.lab`), ou `omedo.lab` sur le réseau `default`.
+- **Noms DNS** : domaine racine `omelab.internal`. Chaque réseau a son sous-domaine (`net create k8s` → `k8s.omelab.internal`,
+  modifiable avec `-D`, y compris sur plusieurs niveaux : `-D prod.k8s.omelab.internal`). Une VM prend le domaine de sa
+  1re carte (`web1.k8s.omelab.internal`), ou `omelab.internal` sur le réseau `default`.
 - **Clavier** : celui de ce poste (lu avec `localectl`), ou `LABS_KEYBOARD=us` (fr, be, ch…) dans `config.local.env`.
   Posé par cloud-init dès le premier démarrage ; pour une VM existante : `labctl vm keyboard VM...`.
 - **Réglages** : valeurs par défaut dans [config.env](../config.env) (racine de Labs), à surcharger dans
@@ -54,9 +54,9 @@ Chaque commande a son aide : `labctl <commande> --help`.
 
 ```bash
 labctl pki init                                   # CA racine (20 ans) + intermédiaire (10 ans), dans pki/
-labctl pki issue web1 -D k8s.omedo.lab -i 10.10.0.11 # SAN : web1, web1.k8s.omedo.lab, IP
-labctl pki issue db1.data.prod.omedo.lab             # nom déjà complet : pris tel quel
-labctl pki issue ingress -D k8s.omedo.lab -d '*.apps.k8s.omedo.lab'   # wildcard (entre quotes)
+labctl pki issue web1 -D k8s.omelab.internal -i 10.10.0.11 # SAN : web1, web1.k8s.omelab.internal, IP
+labctl pki issue db1.data.prod.omelab.internal             # nom déjà complet : pris tel quel
+labctl pki issue ingress -D k8s.omelab.internal -d '*.apps.k8s.omelab.internal'   # wildcard (entre quotes)
 labctl pki issue alice --client --pfx             # cert client + .p12
 labctl pki deploy web1 web1                       # copie clé/cert/chaîne dans /etc/ssl/lab/ de la VM
 labctl pki trust-vm vieille-vm                    # installe la CA racine dans une VM existante
@@ -71,12 +71,13 @@ Pour un serveur, utiliser `<nom>.fullchain.crt` (certificat + CA émettrice).
 Les modules la créent eux-mêmes (`pki: {ca: …}` dans leur `module.yaml`) ; à la main :
 
 ```bash
-labctl pki sub-ca pentest -D pentest.omedo.lab -s 10.66.66.0/24
-labctl pki issue web -C pentest -i 10.66.66.30     # SAN : web.pentest.omedo.lab, 10.66.66.30
+labctl pki sub-ca pentest -D pentest.omelab.internal -s 10.66.66.0/24
+labctl pki issue web -C pentest -i 10.66.66.30     # SAN : web.pentest.omelab.internal, 10.66.66.30
 ```
 
 Un certificat hors de ces limites est refusé à l'émission, et le serait aussi par les clients.
-Organisation : **Omedo Labs** (`Omedo Labs Root CA` → `Omedo Labs Intermediate CA`).
-Un wildcard ne couvre qu'**un seul niveau** : `*.k8s.omedo.lab` couvre `a.k8s.omedo.lab` mais pas
-`b.a.k8s.omedo.lab` ; ajouter un `-d` par niveau nécessaire.
+Organisation : **OmeLab** par défaut (`OmeLab Root CA` → `OmeLab Intermediate CA`), réglable par `LABS_PKI_ORG`
+(choisie au `labctl init`, à fixer avant `labctl pki init`).
+Un wildcard ne couvre qu'**un seul niveau** : `*.k8s.omelab.internal` couvre `a.k8s.omelab.internal` mais pas
+`b.a.k8s.omelab.internal` ; ajouter un `-d` par niveau nécessaire.
 Les clés privées ne sont pas chiffrées : le dossier `pki/` est exclu de git.

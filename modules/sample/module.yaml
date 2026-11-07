@@ -15,7 +15,7 @@ pki:
 # Valeurs nommées du module, écrites une fois et reprises partout via ${var.<nom>} (ici dans la page web).
 vars:
   title: "Intranet de démonstration"
-  owner: "Omedo Labs"
+  owner: "OmeLab"
 
 dns:
   aliases:

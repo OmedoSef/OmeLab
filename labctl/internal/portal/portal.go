@@ -429,6 +429,6 @@ h1{font-size:20px;margin:0 0 12px} form{display:grid;gap:12px;margin-top:16px} l
 label.terms{display:flex;gap:8px;align-items:center;color:#1d2330} input[type=password]{padding:8px;border:1px solid #d0d5dd;border-radius:7px;font:inherit}
 button{padding:9px 14px;border:0;border-radius:7px;background:#2f6fde;color:#fff;font:inherit;cursor:pointer}
 .ok{color:#1e9e5a}.err{color:#d1433b}small{display:block;margin-top:18px;color:#98a2b3}
-</style></head><body><main><h1>%s</h1>%s<small>Omedo Labs · portail captif de test · module %s</small></main></body></html>`,
+</style></head><body><main><h1>%s</h1>%s<small>OmeLab · portail captif de test · module %s</small></main></body></html>`,
 		htmlEsc(c.Title), htmlEsc(c.Title), body, htmlEsc(c.Module))
 }

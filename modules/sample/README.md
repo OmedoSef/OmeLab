@@ -28,7 +28,7 @@ labctl sample status             # IP, état, snapshots
 ```
 
 Depuis une VM du même lab (ou en ajoutant la CA du module à ton poste), la page répond sur
-`https://www.sample.<racine>/` (`<racine>` = domaine racine du lab, `omedo.lab` par défaut) avec un certificat valide. En HTTP, redirection vers HTTPS.
+`https://www.sample.<racine>/` (`<racine>` = domaine racine du lab, `omelab.internal` par défaut) avec un certificat valide. En HTTP, redirection vers HTTPS.
 
 ```bash
 labctl sample restore            # revient au snapshot « clean »

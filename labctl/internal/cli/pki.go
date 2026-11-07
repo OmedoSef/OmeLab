@@ -17,12 +17,7 @@ import (
 var sshOpts = []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5"}
 
 func newPKI(l *lab.Lab) *pki.PKI {
-	return &pki.PKI{
-		Dir:    l.PKIDir(),
-		Org:    l.Setting("LABS_PKI_ORG", "Omedo Labs"),
-		Domain: l.Setting("LABS_PKI_DOMAIN", "omedo.lab"),
-		Out:    os.Stderr,
-	}
+	return l.PKITool(os.Stderr) // mêmes réglages que la GUI (organisation, domaine racine, dossier)
 }
 
 // remote : accès SSH aux VMs pour installer la CA ou un certificat.
@@ -67,7 +62,7 @@ Les VMs créées par les scripts font confiance à la CA racine. Fichiers dans `
 	sub := &cobra.Command{
 		Use:     "sub-ca NOM -D DOMAINE [-s CIDR]",
 		Short:   "Crée une CA dérivée limitée à un domaine (et à un sous-réseau pour les IP)",
-		Example: "  labctl pki sub-ca pentest -D pentest.omedo.lab -s 10.66.66.0/24",
+		Example: "  labctl pki sub-ca pentest -D pentest.omelab.internal -s 10.66.66.0/24",
 		Args:    cobra.ExactArgs(1), ValidArgsFunction: noFiles,
 		RunE: func(_ *cobra.Command, args []string) error { return p.SubCA(args[0], subDomain, subNet) },
 	}
@@ -84,8 +79,8 @@ Les VMs créées par les scripts font confiance à la CA racine. Fichiers dans `
 
 SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dérivée, le nom court est omis
 (il serait refusé par sa contrainte de nom). Le certificat est vérifié avant d'être conservé.`,
-		Example: `  labctl pki issue web -C pentest -i 10.66.66.30 -d dvwa.pentest.omedo.lab
-  labctl pki issue ingress -D k8s.omedo.lab -d '*.apps.k8s.omedo.lab'
+		Example: `  labctl pki issue web -C pentest -i 10.66.66.30 -d dvwa.pentest.omelab.internal
+  labctl pki issue ingress -D k8s.omelab.internal -d '*.apps.k8s.omelab.internal'
   labctl pki issue alice --client --pfx`,
 		Args: cobra.ExactArgs(1), ValidArgsFunction: noFiles,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -138,7 +133,7 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 	root.AddCommand(&cobra.Command{
 		Use:   "interception",
 		Short: "Crée (si besoin) l'autorité d'interception du proxy et indique son certificat",
-		Long: `L'autorité d'interception est une racine à part (hors de la chaîne Omedo Labs) dont le proxy de la
+		Long: `L'autorité d'interception est une racine à part (hors de la chaîne racine → intermédiaire) dont le proxy de la
 passerelle se sert en mode intercept pour signer à la volée. Elle est créée automatiquement au premier montage
 du proxy ; cette commande la crée à l'avance pour pouvoir la télécharger et l'importer (navigateur, VMs).
 La poser dans une VM : labctl pki trust-vm --interception VM.`,

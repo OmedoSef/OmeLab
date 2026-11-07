@@ -116,8 +116,8 @@ func windowsLocale(layout string) (input, user string) {
 
 // unattendData : ce que contient autounattend.xml.
 type unattendData struct {
-	Edition, ComputerName, Password, TimeZone, Input, UserLocale string
-	DriverPaths                                                  []string
+	Edition, ComputerName, Password, TimeZone, Input, UserLocale, Org string
+	DriverPaths                                                       []string
 }
 
 var unattendTmpl = template.Must(template.New("unattend").Funcs(template.FuncMap{"x": xmlEsc}).Parse(`<?xml version="1.0" encoding="utf-8"?>
@@ -161,8 +161,8 @@ var unattendTmpl = template.Must(template.New("unattend").Funcs(template.FuncMap
       </ImageInstall>
       <UserData>
         <AcceptEula>true</AcceptEula>
-        <FullName>Omedo Labs</FullName>
-        <Organization>Omedo Labs</Organization>
+        <FullName>{{x .Org}}</FullName>
+        <Organization>{{x .Org}}</Organization>
       </UserData>
     </component>
   </settings>
@@ -279,7 +279,7 @@ func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
 	if err != nil {
 		return err
 	}
-	d := unattendData{Edition: w.Edition, Password: password, TimeZone: w.TimeZone}
+	d := unattendData{Edition: w.Edition, Password: password, TimeZone: w.TimeZone, Org: r.l.Org()}
 	if d.TimeZone == "" {
 		d.TimeZone = "Romance Standard Time"
 	}
