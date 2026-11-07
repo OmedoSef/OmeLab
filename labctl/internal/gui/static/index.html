@@ -224,7 +224,7 @@ addEventListener("hashchange", () => {
 });
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let state = null, running = false, current = null, core = null, pki = null, config = null;
+let state = null, running = false, current = null, core = null, pki = null, pkiTrust = null, trustChecking = false, config = null;
 const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
 const stLabel = s => stateLabel[s] || s;
 
@@ -366,6 +366,15 @@ async function loadCore(fresh = false) {
 async function loadPKI() {
   try { pki = await (await api("/api/pki")).json(); renderPKI(); }
   catch (e) { $("#view-pki").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
+}
+
+// checkTrust sonde les VMs par SSH — à la demande seulement (bouton), jamais dans loadPKI ni au rafraîchissement.
+async function checkTrust() {
+  if (running || trustChecking) return;
+  trustChecking = true; renderPKI();
+  try { pkiTrust = await (await api("/api/pki/trust")).json(); }
+  catch (e) { toast(e.message, true); }
+  finally { trustChecking = false; renderPKI(); }
 }
 
 async function download(path) {
@@ -1232,14 +1241,26 @@ function renderPKI() {
       : "aucune"}</div>
   </section>`;
 
-  h += `<section class="card"><div class="card-head"><h2>Confiance dans les VMs</h2></div>
-    <form class="inline" data-form="trust">
-      <label>VM<select name="vm" required><option value="">choisir…</option>${vmOpts}</select></label>
-      <label>Autorité<select name="which"><option value="root">CA racine Omedo Labs</option><option value="interception">autorité d'interception (proxy)</option></select></label>
-      <button ${busy}>Installer dans la VM</button>
-      <span class="meta">racine : utile pour une VM créée avant la PKI (sur ton poste : <span class="mono">labctl pki trust-host</span>, sudo requis) ;
-        interception : le proxy en mode <span class="mono">intercept</span> devient invisible pour cette VM</span>
-    </form></section>`;
+  const trustCell = (vm, val) => {
+    const t = pkiTrust && pkiTrust[vm];
+    if (!t) return `<span class="meta">?</span>`;
+    if (!t.reachable) return `<span class="meta" title="${esc(t.err || 'injoignable')}">injoignable</span>`;
+    return val ? `<span class="pill on">✓</span>` : `<span class="pill never">✗</span>`;
+  };
+  h += `<section class="card"><div class="card-head"><h2>Confiance dans les VMs</h2>
+      <span class="meta">la racine est posée à la création des VMs ; « Vérifier » lit l'état réel par SSH (à la demande, pas au rafraîchissement)</span>
+      <button style="margin-left:auto" ${running || trustChecking ? "disabled" : ""} data-check-trust>${trustChecking ? "Vérification…" : "Vérifier la confiance"}</button></div>
+    <table><thead><tr><th>VM</th><th>CA racine</th><th>Interception</th><th>Installer</th></tr></thead><tbody>
+    ${vms.map(vm => `<tr><td class="mono">${esc(vm)}</td>
+      <td>${trustCell(vm, pkiTrust && pkiTrust[vm] && pkiTrust[vm].root)}</td>
+      <td>${trustCell(vm, pkiTrust && pkiTrust[vm] && pkiTrust[vm].interception)}</td>
+      <td><div class="actions">
+        <button ${busy} data-trust='${esc(JSON.stringify(["pki", "trust-vm", vm]))}'>racine</button>
+        <button ${busy} data-trust='${esc(JSON.stringify(["pki", "trust-vm", "--interception", vm]))}'>interception</button></div></td></tr>`).join("")
+      || `<tr><td colspan="4" class="empty">Aucune VM</td></tr>`}
+    </tbody></table>
+    <div class="meta" style="padding:10px 16px;border-top:1px solid var(--line)">Racine : automatique à la création, utile ici pour une VM créée avant la PKI (sur ton poste : <span class="mono">labctl pki trust-host</span>, sudo). Interception : à poser seulement sur les VMs à observer — les autres doivent voir l'erreur de certificat.</div>
+  </section>`;
   $("#view-pki").innerHTML = h;
 }
 
@@ -1282,11 +1303,17 @@ document.addEventListener("submit", e => {
     if (v.client) args.push("--client");
     if (v.pfx) args.push("--pfx");
     run(args);
-  } else if (f.dataset.form === "trust") {
-    if (v.which === "interception") run(["pki", "trust-vm", "--interception", v.vm],
-      `Installer l'autorité d'interception dans ${v.vm} (par SSH) ? Le proxy pourra alors déchiffrer son HTTPS sans alerte.`);
-    else run(["pki", "trust-vm", v.vm], `Installer la CA racine Omedo Labs dans ${v.vm} (par SSH) ?`);
   }
+});
+
+// Page PKI : vérifier la confiance (sonde SSH, à la demande) et poser une CA dans une VM.
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-check-trust]")) { checkTrust(); return; }
+  const b = e.target.closest("[data-trust]");
+  if (!b) return;
+  const args = JSON.parse(b.dataset.trust), vm = args[args.length - 1];
+  const which = args.includes("--interception") ? "l'autorité d'interception" : "la CA racine";
+  run(args, `Installer ${which} dans ${vm} (par SSH) ?`).then(ok => { if (ok) checkTrust(); });
 });
 document.addEventListener("change", e => {
   const s = e.target.closest("select[data-deploy-vm]");

@@ -123,6 +123,7 @@ func Serve(l *lab.Lab, port int, open Open) error {
 	mux.HandleFunc("POST /api/console", s.api(s.handleConsole))
 	mux.HandleFunc("GET /api/core", s.api(s.handleCore))
 	mux.HandleFunc("GET /api/pki", s.api(s.handlePKI))
+	mux.HandleFunc("GET /api/pki/trust", s.api(s.handlePKITrust))
 	mux.HandleFunc("GET /api/pki/file", s.api(s.handlePKIFile))
 	mux.HandleFunc("GET /api/config", s.api(s.handleConfig))
 	mux.HandleFunc("POST /api/config", s.api(s.handleConfigEdit))
@@ -231,6 +232,12 @@ func (s *server) handlePKI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"pki": st, "vms": s.lab.AllVMNames()})
+}
+
+// handlePKITrust sonde en SSH quelles VMs font confiance à la racine / à l'autorité d'interception. Coûteux
+// (un aller-retour par VM) : déclenché par le bouton « Vérifier la confiance », jamais par le rafraîchissement.
+func (s *server) handlePKITrust(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.lab.TrustStatus(s.lab.AllVMNames()...))
 }
 
 // handlePKIFile sert un certificat public de la PKI (jamais une clé privée ni un .p12).

@@ -28,6 +28,27 @@ func (l *Lab) PKITool(out io.Writer) *pki.PKI {
 // PKIDir renvoie le dossier de la PKI (LABS_PKI_DIR, sinon <racine>/pki).
 func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l.Root, "pki")) }
 
+// Remote construit l'accès SSH aux VMs (poser ou sonder les CA). BatchMode : aucune invite, on échoue vite ;
+// VMIP vide (VM éteinte) → erreur immédiate, pas d'attente.
+func (l *Lab) Remote() pki.Remote {
+	return pki.Remote{
+		User:    l.Setting("LABS_VM_USER", "lab"),
+		SSHOpts: append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes"),
+		IP: func(vm string) (string, error) {
+			if ip := l.VMIP(vm); ip != "" {
+				return ip, nil
+			}
+			return "", fmt.Errorf("pas d'IP (VM démarrée ?)")
+		},
+	}
+}
+
+// TrustStatus sonde la confiance des VMs envers la racine et l'autorité d'interception. À la demande (bouton),
+// jamais au rafraîchissement : un aller-retour SSH par VM.
+func (l *Lab) TrustStatus(vms ...string) map[string]pki.VMTrust {
+	return l.PKITool(io.Discard).TrustStatus(l.Remote(), vms...)
+}
+
 // PKIState décrit la PKI telle qu'elle est sur disque (lue directement dans les certificats).
 type PKIState struct {
 	Initialized  bool       `json:"initialized"`

@@ -114,6 +114,23 @@ func (r Remote) ssh(vm, script string, stdin io.Reader) error {
 	return nil
 }
 
+// sshOut exécute un script dans la VM et renvoie sa sortie standard (pour sonder, sans rien modifier).
+func (r Remote) sshOut(vm, script string) ([]byte, error) {
+	ip, err := r.IP(vm)
+	if err != nil {
+		return nil, fmt.Errorf("%s : %w", vm, err)
+	}
+	args := append(append([]string{}, r.SSHOpts...), r.User+"@"+ip, script)
+	cmd := exec.Command("ssh", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("%s : %v %s", vm, err, strings.TrimSpace(stderr.String()))
+	}
+	return stdout.Bytes(), nil
+}
+
 // Script exécuté dans la VM : installe la CA lue sur l'entrée standard (Debian/Ubuntu ou famille RHEL)
 const remoteTrust = `set -e
 if [ -d /usr/local/share/ca-certificates ]; then
