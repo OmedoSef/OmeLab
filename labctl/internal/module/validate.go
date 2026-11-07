@@ -357,9 +357,10 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 		if f.Mode != "" && !reMode.MatchString(f.Mode) {
 			c.err(fp+".mode", "mode invalide %q (ex. 0644)", f.Mode)
 		}
-		src := f.Src
-		if !filepath.IsAbs(src) {
-			src = filepath.Join(m.Dir, src)
+		src, err := SourcePath(m.Dir, f.Src)
+		if err != nil {
+			c.err(fp+".src", "%v", err)
+			continue
 		}
 		b, err := os.ReadFile(src)
 		if err != nil {

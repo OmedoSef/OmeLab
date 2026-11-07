@@ -1,6 +1,8 @@
 package lab
 
 import (
+	"fmt"
+
 	"labs/labctl/internal/coreconf"
 	"labs/labctl/internal/virt"
 	"slices"
@@ -21,6 +23,7 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 			gwMACs[i.MAC] = true
 		}
 	}
+	included := map[string]bool{}
 	for _, m := range mods {
 		if m.Env == nil {
 			continue
@@ -52,6 +55,13 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 				cm.MACs[h] = mac
 			}
 		}
+		// Identifiants recopiés tels quels dans la config de la passerelle : un module qui en porte un douteux
+		// (saut de ligne, accolade, guillemet…) est écarté, même jamais validé ni lancé — il n'entraîne pas les autres.
+		if err := cm.Check(); err != nil {
+			in.Skipped = append(in.Skipped, fmt.Sprintf("module %s écarté de la passerelle : %v", m.Name, err))
+			continue
+		}
+		included[m.Name] = true
 		in.Modules = append(in.Modules, cm)
 		if gwMACs[coreconf.GatewayMAC(m.Env.Subnet)] {
 			in.Attached = append(in.Attached, m.Name)
@@ -68,7 +78,7 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		}
 		for _, ref := range m.Conf.Attached {
 			owner, _, _ := strings.Cut(ref, "/")
-			if i, ok := byName[owner]; ok && !slices.Contains(in.Modules[i].Sees, m.Name) {
+			if i, ok := byName[owner]; ok && included[m.Name] && !slices.Contains(in.Modules[i].Sees, m.Name) {
 				in.Modules[i].Sees = append(in.Modules[i].Sees, m.Name)
 			}
 		}

@@ -219,6 +219,9 @@ func (g *Gateway) Apply() error {
 	if err != nil {
 		return err
 	}
+	for _, s := range in.Skipped {
+		g.logf("attention: %s", s)
+	}
 	files, err := coreconf.Render(in)
 	if err != nil {
 		return fmt.Errorf("génération de la configuration impossible : %w", err)

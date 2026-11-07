@@ -10,7 +10,6 @@ package coreconf
 import (
 	"encoding/json"
 	"fmt"
-	"net/netip"
 	"sort"
 	"strings"
 
@@ -52,6 +51,7 @@ type Input struct {
 	Attached   []string // modules dont la passerelle est branchée sur le réseau
 	Upstream   string   // DNS amont pour les instances open (passerelle du NAT libvirt)
 	RootDomain string   // domaine racine des labs, jamais relayé vers Internet
+	Skipped    []string // modules écartés (identifiants refusés par Check), avec la raison : à signaler
 }
 
 // Files associe un chemin relatif (gwdns/..., networkd/...) à son contenu.
@@ -84,13 +84,14 @@ func (m *Module) vmsByIP() []string {
 
 // Render produit tous les fichiers de configuration.
 func Render(in Input) (Files, error) {
+	// Défense en profondeur : aucun identifiant douteux ne doit atteindre les fichiers de la passerelle, quel
+	// que soit l'appelant (CoreInput écarte déjà les modules qui échouent, avec un message).
+	if err := in.Check(); err != nil {
+		return nil, err
+	}
 	byName := map[string]*Module{}
 	for i := range in.Modules {
-		m := &in.Modules[i]
-		if _, err := netip.ParseAddr(m.Subnet + ".0"); err != nil {
-			return nil, fmt.Errorf("module %s : sous-réseau invalide %q", m.Name, m.Subnet)
-		}
-		byName[m.Name] = m
+		byName[in.Modules[i].Name] = &in.Modules[i]
 	}
 	attached := map[string]bool{}
 	var order []*Module // modules branchés, dans l'ordre des modules

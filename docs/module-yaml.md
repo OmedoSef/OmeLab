@@ -310,7 +310,7 @@ connections:
 | `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
 | `keyboard` | clavier de l'hôte | disposition appliquée à la VM (console et X) à la création ; par défaut celle de l'hôte (`LABS_KEYBOARD`, sinon `localectl`) ; à préciser (ex. `us`) pour forcer une autre disposition |
-| `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}` |
+| `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}`. `files[].src` est **relatif au dossier du module** (ex. `files/x.conf`) : chemin absolu, `~`, `..` et lien symbolique sont refusés — un module ne peut pas copier dans une VM un fichier de l'hôte (clé de `pki/`, `~/.ssh`…) |
 | `certificates` | — | certificats émis par la CA du module et **installés dans la VM** (par SSH) ; `reload` relancé après |
 | `snapshot` | — | nom du snapshot pris une fois la VM prête (ex. `clean`) |
 
@@ -451,7 +451,7 @@ Ce que fait `up`, dans l'ordre :
 - noms (module, VM, alias) ; `ip` entre 2 et 99 et unique ; MAC valides et uniques ;
 - sous-réseau et domaine qui **chevauchent un autre module** ou un réseau libvirt existant ;
 - `image` absente du catalogue ; `source` sans empreinte ; `image` et `source` à la fois ;
-- `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ;
+- `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ou hors du dossier du module ;
 - alias vers une VM inexistante ; lien vers un module inexistant ; certificat dont un nom sort du domaine de la CA ;
 - connexion : cible inconnue (module, VM sans IP fixe), source qui n'est ni une VM à IP fixe ni une réservation,
   port mal formé, cible déjà dans `dns.links`, `via` inconnu ou pas encore disponible ; portail : `auth`

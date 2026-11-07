@@ -661,9 +661,9 @@ func (r *run) cloudContent(vm string, s *VMSpec, tmp string) error {
 	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard(), LabVars: r.l.LabVars()}
 	s.Packages = e.VM.Packages
 	for i, f := range e.VM.Files {
-		src := f.Src
-		if !filepath.IsAbs(src) {
-			src = filepath.Join(r.y.Dir, src)
+		src, err := module.SourcePath(r.y.Dir, f.Src) // jamais un fichier de l'hôte hors du module
+		if err != nil {
+			return fmt.Errorf("%s : %w", vm, err)
 		}
 		if f.Template {
 			b, err := os.ReadFile(src)

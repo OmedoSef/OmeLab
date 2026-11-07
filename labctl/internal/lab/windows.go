@@ -374,9 +374,9 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard()}
 	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + r.vmIP(vm)
 	for _, f := range e.VM.Files {
-		src := f.Src
-		if !filepath.IsAbs(src) {
-			src = filepath.Join(r.y.Dir, src)
+		src, err := module.SourcePath(r.y.Dir, f.Src) // jamais un fichier de l'hôte hors du module
+		if err != nil {
+			return fmt.Errorf("%s : %w", vm, err)
 		}
 		b, err := os.ReadFile(src)
 		if err != nil {

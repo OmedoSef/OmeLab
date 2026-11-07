@@ -51,6 +51,9 @@ Avec DOSSIER : y écrit gwdns/ et networkd/ (ce que « core apply » envoie sur 
 			if err != nil {
 				return err
 			}
+			for _, s := range in.Skipped {
+				fmt.Fprintln(os.Stderr, "attention:", s)
+			}
 			files, err := coreconf.Render(in)
 			if err != nil {
 				return err
