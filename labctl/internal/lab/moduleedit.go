@@ -127,7 +127,8 @@ description: À décrire
 
 # network:                    # facultatif : sans section, un /24 libre est choisi au premier « up »
 #   subnet: 10.70.70.0/24     # hôte .1, VMs à IP fixe .2-.99, DHCP libre .100-.199, passerelle core .254
-#   domain: NAME-lab.omedo.lab
+#   subdomain: NAME           # domaine = NAME.<racine du lab> ; sinon défaut <réseau>.<racine>
+#   # domain: NAME.local      # ... ou un domaine complet, pris tel quel (ignore la racine du lab)
 
 # pki:
 #   ca: NAME                  # CA dérivée, limitée au domaine et au sous-réseau du module

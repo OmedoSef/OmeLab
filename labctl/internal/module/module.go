@@ -40,9 +40,10 @@ type Module struct {
 
 // Network est le réseau isolé du module.
 type Network struct {
-	Name   string `yaml:"name,omitempty"`
-	Subnet string `yaml:"subnet,omitempty"` // 10.66.66.0/24
-	Domain string `yaml:"domain,omitempty"`
+	Name      string `yaml:"name,omitempty"`
+	Subnet    string `yaml:"subnet,omitempty"`    // 10.66.66.0/24
+	Domain    string `yaml:"domain,omitempty"`    // domaine complet, pris tel quel (ex. pjpt.local)
+	Subdomain string `yaml:"subdomain,omitempty"` // libellé collé sous le domaine racine : <subdomain>.<racine>
 }
 
 // PKI : CA dérivée du module.

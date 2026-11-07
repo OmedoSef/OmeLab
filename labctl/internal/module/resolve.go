@@ -56,10 +56,17 @@ func (m *Module) NetworkName() string {
 	return m.Module + "-lab"
 }
 
-// Domain renvoie le domaine du module (défaut <réseau>.<domaine racine>).
+// Domain renvoie le domaine du module. Trois cas, dans l'ordre : network.domain (domaine complet, pris tel
+// quel), network.subdomain (<subdomain>.<racine>, pour se coller sous le domaine racine), sinon le défaut
+// <réseau>.<racine>.
 func (m *Module) Domain(rootDomain string) string {
-	if m.Network != nil && m.Network.Domain != "" {
-		return m.Network.Domain
+	if m.Network != nil {
+		if m.Network.Domain != "" {
+			return m.Network.Domain
+		}
+		if m.Network.Subdomain != "" {
+			return m.Network.Subdomain + "." + rootDomain
+		}
 	}
 	return m.NetworkName() + "." + rootDomain
 }

@@ -114,6 +114,12 @@ func (m *Module) Validate(ctx Context) []Issue {
 		if m.Network.Domain != "" && !reDomain.MatchString(m.Network.Domain) {
 			c.err("network.domain", "domaine invalide %q", m.Network.Domain)
 		}
+		if m.Network.Subdomain != "" && !reName.MatchString(m.Network.Subdomain) {
+			c.err("network.subdomain", "sous-domaine invalide %q (un seul libellé, ex. pentest)", m.Network.Subdomain)
+		}
+		if m.Network.Domain != "" && m.Network.Subdomain != "" {
+			c.warn("network.subdomain", "domaine et subdomain renseignés tous les deux : subdomain ignoré (domain l'emporte)")
+		}
 	}
 	if m.Network == nil || m.Network.Subnet == "" {
 		c.warn("network", "pas de sous-réseau : un /24 libre sera choisi et écrit dans le fichier au premier « up »")

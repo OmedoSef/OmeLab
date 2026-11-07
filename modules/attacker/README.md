@@ -19,7 +19,7 @@ labctl pentest up                   # branche les postes que pentest accueille (
 ```
 
 - Sur un réseau cible, la carte n'a **ni route par défaut ni DNS** : Internet et la résolution passent par
-  `attacker-lab`, dont le DNS résout aussi les noms des labs où le poste est branché (`web.pentest-lab.omedo.lab`).
+  `attacker-lab`, dont le DNS résout aussi les noms des labs où le poste est branché (`web.pentest.<racine>`, `<racine>` = domaine racine du lab).
 - Les postes ne routent pas d'un réseau à l'autre : les labs cibles restent isolés entre eux et de l'Internet.
 - Clavier : Kali prend celui de ton poste par l'agent invité QEMU (`labctl attacker keyboard kali [fr]`) ; l'image
   de Parrot n'a pas d'agent invité : clavier à régler dans sa session.

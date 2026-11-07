@@ -7,7 +7,7 @@ description: "Exemple : serveur web intranet en HTTPS (CA du module), à lire et
 network:
   name: sample-lab              # réseau libvirt isolé (bridge virbr-sample)
   subnet: 10.69.69.0/24         # hôte .1, VMs à IP fixe .2-.99, DHCP libre .100-.199, passerelle core .254
-  domain: sample-lab.omedo.lab  # srv -> srv.sample-lab.omedo.lab
+  subdomain: sample             # domaine = sample.<domaine racine du lab> (LABS_PKI_DOMAIN) ; srv -> srv.sample.<racine>
 
 pki:
   ca: sample                    # CA dérivée, limitée au domaine et au sous-réseau du module (sert au certificat plus bas)
@@ -19,7 +19,7 @@ vars:
 
 dns:
   aliases:
-    www: srv                    # www.sample-lab.omedo.lab -> la VM srv
+    www: srv                    # www.<domaine du module> -> la VM srv
 
 defaults:
   snapshot: clean               # état de référence pris à la fin de l'installation (labctl sample restore)

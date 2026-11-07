@@ -32,7 +32,7 @@ description: Lab isolé — Metasploitable 2 et une cible web (DVWA + Juice Shop
 network:
   name: pentest-lab               # réseau libvirt isolé, bridge virbr-pentest
   subnet: 10.66.66.0/24           # hôte .1, VMs réservées .2-.99, DHCP libre .100-.199, passerelle core .254
-  domain: pentest-lab.omedo.lab   # défaut : <name>.<domaine des labs>
+  subdomain: pentest              # domaine = pentest.<domaine racine du lab> ; défaut : <name>.<racine>
 
 pki:
   ca: pentest                     # CA dérivée du module, limitée à network.domain et network.subnet
@@ -122,7 +122,8 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `module` | oui | nom (= nom du dossier) |
 | `description` | non | affichée par `labctl`, la GUI et la complétion |
 | `network` | non | sans cette section : réseau `<module>-lab`, domaine `<module>-lab.<domaine des labs>`, sous-réseau `/24` libre choisi par labctl et **écrit dans le YAML** au premier `up` (stable ensuite) |
-| `network.name` / `subnet` / `domain` | non | pour les fixer soi-même ; `subnet` en `/24` |
+| `network.name` / `subnet` | non | pour les fixer soi-même ; `subnet` en `/24` |
+| `network.domain` / `subdomain` | non | domaine du module. `subdomain: X` → `X.<domaine racine du lab>` (se coller sous la racine) ; `domain: X.local` → domaine **complet**, pris tel quel (ignore la racine) ; défaut `<réseau>.<racine>`. Les deux ensemble : `domain` l'emporte |
 | `defaults` | non | valeurs communes aux VMs du module (`image`, `cpus`, `memory`, `disk`, `hardware`, `internet`, `snapshot`…) |
 | `pki.ca` | non | crée une CA dérivée limitée au domaine et au sous-réseau du module |
 | `dns.aliases` / `hosts` | non | alias DNS, réservations DHCP de machines hors `vms:` |
@@ -171,7 +172,7 @@ attach:
   crée et se gère dans son propre module (ex. `labctl attacker up kali`).
 - Sur ce réseau, la carte reçoit son IP par DHCP **sans route par défaut ni DNS** : Internet et le DNS restent ceux
   de la carte principale (module d'origine), dont le DNS résout alors aussi les noms de ce module
-  (`<vm>.<domaine de ce module>`, ex. `kali.pentest-lab.omedo.lab`).
+  (`<vm>.<domaine de ce module>`, ex. `kali.pentest.<racine>`).
 - La VM est sur le même réseau local que les cibles : attaques de réseau local (LLMNR/NBT-NS, relais SMB, mitm6…)
   possibles, sans règle de pare-feu à écrire. Elle ne route pas d'un réseau à l'autre (transfert IP désactivé,
   défaut des distributions) : les modules restent isolés entre eux et les cibles n'atteignent pas Internet.
