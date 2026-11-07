@@ -18,6 +18,7 @@ vars:
   dsrm_password: "Labs-DSRM-2026!"      # mot de passe du mode restauration des services AD (DSRM)
   local_admin_password: "Labs-Local-1!" # admin local IDENTIQUE sur les deux clients (surface de mouvement latéral)
   iso_server: ~/Virtualisation/kvm/images/sources/SERVER_WIN_2022_EVAL_x64FRE_en-us.iso
+  iso_win11: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
 
 # Les postes d'attaque se branchent sur ce réseau via le câblage LOCAL (attach.local.yaml, non distribué) :
 # bouton « Brancher une VM… » dans la GUI. Le module reste autonome et distribuable (rien de personnel ici).
@@ -62,7 +63,7 @@ vms:
     disk: 64
     hardware: {firmware: efi, secure_boot: true, tpm: true}
     windows:
-      iso: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+      iso: ${var.iso_win11}
       checksum: sha256:bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38
       edition: "Windows 11 Enterprise Evaluation"
       password: ${var.admin_password}
@@ -80,7 +81,7 @@ vms:
     disk: 64
     hardware: {firmware: efi, secure_boot: true, tpm: true}
     windows:
-      iso: ~/Virtualisation/kvm/images/sources/WIN11_EVAL_X64.iso
+      iso: ${var.iso_win11}
       checksum: sha256:bc3f24086ebadc94489066b5ad78089e2cf5c3491e90e790bb81a2b199c10e38
       edition: "Windows 11 Enterprise Evaluation"
       password: ${var.admin_password}
