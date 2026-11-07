@@ -34,7 +34,7 @@ add() { valid "$2"; grep -qxF "$2" "$STATE/$1" || echo "$2" >>"$STATE/$1"; }
 del() { valid "$2"; grep -vxF "$2" "$STATE/$1" >"$STATE/$1.tmp" || true; mv "$STATE/$1.tmp" "$STATE/$1"; }
 # Coupe les connexions déjà suivies d'une source : sans ça, la chaîne forward (« ct state established accept »)
 # laisse les flux en cours continuer après une révocation ou un blocage — seules les nouvelles seraient coupées.
-flush_ct() { local ct; ct=$(command -v conntrack || echo /usr/sbin/conntrack); [[ -x $ct ]] && "$ct" -D -s "$1" >/dev/null 2>&1 || true; }
+flush_ct() { local ct; ct=$(command -v conntrack || echo /usr/sbin/conntrack); if [[ -x $ct ]]; then "$ct" -D -s "$1" >/dev/null 2>&1 || true; fi; }
 # elements FICHIER... : contenu des fichiers en syntaxe d'ensemble nftables
 LEASES=/var/lib/misc/gwdhcp.leases
 HOSTSDIR=/run/gwdns/leases

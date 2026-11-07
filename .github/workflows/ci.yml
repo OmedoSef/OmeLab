@@ -1,0 +1,56 @@
+# Contrôles automatiques à chaque push et pull request : formatage, analyse, tests, vulnérabilités connues,
+# scripts shell, et fabrication des artefacts de release (pour ne pas découvrir une casse le jour d'une release).
+# Les actions tierces sont épinglées par SHA de commit (Dependabot propose les mises à jour) ; les outils Go aussi
+# (version explicite).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labctl
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # git describe (version gravée dans le binaire)
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: labctl/go.sum
+
+      - name: Formatage (gofmt)
+        run: |
+          out=$(gofmt -l .)
+          [ -z "$out" ] || { echo "Fichiers à formater (gofmt -w) :"; echo "$out"; exit 1; }
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Tests (détection de courses, ordre aléatoire)
+        run: go test -race -shuffle=on ./...
+
+      - name: Vulnérabilités connues (govulncheck)
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      - name: Analyse statique (staticcheck)
+        run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.2 ./...
+
+      - name: Scripts shell (shellcheck)
+        working-directory: .
+        run: shellcheck install.sh activate labctl/build.sh labctl/internal/lab/gwfiles/gwctl labctl/internal/lab/gwfiles/gwdhcp-hook
+
+      - name: Artefacts de release (binaire, .deb, archives)
+        working-directory: .
+        run: |
+          labctl/build.sh release
+          dist/labctl version
+          dpkg-deb --info dist/*.deb >/dev/null
