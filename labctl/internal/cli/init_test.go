@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -79,5 +80,41 @@ func TestInitKeepsExistingConfig(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "modules", ".gitkeep")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// labctl init crée une clé SSH propre au lab, privée, exclue de git, que labctl utilise ensuite — même si le
+// dossier du lab est déplacé ($LABS_ROOT).
+func TestInitCreatesLabSSHKey(t *testing.T) {
+	if _, err := exec.LookPath("ssh-keygen"); err != nil {
+		t.Skip("ssh-keygen absent")
+	}
+	t.Setenv("LABS_SSH_PUBKEY", "")
+	os.Unsetenv("LABS_SSH_PUBKEY")
+	dir := t.TempDir()
+	if err := runInit(&bytes.Buffer{}, strings.NewReader(""), dir, false, identity{org: lab.DefaultOrg, domain: lab.DefaultDomain}); err != nil {
+		t.Fatal(err)
+	}
+	priv := filepath.Join(dir, ".ssh", "id_ed25519")
+	if fi, err := os.Stat(priv); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("clé privée : %v %v", fi, err)
+	}
+	if fi, _ := os.Stat(filepath.Join(dir, ".ssh")); fi.Mode().Perm() != 0o700 {
+		t.Errorf("dossier .ssh en %o", fi.Mode().Perm())
+	}
+	if gi, _ := os.ReadFile(filepath.Join(dir, ".gitignore")); !strings.Contains(string(gi), "/.ssh/") {
+		t.Error(".ssh/ absent du .gitignore")
+	}
+	// Le lab déplacé garde sa clé : le chemin est relatif à sa racine
+	moved := filepath.Join(t.TempDir(), "ailleurs")
+	if err := os.Rename(dir, moved); err != nil {
+		t.Fatal(err)
+	}
+	l := &lab.Lab{Root: moved}
+	if got := l.SSHPubKey(); got != filepath.Join(moved, ".ssh", "id_ed25519.pub") {
+		t.Errorf("clé publique : %q", got)
+	}
+	if got := l.SSHIdentity(); got != filepath.Join(moved, ".ssh", "id_ed25519") {
+		t.Errorf("clé présentée : %q", got)
 	}
 }

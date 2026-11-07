@@ -51,9 +51,12 @@ func (l *Lab) setting(name, fallback string, depth int) string {
 		return raw
 	}
 	return expandHome(os.Expand(raw, func(ref string) string {
-		if ref == "HOME" {
+		switch ref {
+		case "HOME":
 			home, _ := os.UserHomeDir()
 			return home
+		case "LABS_ROOT": // racine de ce lab : chemins propres au lab, qui suivent le dossier s'il est déplacé
+			return l.Root
 		}
 		return l.setting(ref, os.Getenv(ref), depth+1)
 	}))

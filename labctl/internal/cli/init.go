@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -46,6 +47,9 @@ est demandée dans un terminal (Entrée : ` + lab.DefaultOrg + `, ` + lab.Defaul
 			// Questions seulement dans un terminal, et pour ce que les options n'ont pas fixé
 			fi, err := os.Stdin.Stat()
 			tty := err == nil && fi.Mode()&os.ModeCharDevice != 0
+			if null, err := os.Stat(os.DevNull); tty && err == nil && os.SameFile(fi, null) {
+				tty = false // < /dev/null (scripts, CI) : un périphérique caractère, mais pas un terminal
+			}
 			id.askOrg = tty && !cmd.Flags().Changed("org")
 			id.askDomain = tty && !cmd.Flags().Changed("domain")
 			return runInit(cmd.OutOrStdout(), os.Stdin, dir, force, id)
@@ -112,6 +116,28 @@ func setDefault(env, key, val string) string {
 	return re.ReplaceAllLiteralString(env, key+`="${`+key+`:-`+val+`}"`)
 }
 
+// labSSHKey génère la paire de clés SSH du lab (.ssh/id_ed25519, sans phrase de passe : labctl s'en sert sans
+// invite), injectée dans les VMs à leur création. Si ssh-keygen manque ou échoue, le lab garde la clé personnelle
+// par défaut (~/.ssh/id_ed25519.pub) : on le dit, sans échouer.
+func labSSHKey(out io.Writer, root string) error {
+	dir := filepath.Join(root, ".ssh")
+	key := filepath.Join(dir, "id_ed25519")
+	if _, err := os.Stat(key); err == nil {
+		fmt.Fprintf(out, "  %-22s existe déjà, inchangé\n", ".ssh/id_ed25519")
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	cmd := exec.Command("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "labctl "+filepath.Base(root), "-f", key)
+	if b, err := cmd.CombinedOutput(); err != nil {
+		fmt.Fprintf(out, "  attention : clé SSH du lab non créée (%v %s) : la clé personnelle sera utilisée\n", err, strings.TrimSpace(string(b)))
+		return err
+	}
+	fmt.Fprintf(out, "  %-22s créé (clé SSH du lab, injectée dans ses VMs)\n", ".ssh/id_ed25519")
+	return nil
+}
+
 // runInit crée l'arborescence d'un lab dans dir. Il n'écrase aucun fichier existant : un fichier déjà présent
 // est laissé tel quel. Si dir est déjà un lab (config.env + modules/), on refuse sauf --force. L'identité
 // (organisation, domaine) n'est demandée et écrite que si config.env est créé ici.
@@ -160,6 +186,12 @@ func runInit(out io.Writer, in io.Reader, dir string, force bool, id identity) e
 		}
 	}
 	cfg := setDefault(setDefault(tmplConfigEnv, "LABS_PKI_ORG", id.org), "LABS_PKI_DOMAIN", id.domain)
+	// Clé SSH propre au lab (pour accéder à ses VMs), plutôt que la clé personnelle de l'utilisateur
+	if newConfig {
+		if err := labSSHKey(out, abs); err == nil {
+			cfg = setDefault(cfg, "LABS_SSH_PUBKEY", "$LABS_ROOT/.ssh/id_ed25519.pub")
+		}
+	}
 
 	// Dossier modules/ (avec un .gitkeep pour qu'il survive à un commit même vide)
 	if err := os.MkdirAll(filepath.Join(abs, "modules"), 0o755); err != nil {

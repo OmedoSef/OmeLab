@@ -77,6 +77,11 @@ domaine…), éditer **`lab.yaml`** à la racine du lab : ses variables surcharg
 (voir [module-yaml.md](module-yaml.md), section *Variables de niveau lab*). Les secrets propres au poste
 vont dans `lab.local.yaml` (non versionné).
 
+`labctl init` crée aussi une **clé SSH propre au lab** (`.ssh/id_ed25519`, exclue de git) : c'est elle qui est
+injectée dans les VMs et que labctl présente pour s'y connecter, pas ta clé personnelle. `config.env` la désigne par
+`$LABS_ROOT/.ssh/id_ed25519.pub` : le lab peut être déplacé. Pour garder ta clé personnelle, régler
+`LABS_SSH_PUBKEY` dans `config.local.env`.
+
 labctl retrouve le lab s'il est lancé **depuis son dossier** (ou un sous-dossier), ou via
 `LABS_ROOT=/chemin/du/lab`.
 

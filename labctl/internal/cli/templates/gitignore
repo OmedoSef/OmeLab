@@ -5,5 +5,6 @@
 /network.local.yaml
 /attach.local.yaml
 /connections.local.yaml
-# Clés privées de la PKI du lab
+# Clés privées de la PKI du lab et clé SSH du lab
 /pki/
+/.ssh/
