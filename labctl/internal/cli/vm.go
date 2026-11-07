@@ -242,7 +242,7 @@ func vmSSHCmd(l *lab.Lab) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			argv := append(append([]string{"ssh"}, lab.SSHOpts...), user+"@"+ip)
+			argv := append(append([]string{"ssh"}, l.SSHArgs(false)...), user+"@"+ip) // interactif : pas de BatchMode
 			return syscall.Exec(sshPath, append(argv, args[1:]...), os.Environ())
 		},
 	}

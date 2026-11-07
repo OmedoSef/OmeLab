@@ -33,7 +33,7 @@ func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l
 func (l *Lab) Remote() pki.Remote {
 	return pki.Remote{
 		User:    l.Setting("LABS_VM_USER", "lab"),
-		SSHOpts: append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes"),
+		SSHOpts: l.SSHArgs(true), // options SSH communes (lab/ssh.go)
 		IP: func(vm string) (string, error) {
 			if ip := l.VMIP(vm); ip != "" {
 				return ip, nil

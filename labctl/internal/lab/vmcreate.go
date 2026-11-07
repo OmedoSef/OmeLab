@@ -128,7 +128,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 		}
 	}
 	cloud := s.Base == "" && s.Install == nil // image cloud : cloud-init ; sinon disque fourni ou installation depuis ISO
-	keyPath := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
+	keyPath := l.SSHPubKey()
 	key, err := os.ReadFile(keyPath)
 	if err != nil && cloud {
 		return fmt.Errorf("clé SSH publique introuvable : %s", keyPath)
@@ -262,12 +262,12 @@ func (l *Lab) waitReady(name, user string, out io.Writer) error {
 	fmt.Fprintf(out, "==> IP %s, attente de cloud-init...\n", ip)
 	target := user + "@" + ip
 	for i := 0; i < 60; i++ {
-		if exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, "true")...).Run() == nil {
+		if exec.Command("ssh", l.sshArgs(target, "true")...).Run() == nil {
 			break
 		}
 		time.Sleep(3 * time.Second)
 	}
-	b, err := exec.Command("ssh", append(append([]string{}, SSHOpts...), target, "cloud-init status --wait >/dev/null; cloud-init status")...).CombinedOutput()
+	b, err := exec.Command("ssh", l.sshArgs(target, "cloud-init status --wait >/dev/null; cloud-init status")...).CombinedOutput()
 	fmt.Fprint(out, string(b))
 	if err != nil {
 		fmt.Fprintln(out, "attention: cloud-init a signalé une erreur (journal : sudo cat /var/log/cloud-init-output.log)")

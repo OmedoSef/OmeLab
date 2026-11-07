@@ -8,10 +8,7 @@ import (
 	"labs/labctl/internal/virt"
 )
 
-// sshOpts : options SSH des scripts (les IP des labs sont réutilisées : pas de known_hosts).
-var SSHOpts = []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5",
-	// Une session dont le pair ne répond plus est abandonnée (~60 s) au lieu de pendre indéfiniment.
-	"-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4"}
+// Options SSH : voir lab/ssh.go (SSHArgs), seul endroit où elles sont construites.
 
 // VMIP renvoie la première IPv4 d'une VM : bail DHCP libvirt, agent invité, ARP, puis baux de la passerelle
 // core (réseaux des modules, dont le DHCP est sur core-gw). "" si aucune.
@@ -31,7 +28,7 @@ func (l *Lab) VMIP(name string) string {
 	if gw == "" {
 		return ""
 	}
-	args := append(append([]string{}, SSHOpts...), l.Setting("LABS_VM_USER", "lab")+"@"+gw, "cat /var/lib/misc/gwdhcp.leases")
+	args := l.sshArgs(l.Setting("LABS_VM_USER", "lab")+"@"+gw, "cat /var/lib/misc/gwdhcp.leases")
 	out, err := exec.Command("ssh", args...).Output()
 	if err != nil {
 		return ""

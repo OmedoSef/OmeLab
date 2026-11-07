@@ -96,7 +96,7 @@ func (g *Gateway) SSH(script string, stdin io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", t, script)...)
+	cmd := exec.Command("ssh", g.l.sshArgs(t, script)...)
 	cmd.Stdin = stdin
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	var out bytes.Buffer
@@ -114,7 +114,7 @@ func (g *Gateway) sshOut(script string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", t, script)...)
+	cmd := exec.Command("ssh", g.l.sshArgs(t, script)...)
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	return cmd.Output()
 }
@@ -125,7 +125,7 @@ func (g *Gateway) Interactive(args []string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("ssh", append(append(append([]string{}, SSHOpts...), t), args...)...)
+	cmd := exec.Command("ssh", append(append(g.l.SSHArgs(false), t), args...)...) // interactif : pas de BatchMode
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }

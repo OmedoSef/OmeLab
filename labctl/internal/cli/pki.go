@@ -13,25 +13,8 @@ import (
 	"labs/labctl/internal/pki"
 )
 
-// sshOpts reprend les options SSH des scripts : les IP des labs sont réutilisées, on n'alimente pas known_hosts.
-var sshOpts = []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=5"}
-
 func newPKI(l *lab.Lab) *pki.PKI {
 	return l.PKITool(os.Stderr) // mêmes réglages que la GUI (organisation, domaine racine, dossier)
-}
-
-// remote : accès SSH aux VMs pour installer la CA ou un certificat.
-func remote(l *lab.Lab) pki.Remote {
-	return pki.Remote{
-		User:    l.Setting("LABS_VM_USER", "lab"),
-		SSHOpts: sshOpts,
-		IP: func(vm string) (string, error) {
-			if ip := l.VMIP(vm); ip != "" {
-				return ip, nil
-			}
-			return "", errors.New("pas d'IP (VM démarrée ?)")
-		},
-	}
 }
 
 func pkiCmd(l *lab.Lab) *cobra.Command {
@@ -122,9 +105,9 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
 			if interception {
-				return p.TrustInterceptionVM(remote(l), args...)
+				return p.TrustInterceptionVM(l.Remote(), args...)
 			}
-			return p.TrustVM(remote(l), args...)
+			return p.TrustVM(l.Remote(), args...)
 		},
 	}
 	trustVM.Flags().BoolVar(&interception, "interception", false, "autorité d'interception du proxy (connexions via: proxy, mode intercept) au lieu de la racine")
@@ -164,7 +147,7 @@ La poser dans une VM : labctl pki trust-vm --interception VM.`,
 			if len(args) == 3 {
 				dest = args[2]
 			}
-			return p.Deploy(remote(l), args[0], args[1], dest)
+			return p.Deploy(l.Remote(), args[0], args[1], dest)
 		},
 	})
 	root.AddCommand(renewCmd(l, p))
@@ -251,7 +234,7 @@ usages, même durée) les certificats concernés. La PKI est d'abord archivée d
 						}
 					}
 					fmt.Fprintf(os.Stderr, "\n==> installation de la nouvelle racine sur les VMs démarrées : %s\n", strings.Join(running, " "))
-					if err := p.TrustVM(remote(l), running...); err != nil {
+					if err := p.TrustVM(l.Remote(), running...); err != nil {
 						fmt.Fprintln(os.Stderr, "attention:", err, "(VMs sans accès SSH par clé : installer la racine à la main)")
 					}
 				} else {

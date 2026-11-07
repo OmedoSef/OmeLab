@@ -268,7 +268,7 @@ func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
 	if err != nil {
 		return err
 	}
-	keyPath := r.l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
+	keyPath := r.l.SSHPubKey()
 	key, err := os.ReadFile(keyPath)
 	if err != nil {
 		return fmt.Errorf("clé SSH publique introuvable : %s", keyPath)
@@ -430,7 +430,7 @@ func (r *run) winSSH(target, script string) error {
 	for i, c := range u {
 		b[2*i], b[2*i+1] = byte(c), byte(c>>8)
 	}
-	cmd := exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target,
+	cmd := exec.Command("ssh", r.l.sshArgs(target,
 		"powershell -NoProfile -NonInteractive -EncodedCommand "+base64.StdEncoding.EncodeToString(b))...)
 	cmd.Stdout, cmd.Stderr = r.out, r.out
 	return cmd.Run()

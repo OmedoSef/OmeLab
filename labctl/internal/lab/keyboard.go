@@ -49,7 +49,7 @@ func (l *Lab) VMKeyboard(name, layout string, out io.Writer) error {
 	var result, how string
 	if ip := l.VMIP(name); ip != "" {
 		target := l.Setting("LABS_VM_USER", "lab") + "@" + ip
-		args := append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target)
+		args := l.sshArgs(target)
 		if exec.Command("ssh", append(args, "true")...).Run() == nil {
 			how = "SSH"
 			cmd := exec.Command("ssh", append(args, "sudo sh -s")...)

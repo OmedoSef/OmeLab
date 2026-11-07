@@ -46,7 +46,7 @@ func (l *Lab) HostCheck(out io.Writer, tools ...string) int {
 		_, err := exec.LookPath(t)
 		chk(err == nil, "commande "+t, "sudo apt install qemu-utils cloud-image-utils openssh-client p7zip-full")
 	}
-	key := l.Setting("LABS_SSH_PUBKEY", filepath.Join(os.Getenv("HOME"), ".ssh", "id_ed25519.pub"))
+	key := l.SSHPubKey()
 	_, err = os.Stat(key)
 	chk(err == nil, "clé SSH "+key, "ssh-keygen -t ed25519")
 

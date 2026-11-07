@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -247,11 +248,47 @@ func (c *Conn) Addresses(name string, source uint32) ([]Address, error) {
 	return out, err
 }
 
-// IPv4 renvoie la première IPv4 trouvée par bail DHCP libvirt, agent invité puis ARP ; "" si aucune.
+// IPv4 renvoie la première IPv4 trouvée par bail DHCP libvirt, agent invité puis ARP ; "" si aucune. Seule est
+// retenue une adresse cohérente avec le branchement réel de la VM (voir pickIPv4) : sur les réseaux des modules,
+// sans bail libvirt, c'est l'agent invité — donc la VM elle-même — qui annonce son adresse, et labctl s'y connecte
+// ensuite en SSH (clés, certificats). Une VM compromise ne doit pas pouvoir le diriger ailleurs.
 func (c *Conn) IPv4(name string) string {
+	ifaces, _ := c.Interfaces(name)
+	nets := map[string]netip.Prefix{}
+	if ns, err := c.Networks(); err == nil {
+		for _, n := range ns {
+			if a, err := netip.ParseAddr(n.HostIP); err == nil && n.Prefix > 0 {
+				nets[n.Name] = netip.PrefixFrom(a, n.Prefix).Masked()
+			}
+		}
+	}
 	for _, src := range []uint32{SourceLease, SourceAgent, SourceARP} {
-		if a, err := c.Addresses(name, src); err == nil && len(a) > 0 {
-			return a[0].IP
+		if a, err := c.Addresses(name, src); err == nil {
+			if ip := pickIPv4(a, ifaces, nets); ip != "" {
+				return ip
+			}
+		}
+	}
+	return ""
+}
+
+// pickIPv4 choisit, parmi les adresses d'une source, la première dont la MAC est celle d'une carte de la VM et dont
+// l'IP est dans le réseau libvirt de cette carte. Une VM sans aucune carte sur un réseau libvirt connu (pont
+// direct) garde l'ancien comportement : première adresse.
+func pickIPv4(cands []Address, ifaces []Interface, nets map[string]netip.Prefix) string {
+	byMAC := map[string]netip.Prefix{}
+	for _, i := range ifaces {
+		if p, ok := nets[i.Network]; ok && i.Type == "network" {
+			byMAC[strings.ToLower(i.MAC)] = p
+		}
+	}
+	for _, c := range cands {
+		if len(byMAC) == 0 {
+			return c.IP
+		}
+		ip, err := netip.ParseAddr(c.IP)
+		if p, ok := byMAC[strings.ToLower(c.MAC)]; ok && err == nil && p.Contains(ip) {
+			return c.IP
 		}
 	}
 	return ""

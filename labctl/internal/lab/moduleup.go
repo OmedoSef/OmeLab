@@ -618,7 +618,7 @@ func (r *run) waitSSH(vm string, timeout int) bool {
 	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + r.vmIP(vm)
 	for t := 0; t < timeout; t += 3 {
 		// « exit 0 » : compris par sh (Linux) comme par PowerShell (Windows)
-		if exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, "exit 0")...).Run() == nil {
+		if exec.Command("ssh", r.l.sshArgs(target, "exit 0")...).Run() == nil {
 			return true
 		}
 		time.Sleep(3 * time.Second)
@@ -792,7 +792,7 @@ func (r *run) installCerts(vm string, renew bool) error {
 	}
 	target := r.l.Setting("LABS_VM_USER", "lab") + "@" + ip
 	ssh := func(script string, stdin io.Reader) ([]byte, error) {
-		cmd := exec.Command("ssh", append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", target, script)...)
+		cmd := exec.Command("ssh", r.l.sshArgs(target, script)...)
 		cmd.Stdin = stdin
 		return cmd.CombinedOutput()
 	}

@@ -206,7 +206,7 @@ func (g *Gateway) ProxyTunnel() (addr string, cmd *exec.Cmd, err error) {
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
-	args := append(append([]string{}, SSHOpts...), "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-N",
+	args := append(g.l.SSHArgs(true), "-o", "ExitOnForwardFailure=yes", "-N",
 		"-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", port, coreconf.ProxyWebPort), t)
 	cmd = exec.Command("ssh", args...)
 	if err := cmd.Start(); err != nil {
