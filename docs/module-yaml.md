@@ -138,12 +138,12 @@ Un module cible accueille une VM d'un autre module, typiquement un poste d'attaq
 reçoit alors une carte de plus **sur le réseau des cibles**, comme un attaquant branché sur le LAN.
 
 **Recommandé : le câblage local.** Quelle VM tu branches sur quel module est une décision *propre à ta machine*,
-pas une propriété du lab. Elle vit donc dans `attach.local.yaml` à la racine (git-ignoré, **non distribué**), et
-se pilote à la souris dans la GUI (onglet VMs d'un module → *Brancher une VM…* / *Débrancher*). Un module reste
-ainsi autonome et distribuable, sans dépendre d'un module d'attaque précis :
+pas une propriété du lab. Elle vit donc dans `network.local.yaml` à la racine (git-ignoré, **non distribué**),
+section `attach:`, et se pilote à la souris dans la GUI (onglet VMs d'un module → *Brancher une VM…* /
+*Débrancher*). Un module reste ainsi autonome et distribuable, sans dépendre d'un module d'attaque précis :
 
 ```yaml
-# attach.local.yaml (racine du dépôt) — « on » = module cible
+# network.local.yaml (racine du lab) — câblage et connexions propres à ce poste ; « on » = module cible
 attach:
   - {on: pentest, vm: attacker/kali, ip: 10}
   - {on: pjpt,    vm: attacker/kali, ip: 50}
@@ -210,15 +210,16 @@ connections:
 - Comme le reste de la section réseau : enregistré tout de suite, appliqué sur la passerelle avec
   `labctl core apply` (ou le bandeau *Appliquer* de la GUI).
 
-#### Connexions locales (`connections.local.yaml`)
+#### Connexions locales (`network.local.yaml`)
 
-Comme pour le câblage (`attach.local.yaml`), certaines connexions sont une décision **propre à ta machine**, pas
-une propriété du module : une bascule de test qu'on allume/éteint (portail, proxy `log`/`intercept`), ou l'accès
-d'une VM branchée localement. Elles vivent alors dans `connections.local.yaml` à la racine du lab (git-ignoré,
-**non distribué**), et le module reste autonome. Même forme qu'une connexion, avec `on:` = module cible :
+Comme le câblage, certaines connexions sont une décision **propre à ta machine**, pas une propriété du module :
+une bascule de test qu'on allume/éteint (portail, proxy `log`/`intercept`), ou l'accès d'une VM branchée
+localement. Elles vivent alors dans le **même** `network.local.yaml` à la racine du lab (git-ignoré, **non
+distribué**), section `connections:`, et le module reste autonome. Même forme qu'une connexion, avec `on:` =
+module cible :
 
 ```yaml
-# connections.local.yaml (racine du lab) — fusionné aux connections: du module à son chargement
+# network.local.yaml (racine du lab) — fusionné aux connections: du module à son chargement
 connections:
   - {on: netlab, to: internet, from: [poste], via: proxy, proxy: {mode: log}}
 ```

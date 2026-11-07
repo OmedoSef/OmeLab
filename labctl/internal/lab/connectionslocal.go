@@ -2,13 +2,9 @@ package lab
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"labs/labctl/internal/module"
-
-	"go.yaml.in/yaml/v3"
 )
 
 // Connexions LOCALES, non distribuées (git-ignoré) : des règles d'accès propres à CE poste, qui ne doivent pas
@@ -28,22 +24,11 @@ type localConnFile struct {
 	Connections []localConn `yaml:"connections"`
 }
 
-func (l *Lab) connLocalPath() string { return filepath.Join(l.Root, "connections.local.yaml") }
-
-// loadLocalConns lit connections.local.yaml (liste vide si absent).
+// loadLocalConns renvoie les connexions locales (section connections de network.local.yaml, ou l'ancien
+// connections.local.yaml).
 func (l *Lab) loadLocalConns() ([]localConn, error) {
-	b, err := os.ReadFile(l.connLocalPath())
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var f localConnFile
-	if err := yaml.Unmarshal(b, &f); err != nil {
-		return nil, err
-	}
-	return f.Connections, nil
+	f, err := l.loadNetworkLocal()
+	return f.Connections, err
 }
 
 // localConnsFor renvoie les connexions locales visant le module donné.
@@ -71,24 +56,14 @@ func (l *Lab) injectLocalConnections(y *module.Module) {
 	}
 }
 
-const localConnHeader = `# Connexions LOCALES, non distribuées (git-ignoré) : des règles d'accès propres à CE poste (bascules de test,
-# proxy, portail captif…), qui ne partent pas avec le module. Éditées par l'onglet Réseau → Connexions de la GUI
-# (case « local à ce poste »). « on » = module cible ; le reste est une connexion ordinaire (to, from, ports, via).
-`
-
-// saveLocalConns réécrit connections.local.yaml (supprimé s'il ne reste rien).
+// saveLocalConns réécrit la section connections de network.local.yaml (le câblage local est préservé).
 func (l *Lab) saveLocalConns(entries []localConn) error {
-	if len(entries) == 0 {
-		if err := os.Remove(l.connLocalPath()); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	b, err := yaml.Marshal(localConnFile{Connections: entries})
+	f, err := l.loadNetworkLocal()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(l.connLocalPath(), append([]byte(localConnHeader), b...), 0o644)
+	f.Connections = entries
+	return l.saveNetworkLocal(f)
 }
 
 // AddLocalConnection ajoute une connexion locale sur le module cible, après l'avoir validée comme le ferait le

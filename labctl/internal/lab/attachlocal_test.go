@@ -19,8 +19,8 @@ func TestLocalAttachRoundTrip(t *testing.T) {
 	if err := l.AddLocalAttach("pentest", "attacker/kali", 10); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "attach.local.yaml")); err != nil {
-		t.Fatalf("attach.local.yaml non écrit : %v", err)
+	if _, err := os.Stat(filepath.Join(dir, "network.local.yaml")); err != nil {
+		t.Fatalf("network.local.yaml non écrit : %v", err)
 	}
 
 	// Injection dans un module : seules les entrées de ce module, marquées Local.

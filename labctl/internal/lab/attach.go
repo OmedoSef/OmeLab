@@ -179,11 +179,11 @@ func (r *run) ensureAttach() error {
 		if mac == "" {
 			mac = RandomMAC()
 			dest := r.y.Path
-			if a.Local { // branchement local : la MAC va dans attach.local.yaml, pas dans le module.yaml partagé
+			if a.Local { // branchement local : la MAC va dans network.local.yaml, pas dans le module.yaml partagé
 				if err := r.l.setLocalAttachMAC(r.y.Module, a.VM, mac); err != nil {
 					return err
 				}
-				dest = r.l.attachLocalPath()
+				dest = r.l.networkLocalPath()
 			} else {
 				if err := r.y.SetAttachMAC(i, mac); err != nil {
 					return err

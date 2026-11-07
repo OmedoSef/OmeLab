@@ -7,9 +7,10 @@
 bin/
 # Remplacements locaux des fichiers de la passerelle (mise au point, voir docs/core.md)
 /core/
-# Câblage local des VMs branchées (brancher/débrancher dans la GUI)
+# Câblage et connexions propres au poste (brancher/débrancher, connexions « local à ce poste »), non distribués
+/network.local.yaml
+# Anciens fichiers séparés (migrés vers network.local.yaml ; ignorés tant qu'ils traînent)
 /attach.local.yaml
-# Connexions locales propres au poste (bascules de test, proxy, portail), non distribuées
 /connections.local.yaml
 # Surcharges locales des variables de lab (secrets, chemins propres au poste), non versionné
 /lab.local.yaml

@@ -1,13 +1,9 @@
 package lab
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 
 	"labs/labctl/internal/module"
-
-	"go.yaml.in/yaml/v3"
 )
 
 // Câblage LOCAL : quelles VMs d'autres modules sont branchées sur quels modules. Ce fichier n'est PAS distribué
@@ -27,22 +23,10 @@ type localAttachFile struct {
 	Attach []localAttach `yaml:"attach"`
 }
 
-func (l *Lab) attachLocalPath() string { return filepath.Join(l.Root, "attach.local.yaml") }
-
-// loadLocalAttach lit attach.local.yaml (liste vide si absent).
+// loadLocalAttach renvoie le câblage local (section attach de network.local.yaml, ou l'ancien attach.local.yaml).
 func (l *Lab) loadLocalAttach() ([]localAttach, error) {
-	b, err := os.ReadFile(l.attachLocalPath())
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var f localAttachFile
-	if err := yaml.Unmarshal(b, &f); err != nil {
-		return nil, err
-	}
-	return f.Attach, nil
+	f, err := l.loadNetworkLocal()
+	return f.Attach, err
 }
 
 // injectLocalAttach fusionne les branchements locaux dans y.Attach (marqués Local), APRÈS les attach: du
@@ -100,24 +84,14 @@ func (l *Lab) localAttachFor(module string) []localAttach {
 	return out
 }
 
-const localAttachHeader = `# Câblage LOCAL, non distribué (git-ignoré) : quelles VMs sont branchées sur quels modules.
-# Édité par les boutons Brancher/Débrancher de la GUI (labctl gui). Rien ici n'est partagé avec les modules :
-# un module cible reste autonome. « on » = module cible ; « vm » = <module>/<vm> branchée.
-`
-
-// saveLocalAttach réécrit attach.local.yaml (supprimé s'il ne reste rien).
+// saveLocalAttach réécrit la section attach de network.local.yaml (les connexions locales sont préservées).
 func (l *Lab) saveLocalAttach(entries []localAttach) error {
-	if len(entries) == 0 {
-		if err := os.Remove(l.attachLocalPath()); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	b, err := yaml.Marshal(localAttachFile{Attach: entries})
+	f, err := l.loadNetworkLocal()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(l.attachLocalPath(), append([]byte(localAttachHeader), b...), 0o644)
+	f.Attach = entries
+	return l.saveNetworkLocal(f)
 }
 
 // AddLocalAttach branche <module>/<vm> sur le module cible (remplace une entrée existante de même cible+vm).

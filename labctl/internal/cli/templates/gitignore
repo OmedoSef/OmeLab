@@ -2,6 +2,7 @@
 /config.local.env
 /lab.local.yaml
 # Câblage et connexions propres à ce poste (non distribués)
+/network.local.yaml
 /attach.local.yaml
 /connections.local.yaml
 # Clés privées de la PKI du lab
