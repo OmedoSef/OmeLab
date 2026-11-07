@@ -2,6 +2,7 @@ package lab
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -47,6 +48,15 @@ func (l *Lab) loadNetworkLocal() (networkLocalFile, error) {
 		f.Connections = c.Connections
 	}
 	return f, nil
+}
+
+// NetworkLocalError renvoie l'erreur de lecture de network.local.yaml (nil s'il se lit, ou s'il n'existe pas). Un
+// fichier illisible ne doit jamais se traduire par un câblage vide appliqué en silence à la passerelle.
+func (l *Lab) NetworkLocalError() error {
+	if _, err := l.loadNetworkLocal(); err != nil {
+		return fmt.Errorf("network.local.yaml illisible (%v) : à corriger, rien n'est appliqué à la passerelle d'ici là — sinon branchements et connexions locales en seraient retirés", err)
+	}
+	return nil
 }
 
 const networkLocalHeader = `# Câblage et connexions LOCAUX, non distribués (git-ignoré) : propres à CE poste.

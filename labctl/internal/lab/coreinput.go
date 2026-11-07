@@ -13,6 +13,9 @@ import (
 // (module.env + core.conf), ceux sur lesquels la passerelle est branchée, et le DNS amont.
 func (l *Lab) CoreInput() (coreconf.Input, error) {
 	in := coreconf.Input{RootDomain: l.pkiDomain()}
+	if err := l.NetworkLocalError(); err != nil {
+		return in, err
+	}
 	mods, err := l.Modules()
 	if err != nil {
 		return in, err

@@ -3,6 +3,7 @@ package lab
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,25 @@ func TestNetworkLocalWriteFailureKeepsLegacy(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, old)); err != nil {
 			t.Errorf("%s perdu après un échec d'écriture : %v", old, err)
 		}
+	}
+}
+
+// Un network.local.yaml mal formé ne doit jamais devenir un câblage vide appliqué en silence : la configuration de
+// la passerelle refuse de se générer, et une écriture ne l'écrase pas.
+func TestNetworkLocalMalformedBlocksApply(t *testing.T) {
+	l := vulnerableLab(t)                                                   // un lab avec des modules
+	broken := []byte("attach:\n  - {on: good, vm: attacker/kali, ip: 10\n") // accolade non fermée
+	p := filepath.Join(l.Root, "network.local.yaml")
+	if err := os.WriteFile(p, broken, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.CoreInput(); err == nil || !strings.Contains(err.Error(), "network.local.yaml illisible") {
+		t.Fatalf("CoreInput devrait refuser : %v", err)
+	}
+	if err := l.AddLocalAttach("good", "attacker/kali", 10); err == nil {
+		t.Fatal("l'écriture aurait dû échouer sur un fichier illisible")
+	}
+	if b, _ := os.ReadFile(p); string(b) != string(broken) {
+		t.Fatal("le fichier illisible a été écrasé")
 	}
 }

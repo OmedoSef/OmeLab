@@ -19,6 +19,10 @@ func checkCmd(l *lab.Lab) *cobra.Command {
 		GroupID: "outils", Args: cobra.NoArgs, ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(*cobra.Command, []string) error {
 			n := l.HostCheck(os.Stdout)
+			if err := l.NetworkLocalError(); err != nil {
+				fmt.Println("attention:", err)
+				n++
+			}
 			if vuln := l.VulnerableModules(); len(vuln) > 0 {
 				if lab.HostFirewallActive() {
 					fmt.Println("ok  pare-feu de l'hôte actif (modules vulnérables : " + strings.Join(vuln, ", ") + ")")
