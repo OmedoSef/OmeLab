@@ -59,7 +59,6 @@ type server struct {
 	tunDone chan struct{} // fermé quand le tunnel s'arrête
 }
 
-// Serve lance l'interface sur 127.0.0.1:port et ouvre le navigateur si demandé.
 // Ouverture de l'interface au lancement de labctl gui
 type Open int
 
@@ -103,6 +102,11 @@ func startApp(url string) (done <-chan struct{}, err error) {
 	return ch, nil
 }
 
+// csp : politique de sécurité de la page de la GUI (voir Serve).
+const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+	"connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+
+// Serve lance l'interface sur 127.0.0.1:port et ouvre le navigateur si demandé.
 func Serve(l *lab.Lab, port int, open Open) error {
 	tok := make([]byte, 24)
 	if _, err := rand.Read(tok); err != nil {
@@ -117,10 +121,14 @@ func Serve(l *lab.Lab, port int, open Open) error {
 
 	mux := http.NewServeMux()
 	sub, _ := fs.Sub(static, "static")
-	// La page est embarquée (sans date) : sans no-cache, le navigateur garde l'ancienne après une mise à jour de labctl
+	// La page est embarquée (sans date) : sans no-cache, le navigateur garde l'ancienne après une mise à jour de labctl.
+	// Elle n'a aucun script en ligne : la CSP n'autorise que ses propres fichiers, ce qui neutralise un script injecté
+	// par une donnée mal échappée (nom de module, sortie de commande…). Les styles en ligne (attributs style=) restent permis.
 	files := http.FileServerFS(sub)
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Content-Security-Policy", csp)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		files.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /api/state", s.api(s.handleState))

@@ -179,7 +179,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
-| `internal/gui/` | serveur web local et page `static/index.html` (embarquée dans le binaire) |
+| `internal/gui/` | serveur web local et page `static/` (`index.html`, `app.css`, `js/*.js` chargés dans l'ordre ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
 | `internal/portal/` | service de portail captif, lancé sur la passerelle (`labctl gw-portal serve`) |
 
 Convention utilisée par labctl : la VM `<vm>` d'un module `<m>` s'appelle `<m>-<vm>` dans libvirt.
