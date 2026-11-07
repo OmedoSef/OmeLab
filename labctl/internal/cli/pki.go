@@ -134,6 +134,23 @@ SAN : NOM et NOM.<domaine> si NOM n'est pas un nom complet ; sous une CA dériv�
 	}
 	trustVM.Flags().BoolVar(&interception, "interception", false, "autorité d'interception du proxy (connexions via: proxy, mode intercept) au lieu de la racine")
 	root.AddCommand(trustVM)
+
+	root.AddCommand(&cobra.Command{
+		Use:   "interception",
+		Short: "Crée (si besoin) l'autorité d'interception du proxy et indique son certificat",
+		Long: `L'autorité d'interception est une racine à part (hors de la chaîne Omedo Labs) dont le proxy de la
+passerelle se sert en mode intercept pour signer à la volée. Elle est créée automatiquement au premier montage
+du proxy ; cette commande la crée à l'avance pour pouvoir la télécharger et l'importer (navigateur, VMs).
+La poser dans une VM : labctl pki trust-vm --interception VM.`,
+		Args: cobra.NoArgs, ValidArgsFunction: noFiles,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if _, _, err := p.InterceptionCA(); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Autorité d'interception prête : %s\n", filepath.Join(p.Dir, "interception", "interception-ca.crt"))
+			return nil
+		},
+	})
 	root.AddCommand(&cobra.Command{
 		Use:   "deploy VM NOM [DOSSIER]",
 		Short: "Copie clé, certificat, chaîne et racine dans la VM (défaut /etc/ssl/lab)",

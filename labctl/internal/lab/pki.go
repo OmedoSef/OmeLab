@@ -30,10 +30,11 @@ func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l
 
 // PKIState décrit la PKI telle qu'elle est sur disque (lue directement dans les certificats).
 type PKIState struct {
-	Initialized bool       `json:"initialized"`
-	CAs         []CertInfo `json:"cas"`      // racine, intermédiaire, CA dérivées
-	Certs       []CertInfo `json:"certs"`    // certificats émis (certs/<nom>/<nom>.crt)
-	Archives    []string   `json:"archives"` // archives créées avant chaque renouvellement
+	Initialized  bool       `json:"initialized"`
+	CAs          []CertInfo `json:"cas"`                    // racine, intermédiaire, CA dérivées
+	Interception *CertInfo  `json:"interception,omitempty"` // autorité du proxy (mode intercept), racine à part ; absente tant que non générée
+	Certs        []CertInfo `json:"certs"`                  // certificats émis (certs/<nom>/<nom>.crt)
+	Archives     []string   `json:"archives"`               // archives créées avant chaque renouvellement
 }
 
 // CertInfo résume un certificat.
@@ -80,6 +81,13 @@ func (l *Lab) PKI() (*PKIState, error) {
 				st.CAs[n].Domain = strings.TrimSpace(string(b))
 			}
 		}
+	}
+
+	// Autorité d'interception du proxy (racine à part) : présente seulement si elle a déjà été générée.
+	if c, err := readCert(filepath.Join(dir, "interception", "interception-ca.crt")); err == nil {
+		info := certInfo("interception", "interception", c)
+		info.Files = []string{"interception/interception-ca.crt"}
+		st.Interception = &info
 	}
 
 	if arch, err := os.ReadDir(filepath.Join(dir, "archive")); err == nil {

@@ -1180,6 +1180,18 @@ function renderPKI() {
     </form>
   </section>`;
 
+  h += `<section class="card"><div class="card-head"><h2>Autorité d'interception (proxy)</h2>
+      <span class="meta">racine à part, utilisée par le proxy en mode <span class="mono">intercept</span> ; installée d'office sur la passerelle.
+        À n'installer que sur les VMs qu'on veut observer (section <em>Confiance dans les VMs</em> ci-dessous), les autres doivent voir l'erreur.</span></div>
+    ${p.interception ? `<table><thead><tr><th>CA</th><th>Expire</th><th>Fichier public</th></tr></thead><tbody>
+      <tr><td><strong>${esc(p.interception.subject)}</strong></td><td>${expiry(p.interception)}</td><td><div class="actions">${files(p.interception)}</div></td></tr>
+      </tbody></table>
+      <div class="meta" style="padding:10px 16px;border-top:1px solid var(--line)">Pour qu'un navigateur (magasin propre à Firefox/Chrome, distinct du système) ne voie pas d'erreur en mode intercept, y importer ce certificat.</div>`
+      : `<div class="empty">Pas encore générée : elle est créée automatiquement au premier montage du proxy en mode <span class="mono">intercept</span>.
+        Tu peux la créer dès maintenant pour la télécharger à l'avance.
+        <p><button class="primary" ${busy} data-run='["pki","interception"]'>Générer l'autorité d'interception</button></p></div>`}
+  </section>`;
+
   h += `<section class="card"><div class="card-head"><h2>Certificats émis</h2><span class="meta">${p.certs.length} certificat(s)</span></div>
     <table><thead><tr><th>Nom</th><th>Noms (SAN)</th><th>Émetteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody>
     ${p.certs.map(c => `<tr><td><strong>${esc(c.name)}</strong><div class="meta">${esc(kindLabel[c.kind] || c.kind)}${c.hasPfx ? " · .p12 dans pki/" : ""}</div></td>
