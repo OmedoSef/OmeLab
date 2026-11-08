@@ -2,7 +2,8 @@
 # schéma de module.yaml, une archive par module) avec leurs empreintes, attachés à la Release.
 #
 # Lancement : onglet Actions -> « Release » -> Run workflow, en saisissant la version (ex. v1.0.0).
-# Rien n'est publié si les tests ou la compilation échouent : le tag n'est poussé qu'à la fin.
+# Rien n'est publié si les contrôles (job checks, sans droit d'écriture) ou la compilation échouent : le tag n'est
+# poussé qu'à la fin.
 # Les actions tierces sont épinglées par SHA de commit (Dependabot propose les mises à jour).
 name: Release
 
@@ -14,11 +15,35 @@ on:
         required: true
 
 permissions:
-  contents: write # créer le tag et la Release
+  contents: read
 
 jobs:
-  release:
+  # Contrôles complets dans un job sans droit d'écriture : les outils tiers qu'ils lancent (govulncheck,
+  # staticcheck) ne côtoient jamais le jeton qui pousse le tag et publie la Release.
+  checks:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.3"
+          cache-dependency-path: labctl/go.sum
+
+      - name: Outils de test (qemu-img pour les tests de disques et de création de VM)
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-utils
+
+      - name: Contrôles de la CI (rien n'est publié s'ils échouent)
+        run: labctl/build.sh ci
+
+  release:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # créer le tag et la Release
     env:
       # Passée par l'environnement, jamais insérée dans un script : pas d'injection de commande possible
       VERSION: ${{ github.event.inputs.version }}
@@ -35,9 +60,6 @@ jobs:
         with:
           go-version: "1.27.3"
           cache-dependency-path: labctl/go.sum
-
-      - name: Contrôles de la CI (rien n'est publié s'ils échouent)
-        run: labctl/build.sh ci
 
       - name: Tag de version, local pour l'instant
         run: |

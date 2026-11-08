@@ -12,8 +12,8 @@ import (
 	"time"
 	"unicode/utf16"
 
-	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/fetch"
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
 	"labs/labctl/internal/vmdef"

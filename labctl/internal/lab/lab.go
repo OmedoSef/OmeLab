@@ -234,11 +234,11 @@ func (l *Lab) ExecScript(script string, args ...string) error {
 	return syscall.Exec(script, append([]string{script}, args...), os.Environ())
 }
 
-// onInterrupt exécute cleanup si labctl reçoit SIGINT ou SIGTERM avant l'appel de la fonction renvoyée, puis
+// onInterrupt exécute cleanup si labctl reçoit SIGINT, SIGTERM ou SIGHUP avant l'appel de la fonction renvoyée, puis
 // termine le processus (code 128 + signal). Pour défaire un état risqué laissé sur la passerelle.
 func onInterrupt(cleanup func()) (stop func()) {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP) // HUP : terminal ou session SSH fermés
 	done := make(chan struct{})
 	go func() {
 		select {

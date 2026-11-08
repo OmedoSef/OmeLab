@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"labs/labctl/internal/module"
@@ -208,8 +209,12 @@ func (r *run) createVM(vm string) (err error) {
 		}
 	}
 
+	// Fermeture appelée une seule fois, depuis la fin normale ou depuis la goroutine d'un signal
+	var mu sync.Mutex
 	open := false
 	closeInternet := func() error {
+		mu.Lock()
+		defer mu.Unlock()
 		if !open {
 			return nil
 		}
@@ -220,7 +225,9 @@ func (r *run) createVM(vm string) (err error) {
 		if err := r.l.Gateway(r.out).openForInstall(r.y.Module, vm); err != nil {
 			return err
 		}
+		mu.Lock()
 		open = true
+		mu.Unlock()
 		defer func() {
 			if cerr := closeInternet(); cerr != nil && err == nil {
 				err = cerr

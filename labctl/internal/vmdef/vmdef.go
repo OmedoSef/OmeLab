@@ -304,7 +304,7 @@ func RenderDomainXML(s *Spec, disk, seed, description string) string {
   <devices>
 `)
 	dev := map[string]string{"virtio": "vda", "sata": "sda", "ide": "hda"}[bus]
-	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", XMLEsc(disk), dev, bus)
+	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", XMLEsc(disk), XMLEsc(dev), XMLEsc(bus))
 	if s.Install != nil { // lecteurs SATA (q35) : ISO d'installation amorçable, puis les autres
 		for i, iso := range s.Install.ISOs {
 			fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='sd%c' bus='sata'/>\n      <readonly/>\n    </disk>\n", XMLEsc(iso), 'a'+i)
@@ -318,7 +318,7 @@ func RenderDomainXML(s *Spec, disk, seed, description string) string {
 		if machine == "pc" { // i440fx : pas de SATA
 			cdBus, cdDev = "ide", "hdc"
 		}
-		fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n      <readonly/>\n    </disk>\n", XMLEsc(seed), cdDev, cdBus)
+		fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n      <readonly/>\n    </disk>\n", XMLEsc(seed), XMLEsc(cdDev), XMLEsc(cdBus))
 	}
 	for _, n := range s.Nets {
 		fmt.Fprintf(&b, "    <interface type='network'>\n      <mac address='%s'/>\n      <source network='%s'/>\n      <model type='%s'/>\n    </interface>\n", XMLEsc(strings.ToLower(n.MAC)), XMLEsc(n.Network), XMLEsc(nic))

@@ -351,6 +351,11 @@ func (r *run) applyCore() error {
 	}
 	changes, err := r.l.PendingCoreChanges()
 	if err != nil || len(changes) == 0 {
+		// Rien à appliquer : une ouverture d'Internet restée sur un module vulnérable (labctl tué net pendant une
+		// installation) est quand même refermée
+		if err := r.l.Gateway(r.out).revokeVulnerable(); err != nil {
+			r.logf("attention: ouvertures d'Internet des modules vulnérables non vérifiées : %v", err)
+		}
 		return nil
 	}
 	r.logf("==> Configuration DHCP/DNS de la passerelle")

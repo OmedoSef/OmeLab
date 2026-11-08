@@ -21,11 +21,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # git describe (version gravée dans le binaire)
+          persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.27.3"
           cache-dependency-path: labctl/go.sum
+
+      - name: Outils de test (qemu-img pour les tests de disques et de création de VM)
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-utils
 
       - name: Contrôles (format, vet, tests -race, govulncheck, staticcheck, shellcheck, syntaxe Python et JS)
         working-directory: .
