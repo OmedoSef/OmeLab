@@ -3,6 +3,7 @@ package lab
 import (
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -98,5 +99,17 @@ func TestCoreInputDropsPublicDomain(t *testing.T) {
 	}
 	if !slices.ContainsFunc(in.Skipped, func(s string) bool { return strings.Contains(s, "evil") && strings.Contains(s, "github.com") }) {
 		t.Errorf("écart non signalé : %q", in.Skipped)
+	}
+}
+
+// Le module mitmproxy de la passerelle (Python) : choix de la règle, filtre par domaine (testdata/gwproxy_test.py).
+func TestGwproxyPython(t *testing.T) {
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 absent")
+	}
+	cmd := exec.Command(py, "-I", "-B", filepath.Join("testdata", "gwproxy_test.py"))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
 	}
 }
