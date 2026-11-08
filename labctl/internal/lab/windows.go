@@ -49,24 +49,8 @@ func openSSHURL() string {
 
 // cachedDownload renvoie un fichier du cache des sources, téléchargé et vérifié (SHA-256) si besoin.
 func (l *Lab) cachedDownload(name, url, sha256 string, out logWriter) (string, error) {
-	dir := filepath.Join(l.ImagesDir(), "sources", "cache")
-	path := filepath.Join(dir, name)
-	if h, err := fetch.FileHash(path, "sha256"); err == nil && h == sha256 {
-		return path, nil
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	out.logf("==> téléchargement de %s", name)
-	tmp := path + ".part"
-	if err := fetch.Download(url, tmp, out.writer()); err != nil {
-		return "", err
-	}
-	if h, err := fetch.FileHash(tmp, "sha256"); err != nil || h != sha256 {
-		os.Remove(tmp)
-		return "", fmt.Errorf("empreinte de %s incorrecte (%s) : fichier refusé", name, h)
-	}
-	return path, os.Rename(tmp, path)
+	path := filepath.Join(l.ImagesDir(), "sources", "cache", name)
+	return path, fetch.Cached(url, path, "sha256", sha256, name, out.writer())
 }
 
 // verifyWindowsISO contrôle l'empreinte d'un ISO Windows ; le résultat est mémorisé à côté (taille et date),

@@ -3,6 +3,7 @@ package lab
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"labs/labctl/internal/virt/virtfake"
@@ -35,4 +36,28 @@ LABS_VM_USER="${LABS_VM_USER:-lab}"
 	if got := l.Setting("LABS_IMAGES_DIR", ""); got != "/env/kvm/images" {
 		t.Errorf("l'environnement doit primer : %q", got)
 	}
+}
+
+// Les variables du lab suivent lab.yaml sans redémarrer (la GUI garde un même Lab), et se lisent en parallèle.
+func TestLabVarsFollowFileAndConcurrent(t *testing.T) {
+	l := &Lab{Root: t.TempDir(), Virt: virtfake.New()}
+	write := func(s string) {
+		if err := os.WriteFile(filepath.Join(l.Root, "lab.yaml"), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("vars: {iso: /a.iso}\n")
+	if got := l.LabVars()["iso"]; got != "/a.iso" {
+		t.Fatalf("iso : %q", got)
+	}
+	write("vars: {iso: /autre.iso}\n") // taille différente : changement vu même à date identique
+	if got := l.LabVars()["iso"]; got != "/autre.iso" {
+		t.Fatalf("lab.yaml modifié non relu : %q", got)
+	}
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() { defer wg.Done(); _ = l.LabVars() }()
+	}
+	wg.Wait()
 }

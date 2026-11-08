@@ -154,6 +154,7 @@ Tout l'outillage reste dans le projet, sans sudo ni rien dans le système :
 | `labctl/build.sh` | compile `bin/labctl` avec le Go du projet |
 | `labctl/build.sh docker` | compile dans l'image officielle `golang`, sans Go local |
 | `labctl/build.sh test` | `go vet` + tests unitaires |
+| `labctl/build.sh ci` | tous les contrôles de la CI, lancés aussi avant chaque release : format, `go vet`, tests avec détection de courses, govulncheck, staticcheck, shellcheck, syntaxe de `gwproxy.py` et des scripts de la GUI |
 
 `source ./activate` met aussi `go`, `gofmt` et `dlv` dans le PATH, avec des caches Go confinés dans `.tools/`.
 

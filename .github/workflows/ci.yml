@@ -27,26 +27,9 @@ jobs:
           go-version: "1.27.3"
           cache-dependency-path: labctl/go.sum
 
-      - name: Formatage (gofmt)
-        run: |
-          out=$(gofmt -l .)
-          [ -z "$out" ] || { echo "Fichiers à formater (gofmt -w) :"; echo "$out"; exit 1; }
-
-      - name: go vet
-        run: go vet ./...
-
-      - name: Tests (détection de courses, ordre aléatoire)
-        run: go test -race -shuffle=on ./...
-
-      - name: Vulnérabilités connues (govulncheck)
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-
-      - name: Analyse statique (staticcheck)
-        run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.2 ./...
-
-      - name: Scripts shell (shellcheck)
+      - name: Contrôles (format, vet, tests -race, govulncheck, staticcheck, shellcheck, syntaxe Python et JS)
         working-directory: .
-        run: shellcheck install.sh activate labctl/build.sh labctl/internal/lab/gwfiles/gwctl labctl/internal/lab/gwfiles/gwdhcp-hook
+        run: labctl/build.sh ci # mêmes contrôles qu'avant une release (release.yml)
 
       - name: Artefacts de release (binaire, .deb, archives)
         working-directory: .

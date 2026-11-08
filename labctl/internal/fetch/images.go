@@ -78,31 +78,17 @@ func FetchImage(name, dst string, fresh bool, out io.Writer) error {
 		return fmt.Errorf("%s : %w", img.Sums, err)
 	}
 
-	part := dst + ".part"
 	if fresh {
-		os.Remove(part)
+		os.Remove(dst + ".part")
 	}
 	fmt.Fprintf(out, "==> Téléchargement de %s\n", name)
-	if err := Download(img.URL, part, out); err != nil {
-		return err
+	publishable := func(part string) error { // structure : aucune référence vers un fichier de l'hôte ; lisible par qemu
+		if _, err := CheckDisk(part); err != nil {
+			return err
+		}
+		return os.Chmod(part, 0o644)
 	}
-	fmt.Fprintf(out, "==> Vérification %s\n", img.Algo)
-	got, err := FileHash(part, img.Algo)
-	if err != nil {
-		return err
-	}
-	if got != want {
-		os.Remove(part)
-		return fmt.Errorf("empreinte %s invalide pour %s (fichier supprimé, relancer)", img.Algo, name)
-	}
-	if _, err := CheckDisk(part); err != nil { // structure : aucune référence vers un fichier de l'hôte
-		os.Remove(part)
-		return err
-	}
-	if err := os.Chmod(part, 0o644); err != nil {
-		return err
-	}
-	if err := os.Rename(part, dst); err != nil {
+	if err := Verified(img.URL, dst, img.Algo, want, publishable, out); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "ok  %s -> %s (empreinte %s conforme)\n", name, dst, img.Algo)

@@ -33,24 +33,8 @@ func mitmURL() string {
 
 // mitmTarball renvoie l'archive de mitmproxy du cache (téléchargée et vérifiée si besoin).
 func (l *Lab) mitmTarball(g *Gateway) (string, error) {
-	dir := filepath.Join(l.ImagesDir(), "sources", "cache")
-	path := filepath.Join(dir, fmt.Sprintf("mitmproxy-%s-linux-x86_64.tar.gz", mitmVersion))
-	if h, err := fetch.FileHash(path, "sha256"); err == nil && h == mitmSHA256 {
-		return path, nil
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	g.logf("==> téléchargement de mitmproxy %s (~105 Mo)", mitmVersion)
-	tmp := path + ".part"
-	if err := fetch.Download(mitmURL(), tmp, g.Out); err != nil {
-		return "", err
-	}
-	if h, err := fetch.FileHash(tmp, "sha256"); err != nil || h != mitmSHA256 {
-		os.Remove(tmp)
-		return "", fmt.Errorf("empreinte de mitmproxy incorrecte (%s) : archive refusée", h)
-	}
-	return path, os.Rename(tmp, path)
+	path := filepath.Join(l.ImagesDir(), "sources", "cache", fmt.Sprintf("mitmproxy-%s-linux-x86_64.tar.gz", mitmVersion))
+	return path, fetch.Cached(mitmURL(), path, "sha256", mitmSHA256, fmt.Sprintf("mitmproxy %s (~105 Mo)", mitmVersion), g.Out)
 }
 
 // gatewayMemory porte la mémoire de la passerelle à GatewayProxyMiB (redémarrage : les modules perdent DHCP,

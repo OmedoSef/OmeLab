@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -84,31 +85,76 @@ func ParseSums(r io.Reader, file string) (string, error) {
 	return "", fmt.Errorf("pas d'empreinte pour %s", file)
 }
 
-// NewHash renvoie la fonction de hachage nommée (md5, sha1, sha256, sha512 ; sha256 par défaut).
-func NewHash(algo string) hash.Hash {
+// NewHash renvoie la fonction de hachage nommée : md5, sha1, sha256 ou sha512. Un autre nom est une erreur (jamais
+// un repli silencieux sur sha256, qui ferait échouer — ou passer — une vérification pour une mauvaise raison).
+func NewHash(algo string) (hash.Hash, error) {
 	switch algo {
 	case "md5":
-		return md5.New()
+		return md5.New(), nil
 	case "sha1":
-		return sha1.New()
+		return sha1.New(), nil
+	case "sha256":
+		return sha256.New(), nil
 	case "sha512":
-		return sha512.New()
+		return sha512.New(), nil
 	}
-	return sha256.New()
+	return nil, fmt.Errorf("algorithme d'empreinte inconnu : %q", algo)
 }
 
 // FileHash renvoie l'empreinte (hexadécimale) d'un fichier.
 func FileHash(file, algo string) (string, error) {
+	h, err := NewHash(algo)
+	if err != nil {
+		return "", err
+	}
 	f, err := os.Open(file)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
-	h := NewHash(algo)
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// Verified télécharge url vers dst, sans jamais publier un fichier non vérifié : téléchargement dans dst.part
+// (repris s'il existe), empreinte comparée à want, contrôle check facultatif (structure d'un disque…), puis
+// renommage atomique. Un fichier partiel qui échoue à la vérification est supprimé.
+func Verified(url, dst, algo, want string, check func(string) error, out io.Writer) error {
+	part := dst + ".part"
+	if err := Download(url, part, out); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "==> Vérification %s\n", algo)
+	got, err := FileHash(part, algo)
+	if err != nil {
+		return err
+	}
+	if got != strings.ToLower(want) {
+		os.Remove(part)
+		return fmt.Errorf("empreinte %s invalide pour %s (fichier supprimé, relancer)", algo, filepath.Base(dst))
+	}
+	if check != nil {
+		if err := check(part); err != nil {
+			os.Remove(part)
+			return err
+		}
+	}
+	return os.Rename(part, dst)
+}
+
+// Cached renvoie dst s'il est déjà là et intact (empreinte want), sinon le télécharge et le vérifie (Verified).
+// label nomme le fichier dans les messages.
+func Cached(url, dst, algo, want, label string, out io.Writer) error {
+	if got, err := FileHash(dst, algo); err == nil && got == strings.ToLower(want) {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "==> Téléchargement de %s\n", label)
+	return Verified(url, dst, algo, want, nil, out)
 }
 
 // Download télécharge url dans dst, en reprenant un fichier partiel existant.

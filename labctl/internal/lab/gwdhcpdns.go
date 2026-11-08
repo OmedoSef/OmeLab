@@ -99,7 +99,10 @@ func (g *Gateway) AddReservation(module, name string, octet int, mac string) err
 	if err := g.l.ConfAddHost(module, name, octet, mac); err != nil {
 		return err
 	}
-	m, _ := g.module(module)
+	m, err := g.module(module)
+	if err != nil {
+		return err
+	}
 	g.logf("ok  réservation %s : %s.%d pour %s (DNS : %s.%s)", name, m.Env.Subnet, octet, strings.ToLower(mac), name, m.Env.Domain)
 	return g.applyIfRunning()
 }

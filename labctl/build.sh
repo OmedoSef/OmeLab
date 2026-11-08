@@ -4,6 +4,8 @@
 #   labctl/build.sh            avec le Go du projet (.tools/go, voir activate)
 #   labctl/build.sh docker     dans le conteneur officiel golang (aucun Go local nécessaire)
 #   labctl/build.sh test       go vet + tests
+#   labctl/build.sh ci         tous les contrôles de la CI (format, vet, tests -race, govulncheck, staticcheck,
+#                              scripts shell, syntaxe Python et JS) : lancés aussi avant chaque release
 #   labctl/build.sh tools      installe Go et delve dans .tools/ (téléchargement vérifié)
 #   labctl/build.sh release    artefacts distribuables dans dist/ : binaire linux/amd64 statique +
 #                              SHA256, install.sh, et une archive par module (état commité)
@@ -118,6 +120,27 @@ case ${1:-build} in
   test)
     go_ready # Go du projet, sinon celui du PATH (CI)
     (cd "$SRC" && go vet ./... && go test ./...) ;;
+  ci)
+    # Tous les contrôles, les mêmes pour la CI et avant une release (workflows ci.yml et release.yml)
+    go_ready
+    cd "$SRC"
+    echo "==> formatage (gofmt)"; out=$(gofmt -l .); [[ -z $out ]] || { echo "à formater (gofmt -w) :"; echo "$out"; exit 1; }
+    echo "==> go vet"; go vet ./...
+    echo "==> tests (courses, ordre aléatoire)"; CGO_ENABLED=1 go test -race -shuffle=on ./...
+    echo "==> vulnérabilités connues (govulncheck)"; go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+    echo "==> analyse statique (staticcheck)"; go run honnef.co/go/tools/cmd/staticcheck@2026.2.2 ./...
+    cd "$LABS"
+    echo "==> scripts shell (shellcheck)"
+    shellcheck install.sh activate labctl/build.sh labctl/internal/lab/gwfiles/gwctl labctl/internal/lab/gwfiles/gwdhcp-hook
+    echo "==> extension mitmproxy de la passerelle (syntaxe Python)"
+    python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' labctl/internal/lab/gwfiles/gwproxy.py
+    echo "==> scripts de la GUI (syntaxe JavaScript)"
+    if command -v node >/dev/null 2>&1; then
+      for f in labctl/internal/gui/static/js/*.js; do node --check "$f"; done
+    else
+      echo "    node absent : contrôle sauté"
+    fi
+    echo "ok  tous les contrôles passent" ;;
   tools)
     dl=$(mktemp -d); trap 'rm -rf "$dl"' EXIT
     f=go$GO_VERSION.linux-amd64.tar.gz

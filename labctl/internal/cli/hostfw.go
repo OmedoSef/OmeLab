@@ -182,9 +182,17 @@ automatiquement s'ils suivent la convention de nommage des bridges.
 			if err := requireRoot("hostfw off"); err != nil {
 				return err
 			}
-			_ = exec.Command("systemctl", "disable", "--now", "--quiet", hostfwUnit).Run()
-			_ = exec.Command(nftBin, "delete", "table", "inet", hostfwTable).Run()
 			var errs []error
+			if _, err := os.Stat(hostfwUnitP); err == nil {
+				if b, err := exec.Command("systemctl", "disable", "--now", "--quiet", hostfwUnit).CombinedOutput(); err != nil {
+					errs = append(errs, fmt.Errorf("systemctl disable %s : %s", hostfwUnit, strings.TrimSpace(string(b))))
+				}
+			}
+			if exec.Command(nftBin, "list", "table", "inet", hostfwTable).Run() == nil { // table présente : à retirer
+				if b, err := exec.Command(nftBin, "delete", "table", "inet", hostfwTable).CombinedOutput(); err != nil {
+					errs = append(errs, fmt.Errorf("nft delete table : %s", strings.TrimSpace(string(b))))
+				}
+			}
 			for _, f := range []string{hostfwUnitP, hostfwFile} {
 				if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
 					errs = append(errs, err)

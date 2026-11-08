@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/xml"
 	"fmt"
 	"net/netip"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/module"
 )
 
 // netNames complète avec les noms connus de l'hyperviseur du lab.
@@ -82,6 +84,12 @@ Les réseaux des modules sont créés par leur module (labctl <module> up), pas 
 			name := args[0]
 			if mode != "nat" && mode != "isolated" && mode != "route" {
 				return fmt.Errorf("mode invalide : %s (nat, isolated ou route)", mode)
+			}
+			if !module.IsLabel(name) { // recopié dans le XML du réseau
+				return fmt.Errorf("nom de réseau invalide : %q (minuscules, chiffres, tirets)", name)
+			}
+			if domain != "" && !module.IsDomain(domain) {
+				return fmt.Errorf("domaine invalide : %q (ex. demo.%s)", domain, l.RootDomain())
 			}
 			pfx, err := netip.ParsePrefix(subnet)
 			if err != nil || !pfx.Addr().Is4() || pfx.Bits() < 8 || pfx.Bits() > 29 {
@@ -168,7 +176,7 @@ Les réseaux des modules sont créés par leur module (labctl <module> up), pas 
 	return c
 }
 
-// networkXML : même définition que l'ancien net-create.sh.
+// networkXML : même définition que l'ancien net-create.sh. Valeurs déjà validées, échappées quand même (XML).
 func networkXML(name, mode, domain string, pfx netip.Prefix, dhcp bool) string {
 	size := 1 << (32 - pfx.Bits())
 	base := pfx.Addr().As4()
@@ -178,12 +186,13 @@ func networkXML(name, mode, domain string, pfx netip.Prefix, dhcp bool) string {
 		return fmt.Sprintf("%d.%d.%d.%d", n>>24, n>>16&255, n>>8&255, n&255)
 	}
 	mask := uint32(0xFFFFFFFF) << (32 - pfx.Bits())
+	esc := func(s string) string { var e strings.Builder; _ = xml.EscapeText(&e, []byte(s)); return e.String() }
 	var b strings.Builder
-	fmt.Fprintf(&b, "<network>\n  <name>%s</name>\n", name)
+	fmt.Fprintf(&b, "<network>\n  <name>%s</name>\n", esc(name))
 	if mode != "isolated" {
-		fmt.Fprintf(&b, "  <forward mode='%s'/>\n", mode)
+		fmt.Fprintf(&b, "  <forward mode='%s'/>\n", esc(mode))
 	}
-	fmt.Fprintf(&b, "  <domain name='%s' localOnly='yes'/>\n", domain)
+	fmt.Fprintf(&b, "  <domain name='%s' localOnly='yes'/>\n", esc(domain))
 	fmt.Fprintf(&b, "  <ip address='%s' netmask='%d.%d.%d.%d'>\n", ipAt(1), mask>>24, mask>>16&255, mask>>8&255, mask&255)
 	if dhcp {
 		fmt.Fprintf(&b, "    <dhcp><range start='%s' end='%s'/></dhcp>\n", ipAt(size/2), ipAt(size-2))

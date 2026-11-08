@@ -2,6 +2,7 @@ package lab
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -390,5 +391,21 @@ func TestRestoreAll(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "c n'a pas de snapshot déclaré") {
 		t.Errorf("VM sans snapshot non signalée :\n%s", out.String())
+	}
+}
+
+// Si libvirt ne livre pas les disques ou les cartes d'une VM, elle n'est pas supprimée : ses disques et ses baux
+// DHCP ne restent pas orphelins sans prévenir.
+func TestDestroyKeepsVMWhenDisksUnreadable(t *testing.T) {
+	l, f := engineLab(t, map[string]string{"web": webYAML})
+	d := vmOf(t, l, f, "web", "srv", "shut off")
+	for _, op := range []string{"disks", "interfaces"} {
+		f.Fail = map[string]error{op + " " + d.Name: errors.New("libvirt indisponible")}
+		if err := l.DestroyVM(d.Name, false, nil); err == nil || !strings.Contains(err.Error(), "rien n'est supprimé") {
+			t.Errorf("%s illisibles : %v", op, err)
+		}
+		if f.VM(d.Name) == nil {
+			t.Fatalf("VM supprimée alors que ses %s étaient illisibles", op)
+		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 
 	"labs/labctl/internal/module"
@@ -26,8 +27,9 @@ type Lab struct {
 	// (virt/virtfake).
 	Virt virt.Hypervisor
 
+	labVarsMu    sync.Mutex
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
-	labVarsDone  bool
+	labVarsKey   string            // taille et date des fichiers lus
 }
 
 // Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).

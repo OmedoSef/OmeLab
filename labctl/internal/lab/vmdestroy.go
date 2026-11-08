@@ -28,8 +28,15 @@ func (l *Lab) destroyVM(name string, force, purge bool, out io.Writer) error {
 	if !force && !strings.Contains(v.Description(name), LabMarker) {
 		return fmt.Errorf("%s n'a pas été créée par les scripts : refusé (--force pour la supprimer quand même ; ses disques hors de %s seront conservés)", name, l.VMDir())
 	}
-	disks, _ := v.Disks(name)
-	ifs, _ := v.Interfaces(name)
+	// Disques et cartes lus avant la suppression : sans eux, disques et baux DHCP resteraient orphelins
+	disks, err := v.Disks(name)
+	if err != nil {
+		return fmt.Errorf("disques de %s illisibles, rien n'est supprimé (relancer) : %w", name, err)
+	}
+	ifs, err := v.Interfaces(name)
+	if err != nil {
+		return fmt.Errorf("cartes de %s illisibles, rien n'est supprimé (relancer) : %w", name, err)
+	}
 	if state != "shut off" {
 		if err := v.DestroyDomain(name); err != nil {
 			return fmt.Errorf("arrêt de %s : %w", name, err)

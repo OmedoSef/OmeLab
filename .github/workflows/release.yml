@@ -36,8 +36,8 @@ jobs:
           go-version: "1.27.3"
           cache-dependency-path: labctl/go.sum
 
-      - name: Tests (rien n'est publié s'ils échouent)
-        run: labctl/build.sh test
+      - name: Contrôles de la CI (rien n'est publié s'ils échouent)
+        run: labctl/build.sh ci
 
       - name: Tag de version, local pour l'instant
         run: |

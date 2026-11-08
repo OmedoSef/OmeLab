@@ -197,10 +197,16 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	defer func() {
 		if err != nil { // rien ne doit rester d'une création ratée
 			if defined {
-				_ = v.DestroyDomain(s.Name)
-				_ = v.UndefineDomain(s.Name)
+				if v.State(s.Name) == virt.StateRunning {
+					_ = v.DestroyDomain(s.Name) // l'échec se voit à la suppression qui suit
+				}
+				if uerr := v.UndefineDomain(s.Name); uerr != nil {
+					fmt.Fprintf(out, "attention: %s n'a pas pu être retirée de libvirt (labctl vm destroy %s) : %v\n", s.Name, s.Name, uerr)
+				}
 			}
-			os.RemoveAll(dir)
+			if rerr := os.RemoveAll(dir); rerr != nil {
+				fmt.Fprintf(out, "attention: dossier %s non supprimé : %v\n", dir, rerr)
+			}
 		}
 	}()
 

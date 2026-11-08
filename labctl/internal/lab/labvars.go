@@ -1,8 +1,11 @@
 package lab
 
 import (
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"labs/labctl/internal/module"
 
@@ -15,14 +18,28 @@ import (
 // sinon le défaut du module. C'est le point d'entrée pour « modifier 2/3 trucs » (domaine, mot de passe,
 // chemin des images...) en un seul endroit, sans toucher aux modules.
 //
-// Résolu une seule fois par lab (les ${...} internes au bloc sont développés). Un lab sans lab.yaml
-// renvoie une map vide : les modules gardent alors le comportement d'avant (défauts du module).
+// Relu seulement si lab.yaml ou lab.local.yaml a changé (la GUI garde un même Lab pendant toute sa vie, et ses
+// requêtes arrivent en parallèle). Les ${...} internes au bloc sont développés. Un lab sans lab.yaml renvoie une
+// map vide : les modules gardent alors le comportement d'avant (défauts du module).
 func (l *Lab) LabVars() map[string]string {
-	if !l.labVarsDone {
-		l.labVarsCache = l.loadLabVars()
-		l.labVarsDone = true
+	stamp := l.labVarsStamp()
+	l.labVarsMu.Lock()
+	defer l.labVarsMu.Unlock()
+	if l.labVarsCache == nil || stamp != l.labVarsKey {
+		l.labVarsCache, l.labVarsKey = l.loadLabVars(), stamp
 	}
-	return l.labVarsCache
+	return maps.Clone(l.labVarsCache)
+}
+
+// labVarsStamp résume la taille et la date des fichiers de variables du lab.
+func (l *Lab) labVarsStamp() string {
+	var b strings.Builder
+	for _, name := range []string{"lab.yaml", "lab.local.yaml"} {
+		if fi, err := os.Stat(filepath.Join(l.Root, name)); err == nil {
+			fmt.Fprintf(&b, "%s:%d:%d;", name, fi.Size(), fi.ModTime().UnixNano())
+		}
+	}
+	return b.String()
 }
 
 func (l *Lab) loadLabVars() map[string]string {

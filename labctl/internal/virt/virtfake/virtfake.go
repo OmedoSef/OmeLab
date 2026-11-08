@@ -31,6 +31,9 @@ type Fake struct {
 	vms   map[string]*VM
 	nets  map[string]*virt.Network
 	Calls []string // opérations qui modifient l'état, ex. "start netlab-cli", "define-net lab-netlab"
+	// Fail fait échouer une opération : clé « <op> <VM> » (ops : start, shutdown, destroy, undefine, disks,
+	// interfaces), valeur = erreur renvoyée. À remplir avant l'appel, sans concurrence.
+	Fail  map[string]error
 	clock time.Time
 }
 
@@ -214,6 +217,9 @@ func (f *Fake) DefineDomain(x string) error {
 
 func (f *Fake) setState(op, name, want string, from ...string) error {
 	return f.withVM(name, func(d *VM) error {
+		if err := f.Fail[op+" "+name]; err != nil {
+			return err
+		}
 		if len(from) > 0 && !slices.Contains(from, d.State) {
 			return fmt.Errorf("%s %s : VM %s", op, name, d.State)
 		}
@@ -238,6 +244,9 @@ func (f *Fake) RebootDomain(name string) error {
 
 func (f *Fake) UndefineDomain(name string) error {
 	return f.withVM(name, func(d *VM) error {
+		if err := f.Fail["undefine "+name]; err != nil {
+			return err
+		}
 		if d.State == virt.StateRunning {
 			return fmt.Errorf("undefine %s : VM en marche", name)
 		}
@@ -268,7 +277,13 @@ func (f *Fake) SetResources(name string, cpus, memMiB int) error {
 }
 
 func (f *Fake) Disks(name string) (out []string, err error) {
-	err = f.withVM(name, func(d *VM) error { out = slices.Clone(d.Disks); return nil })
+	err = f.withVM(name, func(d *VM) error {
+		if err := f.Fail["disks "+name]; err != nil {
+			return err
+		}
+		out = slices.Clone(d.Disks)
+		return nil
+	})
 	return
 }
 
@@ -283,7 +298,13 @@ func (f *Fake) SendKey(name string, code uint32) error {
 // ---------------------------------------------------------------- cartes réseau et adresses
 
 func (f *Fake) Interfaces(name string) (out []virt.Interface, err error) {
-	err = f.withVM(name, func(d *VM) error { out = slices.Clone(d.Ifaces); return nil })
+	err = f.withVM(name, func(d *VM) error {
+		if err := f.Fail["interfaces "+name]; err != nil {
+			return err
+		}
+		out = slices.Clone(d.Ifaces)
+		return nil
+	})
 	return
 }
 

@@ -1,6 +1,7 @@
 package lab
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -75,20 +76,26 @@ func (l *Lab) LabDown(lab string, out io.Writer) error {
 	v := l.Hypervisor()
 	for _, vm := range vms {
 		if l.DomState(vm) == virt.StateRunning {
-			_ = v.ShutdownDomain(vm)
+			if err := v.ShutdownDomain(vm); err != nil { // la coupure ci-dessous prendra le relais
+				fmt.Fprintf(out, "attention: arrêt ACPI de %s refusé : %v\n", vm, err)
+			}
 		}
 	}
+	var errs []error
 	for _, vm := range vms {
 		for t := 0; t < 120 && l.DomState(vm) == virt.StateRunning; t += 2 {
 			time.Sleep(2 * time.Second)
 		}
 		if l.DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "attention: %s ne s'arrête pas, arrêt forcé\n", vm)
-			_ = v.DestroyDomain(vm)
+			if err := v.DestroyDomain(vm); err != nil {
+				errs = append(errs, fmt.Errorf("%s toujours en marche : %w", vm, err))
+				continue
+			}
 		}
 		fmt.Fprintf(out, "ok  %s arrêtée\n", vm)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // LabSnapshot prend (revert : restaure) le snapshot snap de chaque VM d'un lab.

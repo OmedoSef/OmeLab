@@ -47,19 +47,8 @@ func (l *Lab) EnsureSource(mod, vm string, s *module.Source, out io.Writer) (str
 	file := filepath.Join(cache, name)
 
 	// Fichier déjà en cache et intact : pas de nouveau téléchargement
-	if got, err := fetch.FileHash(file, algo); err != nil || got != want {
-		fmt.Fprintf(out, "==> Téléchargement de %s\n", name)
-		if err := fetch.Download(url, file+".part", out); err != nil {
-			return "", err
-		}
-		fmt.Fprintf(out, "==> Vérification %s\n", algo)
-		if got, err := fetch.FileHash(file+".part", algo); err != nil || got != want {
-			os.Remove(file + ".part")
-			return "", fmt.Errorf("empreinte %s invalide pour %s (fichier supprimé, relancer)", algo, name)
-		}
-		if err := os.Rename(file+".part", file); err != nil {
-			return "", err
-		}
+	if err := fetch.Cached(url, file, algo, want, name, out); err != nil {
+		return "", err
 	}
 	fmt.Fprintf(out, "ok  %s (empreinte %s conforme)\n", name, algo)
 
