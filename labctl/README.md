@@ -154,7 +154,7 @@ Tout l'outillage reste dans le projet, sans sudo ni rien dans le système :
 | `labctl/build.sh` | compile `bin/labctl` avec le Go du projet |
 | `labctl/build.sh docker` | compile dans l'image officielle `golang`, sans Go local |
 | `labctl/build.sh test` | `go vet` + tests unitaires |
-| `labctl/build.sh ci` | tous les contrôles de la CI, lancés aussi avant chaque release : format, `go vet`, tests avec détection de courses, govulncheck, staticcheck, shellcheck, syntaxe de `gwproxy.py` et des scripts de la GUI. Prérequis : compilateur C (tests `-race`), shellcheck, python3, qemu-img (tests de disques et de création de VM) ; sans node, le contrôle JS est sauté |
+| `labctl/build.sh ci` | tous les contrôles de la CI, lancés aussi avant chaque release : format, `go vet`, tests avec détection de courses, govulncheck, staticcheck, shellcheck, syntaxe de `gwproxy.py` et des scripts de la GUI. Prérequis : compilateur C (tests `-race`), shellcheck, python3, qemu-img (tests de disques et de création de VM) ; sans node, le contrôle JS est sauté (exigé en CI). Les tests tournent avec `LABCTL_TEST_STRICT=1` : un test qui a besoin d'un outil absent échoue au lieu d'être sauté (`internal/testtool`) |
 
 `source ./activate` met aussi `go`, `gofmt` et `dlv` dans le PATH, avec des caches Go confinés dans `.tools/`.
 
@@ -175,7 +175,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/module/` | modules déclaratifs : lecture stricte du `module.yaml`, valeurs effectives, variables, validateur, édition préservant la mise en forme |
-| `internal/lab/` | découverte des modules, lecture des `module.yaml` / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion ; points d'injection pour les tests : `Lab.Virt` (hyperviseur), `Lab.Shell` (SSH), `Lab.Tool` (qemu-img, cloud-localds) |
+| `internal/lab/` | découverte des modules, lecture des `module.yaml` / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion ; points d'injection pour les tests : `Lab.Virt` (hyperviseur), `Lab.Shell` (SSH), `Lab.Tool` (qemu-img, cloud-localds), `Lab.Sleep` (pauses des attentes, `Lab.poll`) |
 | `internal/vmdef/` | description d'une VM à créer (`Spec`) et rendu de ce qu'elle reçoit : cloud-init, XML du domaine libvirt (sans hyperviseur ; seul `osinfo-query` est consulté) |
 | `internal/modfiles/` | fichiers `files/` d'un module édités par la GUI : confinement (aucun `..`, aucun lien suivi), écritures atomiques, conflits ; écriture atomique et détection des modifications concurrentes aussi pour `module.yaml` et `network.local.yaml` |
 | `internal/fetch/` | tout ce qui entre depuis Internet ou un éditeur : catalogue des images cloud, téléchargements, empreintes, signatures GPG des éditeurs (clés embarquées dans `keys/`), contrôle de structure des disques ; point de départ d'un audit de la chaîne d'approvisionnement |
