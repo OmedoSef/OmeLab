@@ -33,7 +33,9 @@ type Fake struct {
 	Calls []string // opérations qui modifient l'état, ex. "start netlab-cli", "define-net lab-netlab"
 	// Fail fait échouer une opération : clé « <op> <VM> » (ops : start, shutdown, destroy, undefine, disks,
 	// interfaces), valeur = erreur renvoyée. À remplir avant l'appel, sans concurrence.
-	Fail  map[string]error
+	Fail map[string]error
+	// IPs donne une adresse à une VM dès sa définition (DefineDomain), comme le ferait son DHCP.
+	IPs   map[string]string
 	clock time.Time
 }
 
@@ -201,7 +203,7 @@ func (f *Fake) DefineDomain(x string) error {
 	defer f.mu.Unlock()
 	d, ok := f.vms[dx.Name]
 	if !ok {
-		d = &VM{Name: dx.Name, State: "shut off"}
+		d = &VM{Name: dx.Name, State: "shut off", IP: f.IPs[dx.Name]}
 		f.vms[dx.Name] = d
 	}
 	d.Desc, d.CPUs, d.MemMiB, d.Ifaces, d.EFI = strings.TrimSpace(dx.Desc), cpus, mem, ifs, dx.OS.Firmware == "efi" || dx.OS.Loader != nil

@@ -182,11 +182,6 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			return err
 		}
 	}
-	for _, tool := range []string{"qemu-img", "cloud-localds"} {
-		if _, err := exec.LookPath(tool); err != nil {
-			return fmt.Errorf("commande manquante : %s (paquets qemu-utils, cloud-image-utils)", tool)
-		}
-	}
 	if _, err := os.Stat(dir); err == nil {
 		return fmt.Errorf("le dossier %s existe déjà (reste d'une VM supprimée à la main ?)", dir)
 	}
@@ -233,7 +228,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	case cloud:
 		args = append(args, fmt.Sprintf("%dG", s.DiskGiB))
 	}
-	if b, err := exec.Command("qemu-img", args...).CombinedOutput(); err != nil {
+	if b, err := l.tool("qemu-img", args...); err != nil {
 		return fmt.Errorf("qemu-img : %s", strings.TrimSpace(string(b)))
 	}
 	if cloud {
@@ -242,8 +237,8 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 				return err
 			}
 		}
-		if b, err := exec.Command("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
-			filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")).CombinedOutput(); err != nil {
+		if b, err := l.tool("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
+			filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")); err != nil {
 			return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(b)))
 		}
 	}
@@ -276,13 +271,13 @@ func (l *Lab) waitReady(name, user string, out io.Writer) error {
 	fmt.Fprintf(out, "==> IP %s, attente de cloud-init...\n", ip)
 	target := user + "@" + ip
 	for i := 0; i < 60; i++ {
-		if exec.Command("ssh", l.sshArgs(target, "true")...).Run() == nil {
+		if _, _, err := l.shell(target, "true", nil); err == nil {
 			break
 		}
 		time.Sleep(3 * time.Second)
 	}
-	b, err := exec.Command("ssh", l.sshArgs(target, "cloud-init status --wait >/dev/null; cloud-init status")...).CombinedOutput()
-	fmt.Fprint(out, string(b))
+	stdout, stderr, err := l.shell(target, "cloud-init status --wait >/dev/null; cloud-init status", nil)
+	fmt.Fprint(out, string(stdout)+string(stderr))
 	if err != nil {
 		fmt.Fprintln(out, "attention: cloud-init a signalé une erreur (journal : sudo cat /var/log/cloud-init-output.log)")
 	}

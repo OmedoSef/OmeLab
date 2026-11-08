@@ -32,6 +32,9 @@ type Lab struct {
 	// Shell exécute un script sur une machine du lab (utilisateur@IP) par SSH ; nil = ssh, avec les options de
 	// sshArgs. Les tests y mettent un faux. Sert aujourd'hui à la passerelle (Gateway.SSH).
 	Shell func(target, script string, stdin io.Reader) (stdout, stderr []byte, err error)
+	// Tool lance un outil de l'hôte (qemu-img, cloud-localds) et renvoie sa sortie et son erreur réunies ; nil = exec.
+	// Les tests y mettent un faux. Sert à la création des VMs (CreateVM).
+	Tool func(name string, args ...string) ([]byte, error)
 
 	labVarsMu    sync.Mutex
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
@@ -50,6 +53,17 @@ func (l *Lab) shell(target, script string, stdin io.Reader) (stdout, stderr []by
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err = cmd.Run()
 	return out.Bytes(), errb.Bytes(), err
+}
+
+// tool lance un outil de l'hôte : l.Tool s'il est fourni, sinon exec (absent du PATH : erreur qui nomme le paquet).
+func (l *Lab) tool(name string, args ...string) ([]byte, error) {
+	if l.Tool != nil {
+		return l.Tool(name, args...)
+	}
+	if _, err := exec.LookPath(name); err != nil {
+		return nil, fmt.Errorf("commande manquante : %s (paquets qemu-utils, cloud-image-utils)", name)
+	}
+	return exec.Command(name, args...).CombinedOutput()
 }
 
 // Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).

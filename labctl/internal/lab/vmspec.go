@@ -99,6 +99,9 @@ func ParseFile(s string) (FileSpec, error) {
 }
 
 // Validate contrôle la description (sans accès système).
+var reFileMode = regexp.MustCompile(`^0?[0-7]{3}$`) // droits d'un fichier copié (ex. 0644)
+
+// Validate contrôle une description de VM avant toute création.
 func (s *VMSpec) Validate() error {
 	switch {
 	case !names.Host(s.Name):
@@ -127,7 +130,7 @@ func (s *VMSpec) Validate() error {
 		if !strings.HasPrefix(f.Dest, "/") {
 			return fmt.Errorf("destination de fichier non absolue : %q", f.Dest)
 		}
-		if f.Mode != "" && !regexp.MustCompile(`^0?[0-7]{3}$`).MatchString(f.Mode) {
+		if f.Mode != "" && !reFileMode.MatchString(f.Mode) {
 			return fmt.Errorf("mode de fichier invalide : %q", f.Mode)
 		}
 	}
