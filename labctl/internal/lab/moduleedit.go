@@ -103,11 +103,10 @@ func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []mo
 		}
 		l.ensureSchema() // la 1re ligne du squelette y renvoie : l'éditeur doit le trouver
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(text), 0o644); err != nil {
+	if err := module.NotSymlink(path); err != nil {
 		return "", nil, err
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := modfiles.WriteAtomic(path, strings.NewReader(text), modfiles.MaxTextFile); err != nil { // jamais par un lien
 		return "", nil, err
 	}
 	return modfiles.TextHash([]byte(text)), issues, nil

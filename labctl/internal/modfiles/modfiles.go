@@ -214,14 +214,16 @@ func (t Tree) Text(rel string) (text, hash string, err error) {
 	return string(b), TextHash(b), nil
 }
 
-// WriteAtomic écrit r dans p par un fichier temporaire du même dossier (jamais de fichier à moitié écrit).
+// WriteAtomic écrit r dans p par un fichier temporaire du même dossier, créé en exclusif, puis renommé : jamais de
+// fichier à moitié écrit, et un lien posé à la place de p (ou d'un nom temporaire prévisible) est remplacé, jamais
+// suivi.
 // Le mode d'un fichier remplacé est conservé.
 func WriteAtomic(p string, r io.Reader, limit int64) error {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err
 	}
 	mode := fs.FileMode(0o644)
-	if fi, err := os.Lstat(p); err == nil {
+	if fi, err := os.Lstat(p); err == nil && fi.Mode().IsRegular() { // jamais les droits d'un lien (0777)
 		mode = fi.Mode().Perm()
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(p), ".labctl-*")

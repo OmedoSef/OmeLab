@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf16"
 
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
@@ -83,7 +84,7 @@ func verifyWindowsISO(path, checksum string, out logWriter) error {
 	if h != want {
 		return fmt.Errorf("%s : empreinte %s, attendue %s : ISO refusé", filepath.Base(path), h, want)
 	}
-	_ = os.WriteFile(mark, []byte(stamp), 0o644)
+	_ = modfiles.WriteAtomic(mark, strings.NewReader(stamp), 1<<10) // à côté de l'ISO : jamais par un lien
 	out.logf("ok  %s (empreinte sha256 conforme)", filepath.Base(path))
 	return nil
 }

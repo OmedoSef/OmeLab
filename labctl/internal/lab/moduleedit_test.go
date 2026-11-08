@@ -69,3 +69,27 @@ func TestModuleTextEdit(t *testing.T) {
 		t.Error("contenu enregistré différent")
 	}
 }
+
+// L'éditeur de la GUI n'écrit jamais par un lien posé par le module (module.yaml.tmp → fichier de l'hôte).
+func TestSaveModuleTextNeverFollowsSymlinks(t *testing.T) {
+	l := testLab(t)
+	if _, _, err := l.SaveModuleText("fic", ModuleSkeleton("fic"), "", true); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(t.TempDir(), "bashrc")
+	_ = os.WriteFile(victim, []byte("# à moi\n"), 0o600)
+	path := filepath.Join(l.Root, "modules", "fic", module.FileName)
+	if err := os.Symlink(victim, path+".tmp"); err != nil {
+		t.Fatal(err)
+	}
+	text, hash, err := l.ModuleText("fic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := l.SaveModuleText("fic", text+"# modifié\n", hash, false); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "# à moi\n" {
+		t.Fatalf("fichier hors du module écrit par un lien : %q", b)
+	}
+}

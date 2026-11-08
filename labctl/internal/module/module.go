@@ -183,6 +183,9 @@ var ErrNoModule = errors.New("pas de " + FileName)
 // Load lit modules/<nom>/module.yaml. Une clé inconnue ou mal typée est une erreur (avec sa ligne).
 func Load(dir string) (*Module, error) {
 	path := filepath.Join(dir, FileName)
+	if err := NotSymlink(path); err != nil {
+		return nil, err
+	}
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, ErrNoModule

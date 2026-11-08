@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"labs/labctl/internal/modfiles"
 )
 
 // Les éditions modifient l'arbre YAML (et non une structure réencodée) : commentaires, ordre des clés et
@@ -277,9 +279,22 @@ func (m *Module) Save() error {
 	if _, err := Parse(b, m.Dir); err != nil {
 		return fmt.Errorf("édition refusée, le fichier deviendrait illisible : %w", err)
 	}
-	tmp := m.Path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	// Écriture atomique par un fichier temporaire exclusif : un module tiers qui livrerait un lien (module.yaml.tmp,
+	// module.yaml…) vers un fichier de l'hôte ne le ferait pas écrire
+	if err := NotSymlink(m.Path); err != nil {
 		return err
 	}
-	return os.Rename(tmp, m.Path)
+	return modfiles.WriteAtomic(m.Path, bytes.NewReader(b), maxModuleFile)
+}
+
+// maxModuleFile : taille maximale d'un module.yaml écrit par labctl.
+const maxModuleFile = 4 << 20
+
+// NotSymlink refuse un module.yaml qui serait un lien symbolique : labctl ne lit ni n'écrit un fichier hors du module
+// par ce biais.
+func NotSymlink(path string) error {
+	if fi, err := os.Lstat(path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s est un lien symbolique : refusé (un module.yaml est un fichier ordinaire)", path)
+	}
+	return nil
 }
