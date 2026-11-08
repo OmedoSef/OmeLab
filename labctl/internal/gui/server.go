@@ -53,7 +53,7 @@ type server struct {
 	tunDone chan struct{} // fermé quand le tunnel s'arrête
 }
 
-// csp : politique de sécurité de la page de la GUI (voir Serve).
+// csp : politique de sécurité de la page de la GUI (posée par routes).
 const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
 	"connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 

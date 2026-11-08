@@ -1,6 +1,6 @@
 // Package vmdef décrit une VM à créer (Spec) et produit ce que libvirt et la VM reçoivent : cloud-init
-// (user-data, network-config, meta-data) et définition XML du domaine. Fonctions pures, sans hyperviseur ni réseau ;
-// la création elle-même (disques, définition, démarrage) est faite par lab.CreateVM.
+// (user-data, network-config, meta-data) et définition XML du domaine. Sans hyperviseur ni réseau (seul osinfo-query
+// est consulté sur l'hôte, pour l'identifiant libosinfo) ; la création elle-même (disques, définition, démarrage) est faite par lab.CreateVM.
 package vmdef
 
 import (

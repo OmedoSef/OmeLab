@@ -104,7 +104,7 @@ Les clés privées ne sont pas chiffrées : le dossier `pki/` est exclu de git.
 > ⚠️ **Sécurité de la PKI.** `pki/` (droits 0700, clés en 0600) contient en clair la clé de la CA racine et de
 > l'intermédiaire. Qui peut lire ce dossier peut signer un certificat **pour n'importe quel nom** : la racine n'a pas
 > de contrainte de nom (elle signe aussi les CA des modules, dont le domaine peut être hors du domaine racine,
-> ex. `pjpt.local`).
+> ex. `pjptlab.local`).
 > - Dans les VMs, c'est sans conséquence au-delà du lab : elles ne font confiance à la racine que pour le lab.
 >   Un module ne peut pas non plus s'en servir pour un domaine d'Internet : son domaine est forcément sous la racine
 >   du lab ou sous un suffixe privé (`.internal`, `.local`…), et sa CA est contrainte à ce domaine.

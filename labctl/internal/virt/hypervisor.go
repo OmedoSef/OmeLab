@@ -2,8 +2,8 @@ package virt
 
 import "time"
 
-// Hypervisor est ce que labctl demande à libvirt. *Conn l'implémente sur la vraie socket ; les tests du moteur
-// (paquet lab) lui substituent un faux en mémoire (virt/virtfake). Les méthodes ont la sémantique de *Conn :
+// Hypervisor est ce que labctl demande à libvirt. *Conn l'implémente sur la vraie socket ; les tests (paquets lab,
+// gui) lui substituent un faux en mémoire (virt/virtfake). Les méthodes ont la sémantique de *Conn :
 // State renvoie StateAbsent pour une VM inconnue, les autres signalent ErrNotFound (errors.Is).
 type Hypervisor interface {
 	// Domaines

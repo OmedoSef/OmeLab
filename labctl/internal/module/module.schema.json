@@ -466,7 +466,7 @@
       "description": "Network est le réseau isolé du module.",
       "properties": {
         "domain": {
-          "description": "domaine complet, pris tel quel (ex. pjpt.local)",
+          "description": "domaine complet, pris tel quel (ex. pjptlab.local) ; sous la racine du lab ou un suffixe privé, jamais un domaine d'Internet",
           "type": [
             "string",
             "number",
@@ -854,7 +854,7 @@
                 ]
               },
               "extract": {
-                "description": "motif du fichier à prendre dans l'archive",
+                "description": "motif du fichier à prendre dans l'archive (nom, sans chemin ni tiret en tête)",
                 "type": [
                   "string",
                   "number",
@@ -920,7 +920,7 @@
                 ]
               },
               "iso": {
-                "description": "chemin de l'ISO (~ accepté)",
+                "description": "chemin de l'ISO (~ accepté) ; une image ISO 9660, rien d'autre",
                 "type": [
                   "string",
                   "number",

@@ -1,6 +1,7 @@
 // Package virtfake est un faux libvirt en mémoire (virt.Hypervisor) pour tester le moteur de labctl sans hyperviseur :
 // les VMs et réseaux sont des structures que le test prépare (AddVM, AddNetwork) puis inspecte ; chaque opération
-// qui modifie l'état est notée dans Calls. Les arrêts et démarrages sont instantanés, il n'y a ni disque ni agent.
+// qui modifie l'état est notée dans Calls, Fail simule la panne d'une opération et IPs l'adresse prise par une VM à
+// sa définition. Les arrêts et démarrages sont instantanés, il n'y a ni disque ni agent.
 package virtfake
 
 import (
@@ -31,8 +32,8 @@ type Fake struct {
 	vms   map[string]*VM
 	nets  map[string]*virt.Network
 	Calls []string // opérations qui modifient l'état, ex. "start netlab-cli", "define-net lab-netlab"
-	// Fail fait échouer une opération : clé « <op> <VM> » (ops : start, shutdown, destroy, undefine, disks,
-	// interfaces), valeur = erreur renvoyée. À remplir avant l'appel, sans concurrence.
+	// Fail fait échouer une opération : clé « <op> <VM> » (ops : start, shutdown, destroy, reboot, undefine,
+	// disks, interfaces), valeur = erreur renvoyée. À remplir avant l'appel, sans concurrence.
 	Fail map[string]error
 	// IPs donne une adresse à une VM dès sa définition (DefineDomain), comme le ferait son DHCP.
 	IPs   map[string]string

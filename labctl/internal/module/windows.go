@@ -10,7 +10,7 @@ import (
 // l'Evaluation Center). Installation sans intervention (autounattend.xml), pilotes virtio, agent invité QEMU et
 // OpenSSH Server posés à la fin : la VM se pilote ensuite par SSH (files:, run: en PowerShell) comme une VM Linux.
 type Windows struct {
-	ISO      string `yaml:"iso"`                // chemin de l'ISO (~ accepté)
+	ISO      string `yaml:"iso"`                // chemin de l'ISO (~ accepté) ; une image ISO 9660, rien d'autre
 	Checksum string `yaml:"checksum,omitempty"` // sha256:… (vérifiée une fois par ISO)
 	Edition  string `yaml:"edition"`            // nom de l'image dans install.wim (ex. Windows Server 2022 SERVERSTANDARD)
 	Drivers  string `yaml:"drivers,omitempty"`  // dossier des pilotes virtio-win (2k22, 2k19, w11…) ; déduit de l'édition

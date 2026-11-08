@@ -2,6 +2,7 @@
 // files: du module.yaml) : liste, lecture, écriture, envoi, renommage, suppression depuis la GUI. Tout reste sous ce
 // dossier : chemins relatifs nettoyés, sans « .. », et aucun lien symbolique n'est suivi (ni listé). Les écritures
 // sont atomiques (fichier temporaire puis renommage), et un enregistrement sur une version périmée est refusé.
+// WriteAtomic, TextHash et ErrConflict servent aussi ailleurs (module.yaml, network.local.yaml).
 package modfiles
 
 import (

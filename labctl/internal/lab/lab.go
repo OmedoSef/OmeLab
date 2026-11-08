@@ -30,7 +30,7 @@ type Lab struct {
 	// (virt/virtfake).
 	Virt virt.Hypervisor
 	// Shell exécute un script sur une machine du lab (utilisateur@IP) par SSH ; nil = ssh, avec les options de
-	// sshArgs. Les tests y mettent un faux. Sert aujourd'hui à la passerelle (Gateway.SSH).
+	// sshArgs. Les tests y mettent un faux. Sert à la passerelle (Gateway.SSH) et à l'attente de cloud-init (CreateVM).
 	Shell func(target, script string, stdin io.Reader) (stdout, stderr []byte, err error)
 	// Tool lance un outil de l'hôte (qemu-img, cloud-localds) et renvoie sa sortie et son erreur réunies ; nil = exec.
 	// Les tests y mettent un faux. Sert à la création des VMs (CreateVM).

@@ -1,7 +1,8 @@
 // Package names définit, une seule fois, les règles des noms que labctl recopie dans des fichiers de configuration
 // (dnsmasq, nftables, XML libvirt, cloud-init) : noms de module, de VM, d'alias, de réseau, domaines, adresses MAC.
 // Chaque couche les applique — validation du module.yaml, édition par la GUI, génération de la configuration de la
-// passerelle, CLI — en défense en profondeur, mais toujours avec la même règle.
+// passerelle, CLI — en défense en profondeur, mais toujours avec la même règle. Hors de son champ : les noms de CA
+// de la PKI (règle propre, pki) et les motifs de domaine du proxy (jokers, module).
 package names
 
 import "regexp"

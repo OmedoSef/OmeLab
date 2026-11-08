@@ -1,5 +1,5 @@
-# Contrôles automatiques à chaque push et pull request : formatage, analyse, tests, vulnérabilités connues,
-# scripts shell, et fabrication des artefacts de release (pour ne pas découvrir une casse le jour d'une release).
+# Contrôles automatiques à chaque push et pull request (labctl/build.sh ci) : formatage, analyse, tests, vulnérabilités
+# connues, scripts shell, syntaxe Python et JS, et fabrication des artefacts de release (pour ne pas découvrir une casse le jour d'une release).
 # Les actions tierces sont épinglées par SHA de commit (Dependabot propose les mises à jour) ; les outils Go aussi
 # (version explicite).
 name: CI

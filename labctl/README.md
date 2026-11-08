@@ -154,7 +154,7 @@ Tout l'outillage reste dans le projet, sans sudo ni rien dans le système :
 | `labctl/build.sh` | compile `bin/labctl` avec le Go du projet |
 | `labctl/build.sh docker` | compile dans l'image officielle `golang`, sans Go local |
 | `labctl/build.sh test` | `go vet` + tests unitaires |
-| `labctl/build.sh ci` | tous les contrôles de la CI, lancés aussi avant chaque release : format, `go vet`, tests avec détection de courses, govulncheck, staticcheck, shellcheck, syntaxe de `gwproxy.py` et des scripts de la GUI |
+| `labctl/build.sh ci` | tous les contrôles de la CI, lancés aussi avant chaque release : format, `go vet`, tests avec détection de courses, govulncheck, staticcheck, shellcheck, syntaxe de `gwproxy.py` et des scripts de la GUI. Prérequis : compilateur C (tests `-race`), shellcheck, python3, qemu-img (tests de disques et de création de VM) ; sans node, le contrôle JS est sauté |
 
 `source ./activate` met aussi `go`, `gofmt` et `dlv` dans le PATH, avec des caches Go confinés dans `.tools/`.
 
@@ -175,18 +175,18 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/module/` | modules déclaratifs : lecture stricte du `module.yaml`, valeurs effectives, variables, validateur, édition préservant la mise en forme |
-| `internal/lab/` | découverte des modules, lecture des `module.yaml` / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
-| `internal/vmdef/` | description d'une VM à créer (`Spec`) et rendu de ce qu'elle reçoit : cloud-init, XML du domaine libvirt (fonctions pures) |
-| `internal/modfiles/` | fichiers `files/` d'un module édités par la GUI : confinement (aucun `..`, aucun lien suivi), écritures atomiques, conflits |
+| `internal/lab/` | découverte des modules, lecture des `module.yaml` / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion ; points d'injection pour les tests : `Lab.Virt` (hyperviseur), `Lab.Shell` (SSH), `Lab.Tool` (qemu-img, cloud-localds) |
+| `internal/vmdef/` | description d'une VM à créer (`Spec`) et rendu de ce qu'elle reçoit : cloud-init, XML du domaine libvirt (sans hyperviseur ; seul `osinfo-query` est consulté) |
+| `internal/modfiles/` | fichiers `files/` d'un module édités par la GUI : confinement (aucun `..`, aucun lien suivi), écritures atomiques, conflits ; écriture atomique et détection des modifications concurrentes aussi pour `module.yaml` et `network.local.yaml` |
 | `internal/fetch/` | tout ce qui entre depuis Internet ou un éditeur : catalogue des images cloud, téléchargements, empreintes, signatures GPG des éditeurs (clés embarquées dans `keys/`), contrôle de structure des disques ; point de départ d'un audit de la chaîne d'approvisionnement |
-| `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique ; interface `Hypervisor` (`hypervisor.go`) par laquelle passe tout le reste de labctl (`Lab.Hypervisor()`) ; les scripts SSH vers la passerelle passent de même par `Lab.Shell`, remplaçable dans les tests |
-| `internal/virt/virtfake/` | faux libvirt en mémoire pour les tests du moteur (`internal/lab/engine_test.go` : up, plan, start/stop, snapshots, destroy, status) |
+| `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique ; interface `Hypervisor` (`hypervisor.go`) par laquelle passe tout le reste de labctl (`Lab.Hypervisor()`) |
+| `internal/virt/virtfake/` | faux libvirt en mémoire pour les tests (lab, gui) : VMs, réseaux, cartes, snapshots ; `Fail` simule une panne, `IPs` l'adresse d'une VM |
 | `internal/names/` | règles de noms (module, VM, alias, domaine, MAC), définies une fois et appliquées à chaque couche |
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
-| `internal/cli/` | commandes cobra : une par module (moteur), `module`, `lab`, `vm`, `net`, `image`, `core`, `pki`, `hostfw`, `init`, `status`, `gui`, `completion`, `version` |
+| `internal/cli/` | commandes cobra : une par module (moteur), `module`, `lab`, `vm`, `net`, `image`, `core`, `pki`, `hostfw`, `init`, `status`, `check`, `gw-portal`, `gui`, `completion`, `version` |
 | `internal/audit/` | journal d'audit des actions (CLI et GUI), JSONL par utilisateur |
-| `internal/gui/` | serveur web local (`server.go` : routeur, jeton, contrôle de l'hôte, journal ; une API par fichier : `state`, `config`, `console`, `modules`, `files`, `proxy`) et page `static/` (`index.html`, `app.css`, `js/*.js` en modules ES, point d'entrée `main.js`, imports explicites ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
+| `internal/gui/` | serveur web local (`server.go` : routeur, jeton, contrôle de l'hôte, journal ; une API par fichier : `state`, `config`, `console`, `modules`, `files`, `proxy` ; `browser.go` : ouverture du navigateur, `--app`) et page `static/` (`index.html`, `app.css`, `js/*.js` en modules ES, point d'entrée `main.js`, imports explicites ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
 | `internal/portal/` | service de portail captif, lancé sur la passerelle (`labctl gw-portal serve`) |
 
 Convention utilisée par labctl : la VM `<vm>` d'un module `<m>` s'appelle `<m>-<vm>` dans libvirt.

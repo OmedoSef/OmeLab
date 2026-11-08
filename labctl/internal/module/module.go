@@ -43,7 +43,7 @@ type Module struct {
 type Network struct {
 	Name      string `yaml:"name,omitempty"`      // réseau libvirt (défaut : <module>-lab)
 	Subnet    string `yaml:"subnet,omitempty"`    // 10.66.66.0/24
-	Domain    string `yaml:"domain,omitempty"`    // domaine complet, pris tel quel (ex. pjpt.local)
+	Domain    string `yaml:"domain,omitempty"`    // domaine complet, pris tel quel (ex. pjptlab.local) ; sous la racine du lab ou un suffixe privé, jamais un domaine d'Internet
 	Subdomain string `yaml:"subdomain,omitempty"` // libellé collé sous le domaine racine : <subdomain>.<racine>
 }
 
@@ -133,7 +133,7 @@ type Source struct {
 	Checksum string `yaml:"checksum,omitempty"` // algo:empreinte
 	Sums     string `yaml:"sums,omitempty"`     // fichier d'empreintes publié
 	File     string `yaml:"file,omitempty"`     // fichier cherché dans Sums (peut contenir *)
-	Extract  string `yaml:"extract,omitempty"`  // motif du fichier à prendre dans l'archive
+	Extract  string `yaml:"extract,omitempty"`  // motif du fichier à prendre dans l'archive (nom, sans chemin ni tiret en tête)
 }
 
 // File : fichier du module copié dans la VM.

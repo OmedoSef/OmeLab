@@ -505,7 +505,9 @@ Ce que fait `up`, dans l'ordre :
 - clés inconnues ou mal typées (une faute de frappe ne passe pas en silence), champs obligatoires ;
 - noms (module, VM, alias) ; `ip` entre 2 et 99 et unique ; MAC valides et uniques ;
 - sous-réseau et domaine qui **chevauchent un autre module** ou un réseau libvirt existant ;
-- `image` absente du catalogue ; `source` sans empreinte ; `image` et `source` à la fois ;
+- domaine (`network.domain`) qui n'est ni sous la racine du lab ni sous un suffixe privé (`.internal`, `.local`…) ;
+- `image` absente du catalogue ; `source` sans empreinte ; `image` et `source` à la fois ; `source.url` ou `sums`
+  hors `https://` ; source chez Microsoft ou ISO ; `extract` avec chemin, `..` ou tiret en tête ;
 - `packages` / `files` / `run` sur une VM sans cloud-init ; fichier `src` introuvable ou hors du dossier du module ;
 - alias vers une VM inexistante ; lien vers un module inexistant ; certificat dont un nom sort du domaine de la CA ;
 - connexion : cible inconnue (module, VM sans IP fixe), source qui n'est ni une VM à IP fixe ni une réservation,
@@ -517,7 +519,7 @@ Ce que fait `up`, dans l'ordre :
 - nom de module de plus de 9 caractères (pont `virbr-<module>`) ou réservé (`list`, `validate`, `core`…).
 
 **Avertissements** (n'empêchent pas) :
-- empreinte MD5 seulement ; `file` avec `*` (version non figée) ;
+- empreinte MD5 ou SHA1 seulement ; `file` avec `*` (version non figée) ;
 - ressources totales des VMs supérieures à la RAM de l'hôte ;
 - cible (`role: target`) avec `internet` autre que `never`/`off` ;
 - VM sans `snapshot` ; écarts entre le YAML et une VM déjà créée (ex. mémoire changée : voir *Décisions*).
@@ -527,10 +529,11 @@ Exemple de sortie :
 ```
 $ labctl module validate pentest
 modules/pentest/module.yaml
-  erreur  vms.web.ip : 20 déjà utilisé par vms.msf2
-  erreur  dns.aliases.intranet : la VM « intra » n'existe pas
-  avert.  vms.msf2.source.checksum : MD5 seulement (seule empreinte publiée)
-2 erreur(s), 1 avertissement(s)
+  erreur  dns.aliases.intranet (ligne 19) : cible inconnue "intra" (VM du module, réservation, ou nom complet)
+  avert.  vms.msf2.source.checksum (ligne 32) : MD5 seulement : empreinte faible (garder si c'est la seule publiée)
+  erreur  vms.web.ip (ligne 40) : 20 déjà utilisé par vms.msf2
+  avert.  vms.web.internet (ligne 45) : cible vulnérable avec Internet pendant l'installation : vérifier que c'est voulu
+2 erreur(s), 2 avertissement(s)
 ```
 
 ## GUI

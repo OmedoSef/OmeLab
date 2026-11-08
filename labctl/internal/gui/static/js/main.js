@@ -1,5 +1,5 @@
-// GUI de labctl — point d'entrée (seul script chargé par index.html) : charge les modules dans l'ordre, puis
-// démarre l'interface. Les modules qui ne font qu'installer des écouteurs sont importés pour cet effet.
+// GUI de labctl — point d'entrée (seul script chargé par index.html) : importe les modules (l'ordre d'évaluation suit
+// le graphe des imports), puis démarre l'interface. Les modules qui ne font qu'installer des écouteurs sont importés pour cet effet.
 import "./run.js";
 import "./render.js";
 import "./pending.js";

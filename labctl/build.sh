@@ -7,8 +7,8 @@
 #   labctl/build.sh ci         tous les contrôles de la CI (format, vet, tests -race, govulncheck, staticcheck,
 #                              scripts shell, syntaxe Python et JS) : lancés aussi avant chaque release
 #   labctl/build.sh tools      installe Go et delve dans .tools/ (téléchargement vérifié)
-#   labctl/build.sh release    artefacts distribuables dans dist/ : binaire linux/amd64 statique +
-#                              SHA256, install.sh, et une archive par module (état commité)
+#   labctl/build.sh release    artefacts distribuables dans dist/ : binaire linux/amd64 statique + SHA256,
+#                              install.sh, archive tar.gz, paquet .deb (si dpkg-deb), une archive par module
 #
 # Tout reste dans le projet : Go, caches et outils sous .tools/, binaire sous bin/ (exclus de git).
 set -euo pipefail
@@ -153,5 +153,5 @@ case ${1:-build} in
     go_env
     go install github.com/go-delve/delve/cmd/dlv@v1.27.2 # version figée (outil de développement)
     echo "ok  Go $GO_VERSION et delve dans $TOOLS" ;;
-  *) sed -n '2,9p' "$0"; exit 2 ;;
+  *) awk 'NR > 3 && /^#$/ { exit } NR >= 2' "$0"; exit 2 ;; # aide : l'en-tête, jusqu'à la ligne « # » qui le clôt
 esac
