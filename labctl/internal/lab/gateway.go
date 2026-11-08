@@ -281,6 +281,9 @@ sudo gwctl apply
 if systemctl cat gwportal >/dev/null 2>&1 && [ -x /usr/local/sbin/labctl ]; then sudo systemctl restart gwportal; fi`, strings.Join(instances, " ")), nil); err != nil {
 		return fmt.Errorf("redémarrage des services de la passerelle : %w", err)
 	}
+	if err := g.revokeVulnerable(); err != nil {
+		return fmt.Errorf("fermeture d'Internet des modules vulnérables : %w", err)
+	}
 	if err := g.ensureProxy(files); err != nil {
 		return fmt.Errorf("proxy : %w", err)
 	}

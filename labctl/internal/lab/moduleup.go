@@ -338,6 +338,9 @@ func (r *run) ensureCA() error {
 	if _, err := os.Stat(filepath.Join(r.l.PKIDir(), "sub-ca", r.y.PKI.CA, "ca.crt")); err == nil {
 		return nil
 	}
+	if !module.PrivateDomain(r.domain(), r.l.RootDomain()) { // module.yaml modifié sans validation
+		return fmt.Errorf("domaine %s refusé pour la CA du module : ni sous %s, ni domaine privé", r.domain(), r.l.RootDomain())
+	}
 	return p.SubCA(r.y.PKI.CA, r.domain(), r.y.Subnet().String())
 }
 

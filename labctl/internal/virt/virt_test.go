@@ -13,8 +13,8 @@ func TestPickIPv4(t *testing.T) {
 		{Type: "network", Network: "attacker-lab", MAC: "52:54:00:ab:cd:ef"},
 	}
 	nets := map[string]netip.Prefix{
-		"pentest-lab":  netip.MustParsePrefix("10.66.66.0/24"),
-		"attacker-lab": netip.MustParsePrefix("10.68.68.0/24"),
+		"pentest-lab":  netip.MustParsePrefix("10.66.66.1/24"), // adresse de l'hôte, non masquée (comme IPv4)
+		"attacker-lab": netip.MustParsePrefix("10.68.68.1/24"),
 	}
 	cases := []struct {
 		name  string
@@ -30,6 +30,8 @@ func TestPickIPv4(t *testing.T) {
 			{MAC: "52:54:00:68:68:10", IP: "10.68.68.10"},
 		}, "10.68.68.10"},
 		{"MAC en majuscules", []Address{{MAC: "52:54:00:AB:CD:EF", IP: "10.68.68.11"}}, "10.68.68.11"},
+		{"adresse de l'hôte", []Address{{MAC: "52:54:00:66:66:30", IP: "10.66.66.1"}}, ""},
+		{"adresse du réseau", []Address{{MAC: "52:54:00:66:66:30", IP: "10.66.66.0"}}, ""},
 		{"rien", nil, ""},
 	}
 	for _, c := range cases {

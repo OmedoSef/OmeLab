@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -103,5 +104,47 @@ func TestAuditedGUIAction(t *testing.T) {
 		if strings.Contains(line, secret) {
 			t.Errorf("secret ou contenu dans le journal : %s", line)
 		}
+	}
+}
+
+// Un fichier envoyé par l'interface arrive entier, quelle que soit sa taille (le journal d'audit ne relit pas le
+// corps d'un envoi), et l'envoi est journalisé avec son module et son chemin.
+func TestUploadNotTruncatedAndAudited(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	t.Setenv("LABCTL_AUDIT", logPath)
+	s := testServer(t)
+	if err := os.MkdirAll(filepath.Join(s.lab.Root, "modules", "fic"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data := bytes.Repeat([]byte("0123456789abcdef"), (9<<20)/16) // 9 Mio
+	req := httptest.NewRequest("POST", "/api/file/upload?module=fic&path=gros.bin", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	rec := httptest.NewRecorder()
+	s.audited(s.handleFileUpload)(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("envoi refusé : %d %s", rec.Code, rec.Body.String())
+	}
+	got, err := os.ReadFile(filepath.Join(s.lab.Root, "modules", "fic", "files", "gros.bin"))
+	if err != nil || !bytes.Equal(got, data) {
+		t.Fatalf("fichier reçu : %d octets sur %d (%v)", len(got), len(data), err)
+	}
+	b, _ := os.ReadFile(logPath)
+	if !strings.Contains(string(b), `module=fic\u0026path=gros.bin`) {
+		t.Errorf("envoi non journalisé avec son module et son chemin : %s", b)
+	}
+}
+
+// Un corps JSON plus grand que ce que relit le journal arrive lui aussi entier au gestionnaire.
+func TestAuditedKeepsLargeJSONBody(t *testing.T) {
+	t.Setenv("LABCTL_AUDIT", "off")
+	s := testServer(t)
+	body := `{"op":"save","text":"` + strings.Repeat("x", 9<<20) + `"}`
+	var got int
+	h := s.audited(func(_ http.ResponseWriter, r *http.Request) { b, _ := io.ReadAll(r.Body); got = len(b) })
+	req := httptest.NewRequest("POST", "/api/file/save", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	h(httptest.NewRecorder(), req)
+	if got != len(body) {
+		t.Errorf("corps reçu : %d octets sur %d", got, len(body))
 	}
 }

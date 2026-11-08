@@ -225,6 +225,14 @@ func (r *run) createVM(vm string) (err error) {
 				err = cerr
 			}
 		}()
+		// Ctrl+C ou arrêt de labctl pendant l'installation : Internet refermé avant de quitter (et, à défaut, à la
+		// prochaine application de la configuration, voir revokeVulnerable)
+		defer onInterrupt(func() {
+			r.logf("==> Interruption : fermeture d'Internet pour %s", vm)
+			if err := closeInternet(); err != nil {
+				r.logf("attention: Internet de %s non refermé : %v (labctl core internet off %s %s)", vm, err, r.y.Module, vm)
+			}
+		})()
 	}
 	if err := r.l.CreateVM(s, CreateOptions{Wait: e.Source == nil && win == nil, Out: r.out}); err != nil {
 		return err

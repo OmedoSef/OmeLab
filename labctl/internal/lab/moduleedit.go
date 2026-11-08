@@ -57,6 +57,9 @@ func (l *Lab) ModuleText(name string) (text, hash string, err error) {
 // CheckModuleText valide un texte de module.yaml sans l'enregistrer. Une erreur de lecture (syntaxe,
 // clé inconnue, type) devient un problème placé à sa ligne.
 func (l *Lab) CheckModuleText(name, text string) []module.Issue {
+	if !reModuleName.MatchString(name) { // nom venu de la GUI : jamais un chemin
+		return []module.Issue{{Error: true, Msg: fmt.Sprintf("nom de module invalide : %q (minuscules, chiffres, tirets)", name)}}
+	}
 	y, err := module.Parse([]byte(text), filepath.Join(l.Root, "modules", name))
 	if err != nil {
 		var issues []module.Issue

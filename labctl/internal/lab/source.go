@@ -3,6 +3,7 @@ package lab
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
@@ -72,7 +73,7 @@ func (l *Lab) EnsureSource(mod, vm string, s *module.Source, out io.Writer) (str
 		fmt.Fprintf(out, "==> Extraction de %s\n", s.Extract)
 		var cmd *exec.Cmd
 		if _, err := exec.LookPath("7z"); err == nil {
-			cmd = exec.Command("7z", "e", "-y", "-bd", "-o"+dir, file, s.Extract, "-r")
+			cmd = exec.Command("7z", "e", "-y", "-bd", "-r", "-o"+dir, "--", file, s.Extract)
 		} else if strings.HasSuffix(name, ".zip") {
 			cmd = exec.Command("unzip", "-q", "-j", "-o", file, s.Extract, "-d", dir)
 		} else {
@@ -80,6 +81,15 @@ func (l *Lab) EnsureSource(mod, vm string, s *module.Source, out io.Writer) (str
 		}
 		if b, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("extraction : %s", strings.TrimSpace(string(b)))
+		}
+		// Rien d'autre que des fichiers ordinaires : une archive peut contenir des liens symboliques vers l'hôte
+		if err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			return fetch.RegularFile(p)
+		}); err != nil {
+			return "", fmt.Errorf("archive %s refusée : %w", name, err)
 		}
 		matches, _ := filepath.Glob(filepath.Join(dir, s.Extract))
 		if len(matches) == 0 {

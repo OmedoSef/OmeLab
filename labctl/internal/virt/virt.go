@@ -272,7 +272,7 @@ func (c *Conn) IPv4(name string) string {
 	if ns, err := c.Networks(); err == nil {
 		for _, n := range ns {
 			if a, err := netip.ParseAddr(n.HostIP); err == nil && n.Prefix > 0 {
-				nets[n.Name] = netip.PrefixFrom(a, n.Prefix).Masked()
+				nets[n.Name] = netip.PrefixFrom(a, n.Prefix) // non masqué : Addr() est l'adresse de l'hôte
 			}
 		}
 	}
@@ -287,7 +287,8 @@ func (c *Conn) IPv4(name string) string {
 }
 
 // pickIPv4 choisit, parmi les adresses d'une source, la première dont la MAC est celle d'une carte de la VM et dont
-// l'IP est dans le réseau libvirt de cette carte. Une VM sans aucune carte sur un réseau libvirt connu (pont
+// l'IP est dans le réseau libvirt de cette carte (hors adresse de l'hôte). nets : préfixe de chaque réseau, dont
+// Addr() est l'adresse de l'hôte. Une VM sans aucune carte sur un réseau libvirt connu (pont
 // direct) garde l'ancien comportement : première adresse.
 func pickIPv4(cands []Address, ifaces []Interface, nets map[string]netip.Prefix) string {
 	byMAC := map[string]netip.Prefix{}
@@ -301,7 +302,10 @@ func pickIPv4(cands []Address, ifaces []Interface, nets map[string]netip.Prefix)
 			return c.IP
 		}
 		ip, err := netip.ParseAddr(c.IP)
-		if p, ok := byMAC[strings.ToLower(c.MAC)]; ok && err == nil && p.Contains(ip) {
+		p, ok := byMAC[strings.ToLower(c.MAC)]
+		// Jamais l'adresse de l'hôte sur ce réseau ni celle du réseau lui-même : une VM ne doit pas faire viser
+		// l'hôte à labctl
+		if ok && err == nil && p.Masked().Contains(ip) && ip != p.Addr() && ip != p.Masked().Addr() {
 			return c.IP
 		}
 	}

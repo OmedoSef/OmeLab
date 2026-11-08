@@ -119,6 +119,9 @@ func (m *Module) Validate(ctx Context) []Issue {
 		}
 		if m.Network.Domain != "" && !reDomain.MatchString(m.Network.Domain) {
 			c.err("network.domain", "domaine invalide %q", m.Network.Domain)
+		} else if m.Network.Domain != "" && !PrivateDomain(m.Network.Domain, ctx.RootDomain) {
+			c.err("network.domain", "domaine %q refusé : un module prend un sous-domaine de %s ou un domaine privé (.%s) — jamais un domaine d'Internet, pour lequel la PKI du lab émettrait des certificats",
+				m.Network.Domain, ctx.RootDomain, strings.Join(PrivateSuffixes, ", ."))
 		}
 		if m.Network.Subdomain != "" && !reName.MatchString(m.Network.Subdomain) {
 			c.err("network.subdomain", "sous-domaine invalide %q (un seul libellé, ex. pentest)", m.Network.Subdomain)
@@ -304,6 +307,9 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 			}
 		default:
 			c.err(sp, "url + checksum, ou sums + file")
+		}
+		if x := s.Extract; x != "" && (strings.HasPrefix(x, "-") || strings.ContainsAny(x, "/\\") || strings.Contains(x, "..")) {
+			c.err(sp+".extract", "motif %q refusé : un nom de fichier de l'archive, sans chemin ni tiret en tête", x)
 		}
 		if s.Checksum != "" {
 			mm := reChecksum.FindStringSubmatch(strings.ToLower(s.Checksum))

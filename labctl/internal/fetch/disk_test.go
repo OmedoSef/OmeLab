@@ -73,3 +73,45 @@ func TestCheckDiskRealImages(t *testing.T) {
 		}
 	}
 }
+
+// Un VMDK dont un morceau (extent) est un lien symbolique posé à côté de lui — vers un fichier de l'hôte — est
+// refusé, même si le lien est dans le dossier de l'image (seul cas que voyait l'ancien contrôle).
+func TestCheckDiskRefusesSymlinkedExtent(t *testing.T) {
+	if _, err := exec.LookPath("qemu-img"); err != nil {
+		t.Skip("qemu-img absent")
+	}
+	root := t.TempDir()
+	secret := filepath.Join(root, "secret.raw")
+	if err := os.WriteFile(secret, make([]byte, 1<<20), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "archive")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "boot.img"), make([]byte, 1<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../secret.raw", filepath.Join(dir, "x.bin")); err != nil {
+		t.Fatal(err)
+	}
+	vmdk := filepath.Join(dir, "disk.vmdk")
+	desc := "# Disk DescriptorFile\nversion=1\nCID=fffffffe\nparentCID=ffffffff\ncreateType=\"monolithicFlat\"\n\n" +
+		"RW 2048 FLAT \"boot.img\" 0\nRW 2048 FLAT \"x.bin\" 0\n"
+	if err := os.WriteFile(vmdk, []byte(desc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CheckDisk(vmdk); err == nil || !strings.Contains(err.Error(), "fichier ordinaire") {
+		t.Fatalf("extent en lien symbolique accepté : %v", err)
+	}
+	// Le même VMDK avec des morceaux ordinaires passe
+	if err := os.Remove(filepath.Join(dir, "x.bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "x.bin"), make([]byte, 1<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := CheckDisk(vmdk); err != nil || f != "vmdk" {
+		t.Errorf("VMDK sain refusé : %q %v", f, err)
+	}
+}

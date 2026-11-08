@@ -95,3 +95,13 @@ func TestForbiddenSource(t *testing.T) {
 		}
 	}
 }
+
+// Le nom de fichier retenu dans un fichier d'empreintes (file: avec *) et chaque hôte de redirection sont contrôlés.
+func TestForbiddenNameAndHost(t *testing.T) {
+	if ForbiddenName("Win11_x64.ISO") == nil || ForbiddenName("disk.qcow2") != nil {
+		t.Error("ForbiddenName")
+	}
+	if MicrosoftHost("download.MICROSOFT.com") == nil || MicrosoftHost("cdimage.debian.org") != nil {
+		t.Error("MicrosoftHost")
+	}
+}

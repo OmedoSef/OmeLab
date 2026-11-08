@@ -55,7 +55,8 @@ Chaque commande a son aide : `labctl <commande> --help`.
 Chaque image téléchargée est vérifiée par son **empreinte** (fichier d'empreintes de l'éditeur, en HTTPS) et sa
 **structure** (aucune référence vers un fichier de l'hôte). Quand l'éditeur **signe** son fichier d'empreintes,
 labctl vérifie aussi cette signature (`gpgv`) avec la clé officielle de l'éditeur, embarquée dans labctl : un miroir
-compromis ne peut alors plus servir une image et une empreinte assorties.
+compromis ne peut alors plus servir une image et une empreinte assorties. Tout téléchargement de labctl reste en
+HTTPS d'un bout à l'autre : une redirection vers une adresse `http://` (ou vers Microsoft) est refusée.
 
 | Images | Vérification |
 |---|---|
@@ -105,6 +106,8 @@ Les clés privées ne sont pas chiffrées : le dossier `pki/` est exclu de git.
 > de contrainte de nom (elle signe aussi les CA des modules, dont le domaine peut être hors du domaine racine,
 > ex. `pjpt.local`).
 > - Dans les VMs, c'est sans conséquence au-delà du lab : elles ne font confiance à la racine que pour le lab.
+>   Un module ne peut pas non plus s'en servir pour un domaine d'Internet : son domaine est forcément sous la racine
+>   du lab ou sous un suffixe privé (`.internal`, `.local`…), et sa CA est contrainte à ce domaine.
 > - **Sur ton poste**, `labctl pki trust-host` ajoute cette racine aux autorités du système : quiconque lit `pki/`
 >   pourrait alors intercepter le HTTPS de **ton poste** (banque, messagerie…). Ne le fais que si tu en as besoin
 >   (consulter les services du lab depuis l'hôte sans alerte), et retire-la quand ce n'est plus le cas :

@@ -1,10 +1,12 @@
 package lab
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
+	"labs/labctl/internal/coreconf"
 	"labs/labctl/internal/virt"
 )
 
@@ -14,8 +16,8 @@ import (
 // core (réseaux des modules, dont le DHCP est sur core-gw). "" si aucune.
 func (l *Lab) VMIP(name string) string {
 	v := l.Hypervisor()
-	if ip := v.IPv4(name); ip != "" {
-		return ip
+	if ip := v.IPv4(name); ip != "" && (name == GatewayVM || !strings.HasSuffix(ip, fmt.Sprintf(".%d", coreconf.GatewayOctet))) {
+		return ip // sur les réseaux des modules, .254 est la passerelle : jamais l'adresse d'une autre VM
 	}
 	if name == GatewayVM || v.State(GatewayVM) != virt.StateRunning {
 		return ""

@@ -143,7 +143,7 @@ Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ce
 | `vulnerable` | non | `true` : module de **cibles volontairement vulnérables** (voir *Modules vulnérables*) |
 | `network` | non | sans cette section : réseau `<module>-lab`, domaine `<module>-lab.<domaine des labs>`, sous-réseau `/24` libre choisi par labctl et **écrit dans le YAML** au premier `up` (stable ensuite) |
 | `network.name` / `subnet` | non | pour les fixer soi-même ; `subnet` en `/24` |
-| `network.domain` / `subdomain` | non | domaine du module. `subdomain: X` → `X.<domaine racine du lab>` (se coller sous la racine) ; `domain: X.local` → domaine **complet**, pris tel quel (ignore la racine) ; défaut `<réseau>.<racine>`. Les deux ensemble : `domain` l'emporte |
+| `network.domain` / `subdomain` | non | domaine du module. `subdomain: X` → `X.<domaine racine du lab>` (se coller sous la racine) ; `domain: X.local` → domaine **complet**, pris tel quel (ignore la racine) ; défaut `<réseau>.<racine>`. Les deux ensemble : `domain` l'emporte. `domain` doit être sous la racine du lab ou sous un suffixe privé (`.internal`, `.local`, `.home.arpa`, `.test`, `.lan`, `.lab`, `.corp`…) : **jamais un domaine d'Internet** (la PKI du lab émettrait des certificats pour lui, et le DNS du lab le détournerait) |
 | `defaults` | non | valeurs communes aux VMs du module (`image`, `cpus`, `memory`, `disk`, `hardware`, `internet`, `snapshot`…) |
 | `pki.ca` | non | crée une CA dérivée limitée au domaine et au sous-réseau du module |
 | `dns.aliases` / `hosts` | non | alias DNS, réservations DHCP de machines hors `vms:` |
@@ -165,7 +165,9 @@ C'est une **zone rouge** : rien n'en sort, et labctl le garantit à chaque étap
 
 - **Jamais d'Internet ouvert à la main** : `labctl core internet on` est refusé pour le module comme pour ses VMs
   (la GUI n'affiche pas de bouton d'ouverture). Seule exception : une VM `internet: install` a Internet **le temps
-  de son installation** (ex. images Docker de pentest/web), refermé dès qu'elle est prête.
+  de son installation** (ex. images Docker de pentest/web), refermé dès qu'elle est prête — y compris si labctl est
+  interrompu (Ctrl+C, arrêt) ; et si labctl a été tué net, chaque application de la configuration de la passerelle
+  retire toute ouverture restée sur un module vulnérable.
 - **Aucune connexion ni lien sortant** : `connections:` et `dns.links` sont refusés à la validation, et ignorés
   par la passerelle même si le fichier est modifié à la main.
 - **Ses VMs ne se branchent pas ailleurs** (`attach:` d'un autre module, câblage local).
@@ -352,7 +354,7 @@ connections:
 | `image`, `source` *ou* `windows` | — (un des trois) | image cloud du catalogue (cloud-init), disque fourni, *ou* installation de Windows depuis un ISO (voir *Windows*) |
 | `source.url` + `checksum` | — | téléchargement à empreinte figée (`sha256:`, `sha512:`, `md5:`) |
 | `source.sums` + `file` | — | empreinte lue dans le fichier publié ; `file` peut contenir `*` (dernière version) |
-| `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2 |
+| `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2. Un nom ou un motif, sans chemin ni tiret en tête ; une archive qui contient un lien symbolique (ou un disque dont un morceau en est un) est refusée |
 | `cpus` / `memory` / `disk` | 1 vCPU, 2048 Mio, 20 Gio (voir *Valeurs par défaut*) | ressources (Mio, Gio) ; `disk` agrandit le disque des images cloud |
 | `image` (si ni `image` ni `source`) | `debian13` | image cloud par défaut |
 | `hardware` | q35, virtio, spice, bios | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
@@ -390,7 +392,7 @@ vms:
 
 | Clé | Défaut | Description |
 |---|---|---|
-| `iso` | — | chemin de l'ISO (`~` accepté) |
+| `iso` | — | chemin de l'ISO (`~` accepté) ; seule une image ISO 9660 est acceptée, jamais un autre fichier de l'hôte |
 | `checksum` | — (avertissement) | `sha256:…` : vérifiée une fois par ISO (mémorisée à côté, `<iso>.verified`) |
 | `edition` | — | image à installer (ex. `Windows Server 2022 SERVERSTANDARD` = avec bureau, `Windows 11 Enterprise Evaluation`) |
 | `drivers` | déduit de l'édition | dossier des pilotes virtio-win : `2k22`, `2k19`, `w11`… |

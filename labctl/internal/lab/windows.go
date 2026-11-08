@@ -76,6 +76,11 @@ func verifyWindowsISO(path, checksum string, out logWriter) error {
 	if err != nil {
 		return fmt.Errorf("ISO introuvable : %s", path)
 	}
+	// windows: iso est un chemin de l'hôte écrit dans le module.yaml : seule une image ISO 9660 est attachée à la
+	// VM, jamais un autre fichier (clé, mot de passe…) que lui ferait lire un module malveillant
+	if err := isISO9660(path, fi); err != nil {
+		return err
+	}
 	if checksum == "" {
 		return nil
 	}
@@ -95,6 +100,24 @@ func verifyWindowsISO(path, checksum string, out logWriter) error {
 	}
 	_ = os.WriteFile(mark, []byte(stamp), 0o644)
 	out.logf("ok  %s (empreinte sha256 conforme)", filepath.Base(path))
+	return nil
+}
+
+// isISO9660 vérifie qu'un fichier ordinaire porte la signature ISO 9660 (« CD001 » au secteur 16, que gardent
+// aussi les ISO UDF de Windows).
+func isISO9660(path string, fi os.FileInfo) error {
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s n'est pas un fichier ordinaire : ISO refusé", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	magic := make([]byte, 5)
+	if _, err := f.ReadAt(magic, 0x8001); err != nil || string(magic) != "CD001" {
+		return fmt.Errorf("%s n'est pas une image ISO 9660 : ISO refusé", path)
+	}
 	return nil
 }
 

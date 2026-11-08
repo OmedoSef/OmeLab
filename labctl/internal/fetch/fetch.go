@@ -11,17 +11,42 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"labs/labctl/internal/module"
 )
 
-var client = &http.Client{Timeout: 0} // téléchargements longs : pas de délai global
+// client : pas de délai global (téléchargements de plusieurs Gio), mais des délais de connexion et d'attente de la
+// réponse. Chaque redirection est contrôlée : https seulement (l'empreinte attendue ne doit pas pouvoir être
+// réécrite en chemin), et jamais vers Microsoft.
+var client = &http.Client{Transport: transport(), CheckRedirect: checkRedirect}
+
+func transport() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+	t.TLSHandshakeTimeout = 30 * time.Second
+	t.ResponseHeaderTimeout = time.Minute
+	return t
+}
+
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	switch {
+	case len(via) >= 10:
+		return errors.New("trop de redirections")
+	case req.URL.Scheme != "https":
+		return fmt.Errorf("redirection refusée vers %s : https attendu", req.URL.Redacted())
+	}
+	return module.MicrosoftHost(req.URL.Hostname())
+}
 
 // Small télécharge un petit fichier (empreintes, signature : 4 Mo au plus) en mémoire.
 func Small(url string) ([]byte, error) {

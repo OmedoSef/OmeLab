@@ -2,6 +2,7 @@ package lab
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
 	"sort"
 	"strings"
@@ -125,6 +126,60 @@ func (g *Gateway) internetOn(m *gwModule, vms []string) error {
 	}
 	g.logf("%s", msg)
 	return nil
+}
+
+// revokeVulnerable retire des autorisations Internet de la passerelle toute adresse d'un module vulnérable. Une
+// ouverture d'installation (internet: install) que labctl n'a pas pu refermer — interrompu, tué, plantage — ou un
+// module passé vulnérable après coup ne survivent donc pas à l'application suivante de la configuration.
+func (g *Gateway) revokeVulnerable() error {
+	mods, err := g.gwModules()
+	if err != nil {
+		return err
+	}
+	var red []netip.Prefix
+	for _, m := range mods {
+		if p, err := netip.ParsePrefix(m.Env.Subnet + ".0/24"); err == nil && m.Vulnerable() {
+			red = append(red, p)
+		}
+	}
+	if len(red) == 0 {
+		return nil
+	}
+	out, err := g.gwctl("status")
+	if err != nil {
+		return err
+	}
+	for _, x := range vulnerableGrants(string(out), red) {
+		if _, err := g.gwctl("revoke", x); err != nil {
+			return err
+		}
+		g.logf("attention: Internet refermé pour %s (module vulnérable : une ouverture d'installation était restée)", x)
+	}
+	return nil
+}
+
+// vulnerableGrants renvoie, dans la sortie de « gwctl status », les autorisations (allowed) qui touchent un des
+// réseaux red.
+func vulnerableGrants(status string, red []netip.Prefix) []string {
+	var out []string
+	for _, line := range strings.Split(status, "\n") {
+		kind, x, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok || kind != "allowed" {
+			continue
+		}
+		p, err := netip.ParsePrefix(x)
+		if err != nil {
+			a, err := netip.ParseAddr(x)
+			if err != nil {
+				continue
+			}
+			p = netip.PrefixFrom(a, a.BitLen())
+		}
+		if slices.ContainsFunc(red, p.Overlaps) {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // InternetOff referme Internet au module entier (toutes ses autorisations), ou à des VMs.

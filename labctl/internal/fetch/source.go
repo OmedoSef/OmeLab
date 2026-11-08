@@ -41,5 +41,8 @@ func Source(s *module.Source) (url, algo, want string, err error) {
 	if name == "" {
 		return "", "", "", fmt.Errorf("aucun fichier %q dans %s", s.File, s.Sums)
 	}
+	if err := module.ForbiddenName(name); err != nil { // nom choisi par le fichier d'empreintes (file: avec *)
+		return "", "", "", err
+	}
 	return strings.TrimSuffix(s.Sums, path.Base(s.Sums)) + name, algo, want, nil
 }

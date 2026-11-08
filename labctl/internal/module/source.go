@@ -57,24 +57,46 @@ func ForbiddenSource(s *Source) error {
 		if raw == "" {
 			continue
 		}
-		u, err := url.Parse(raw)
-		if err != nil {
-			return fmt.Errorf("adresse invalide : %q", raw)
-		}
-		host := strings.ToLower(u.Hostname())
-		for _, h := range microsoftHosts {
-			if host == h || strings.HasSuffix(host, "."+h) {
-				return fmt.Errorf("labctl ne télécharge jamais rien depuis Microsoft (%s) : pour Windows, windows: iso avec un ISO local", host)
-			}
-		}
-		if strings.HasSuffix(strings.ToLower(u.Path), ".iso") {
-			return fmt.Errorf("labctl ne télécharge jamais d'ISO (%s) : pour Windows, windows: iso avec un ISO local", path.Base(u.Path))
+		if err := ForbiddenURL(raw); err != nil {
+			return err
 		}
 	}
 	for _, name := range []string{s.File, s.Extract} {
-		if strings.HasSuffix(strings.ToLower(name), ".iso") {
-			return fmt.Errorf("labctl ne télécharge jamais d'ISO (%s) : pour Windows, windows: iso avec un ISO local", name)
+		if err := ForbiddenName(name); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// ForbiddenURL applique à une adresse les règles de ForbiddenSource : jamais Microsoft, jamais un ISO.
+func ForbiddenURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("adresse invalide : %q", raw)
+	}
+	if err := MicrosoftHost(u.Hostname()); err != nil {
+		return err
+	}
+	return ForbiddenName(u.Path)
+}
+
+// MicrosoftHost refuse un hôte de Microsoft. Vérifié aussi à chaque redirection de tout téléchargement de labctl
+// (paquet fetch) : une adresse tierce ne peut pas renvoyer vers Microsoft.
+func MicrosoftHost(host string) error {
+	host = strings.ToLower(host)
+	for _, h := range microsoftHosts {
+		if host == h || strings.HasSuffix(host, "."+h) {
+			return fmt.Errorf("labctl ne télécharge jamais rien depuis Microsoft (%s) : pour Windows, windows: iso avec un ISO local", host)
+		}
+	}
+	return nil
+}
+
+// ForbiddenName refuse un nom de fichier d'ISO.
+func ForbiddenName(name string) error {
+	if strings.HasSuffix(strings.ToLower(name), ".iso") {
+		return fmt.Errorf("labctl ne télécharge jamais d'ISO (%s) : pour Windows, windows: iso avec un ISO local", path.Base(name))
 	}
 	return nil
 }

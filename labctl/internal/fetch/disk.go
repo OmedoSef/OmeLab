@@ -3,6 +3,7 @@ package fetch
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -62,5 +63,41 @@ func CheckDisk(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("image invalide (%s) : %v", filepath.Base(path), err)
 	}
-	return checkDiskInfo(path, out)
+	format, err := checkDiskInfo(path, out)
+	if err != nil {
+		return "", err
+	}
+	// L'image et chacun de ses morceaux (extents VMDK) doivent être des fichiers ordinaires : un lien symbolique
+	// posé à côté de l'image (archive d'un éditeur) ferait lire à qemu-img un fichier de l'hôte
+	files := []string{path}
+	var q qemuInfo
+	_ = json.Unmarshal(out, &q) // déjà lu sans erreur par checkDiskInfo
+	for _, e := range q.FormatSpecific.Data.Extents {
+		if e.Filename == "" {
+			continue
+		}
+		f := e.Filename
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(filepath.Dir(path), f)
+		}
+		files = append(files, f)
+	}
+	for _, f := range files {
+		if err := RegularFile(f); err != nil {
+			return "", fmt.Errorf("image refusée : %w", err)
+		}
+	}
+	return format, nil
+}
+
+// RegularFile vérifie que path est un fichier ordinaire, sans suivre de lien symbolique.
+func RegularFile(path string) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s n'est pas un fichier ordinaire (%s)", filepath.Base(path), fi.Mode().Type())
+	}
+	return nil
 }

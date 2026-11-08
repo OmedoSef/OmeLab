@@ -2,10 +2,11 @@ package lab
 
 import (
 	"fmt"
-
-	"labs/labctl/internal/coreconf"
 	"slices"
 	"strings"
+
+	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/module"
 )
 
 // CoreInput rassemble ce qu'il faut pour générer la configuration de la passerelle : les modules
@@ -61,6 +62,11 @@ func (l *Lab) CoreInput() (coreconf.Input, error) {
 		if m.Vulnerable() && (len(cm.Conns) > 0 || len(cm.Links) > 0) {
 			in.Skipped = append(in.Skipped, fmt.Sprintf("module %s vulnérable : connexions et liens sortants ignorés", m.Name))
 			cm.Conns, cm.Links = nil, nil
+		}
+		// Domaine d'Internet (module.yaml modifié sans validation) : la passerelle ne répond pas pour lui
+		if !module.PrivateDomain(cm.Domain, in.RootDomain) {
+			in.Skipped = append(in.Skipped, fmt.Sprintf("module %s écarté de la passerelle : domaine %s ni sous %s, ni privé", m.Name, cm.Domain, in.RootDomain))
+			continue
 		}
 		// Identifiants recopiés tels quels dans la config de la passerelle : un module qui en porte un douteux
 		// (saut de ligne, accolade, guillemet…) est écarté, même jamais validé ni lancé — il n'entraîne pas les autres.

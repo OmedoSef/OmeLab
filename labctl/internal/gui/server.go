@@ -225,16 +225,19 @@ func (r *statusRecorder) WriteHeader(c int) { r.code = c; r.ResponseWriter.Write
 func (s *server) audited(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var params []string
-		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
-			if q := r.URL.RawQuery; q != "" {
-				params = []string{q}
-			}
-		} else {
-			body, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
-			r.Body = io.NopCloser(bytes.NewReader(body))
+		if q := r.URL.RawQuery; q != "" { // envoi de fichier : module et chemin dans l'adresse
+			params = []string{q}
+		}
+		if ct := r.Header.Get("Content-Type"); ct == "" || strings.HasPrefix(ct, "application/json") {
+			// Paramètres relus dans les 8 premiers Mio ; le gestionnaire reçoit le corps entier (début relu + suite)
+			head, _ := io.ReadAll(io.LimitReader(r.Body, 8<<20))
+			r.Body = struct {
+				io.Reader
+				io.Closer
+			}{io.MultiReader(bytes.NewReader(head), r.Body), r.Body}
 			var m map[string]any
-			if json.Unmarshal(body, &m) == nil {
-				params = auditParams("", m)
+			if json.Unmarshal(head, &m) == nil {
+				params = append(params, auditParams("", m)...)
 			}
 		}
 		rec := &statusRecorder{ResponseWriter: w, code: http.StatusOK}

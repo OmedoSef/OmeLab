@@ -125,7 +125,7 @@ case ${1:-build} in
     echo "$GO_SHA256  $dl/$f" | sha256sum -c --quiet
     mkdir -p "$TOOLS"; rm -rf "$TOOLS/go"; tar -C "$TOOLS" -xzf "$dl/$f"
     go_env
-    go install github.com/go-delve/delve/cmd/dlv@latest
+    go install github.com/go-delve/delve/cmd/dlv@v1.27.2 # version figée (outil de développement)
     echo "ok  Go $GO_VERSION et delve dans $TOOLS" ;;
   *) sed -n '2,9p' "$0"; exit 2 ;;
 esac
