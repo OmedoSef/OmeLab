@@ -17,6 +17,7 @@ import (
 	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // vmNames complète avec les noms connus de l'hyperviseur du lab.
@@ -145,7 +146,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 				nets = []string{l.DefaultNetwork()}
 			}
 			for _, n := range nets {
-				s.Nets = append(s.Nets, lab.ParseNet(n))
+				s.Nets = append(s.Nets, vmdef.ParseNet(n))
 			}
 			s.Gateway, s.Lab, s.UserData, s.NoCA, s.Run = gw, labName, userData, noCA, runs
 			if dns != "" {
@@ -155,7 +156,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 				s.Packages = strings.Split(packages, ",")
 			}
 			for _, f := range files {
-				fs, err := lab.ParseFile(f)
+				fs, err := vmdef.ParseFile(f)
 				if err != nil {
 					return err
 				}

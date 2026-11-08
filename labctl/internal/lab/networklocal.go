@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"go.yaml.in/yaml/v3"
+
+	"labs/labctl/internal/modfiles"
 )
 
 // network.local.yaml réunit le câblage et les connexions propres à CE poste en un seul fichier à la racine du
@@ -78,7 +80,7 @@ func (l *Lab) saveNetworkLocal(f networkLocalFile) error {
 			return err
 		}
 		data := append([]byte(networkLocalHeader), b...)
-		if err := writeAtomic(l.networkLocalPath(), bytes.NewReader(data), int64(len(data))); err != nil {
+		if err := modfiles.WriteAtomic(l.networkLocalPath(), bytes.NewReader(data), int64(len(data))); err != nil {
 			return err
 		}
 	}

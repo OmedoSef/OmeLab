@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 )
 
@@ -103,7 +104,7 @@ func (s *server) handleModuleSave(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"hash": hash, "issues": issuesJSON(issues)}
 	if err != nil {
 		code := http.StatusBadRequest
-		if errors.Is(err, lab.ErrConflict) {
+		if errors.Is(err, modfiles.ErrConflict) {
 			code = http.StatusConflict
 		}
 		resp["error"] = err.Error()

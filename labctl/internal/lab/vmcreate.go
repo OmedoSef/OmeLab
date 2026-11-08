@@ -12,17 +12,18 @@ import (
 
 	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // DefaultVMSpec renvoie une description avec les valeurs par défaut des réglages (config.env).
-func (l *Lab) DefaultVMSpec(name string) VMSpec {
+func (l *Lab) DefaultVMSpec(name string) vmdef.Spec {
 	atoi := func(k string, def int) int {
 		if n, err := strconv.Atoi(l.Setting(k, "")); err == nil {
 			return n
 		}
 		return def
 	}
-	return VMSpec{
+	return vmdef.Spec{
 		Name:      name,
 		Image:     l.DefaultImage(),
 		CPUs:      atoi("LABS_DEFAULT_CPUS", 1),
@@ -82,7 +83,7 @@ type CreateOptions struct {
 
 // CreateVM crée et démarre une VM depuis une image cloud : disque qcow2 lié à l'image de base, disque
 // cloud-init, définition libvirt. En cas d'échec, rien n'est laissé derrière.
-func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
+func (l *Lab) CreateVM(s vmdef.Spec, o CreateOptions) (err error) {
 	out := o.Out
 	if out == nil {
 		out = io.Discard
@@ -107,21 +108,21 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			return fmt.Errorf("réseau libvirt inexistant : %s (labctl net list)", s.Nets[i].Network)
 		}
 		if s.Nets[i].MAC == "" {
-			s.Nets[i].MAC = RandomMAC()
+			s.Nets[i].MAC = vmdef.RandomMAC()
 		}
 	}
 	keyboard := s.Keyboard // override par VM (module.yaml) ; vide : disposition de l'hôte
 	if keyboard == "" {
 		keyboard = l.Keyboard()
 	}
-	env := cloudEnv{
+	env := vmdef.CloudEnv{
 		Domain:    l.NetDomain(s.Nets[0].Network),
 		Gateway:   s.Gateway,
 		Keyboard:  keyboard,
 		User:      l.VMUser(),
 		Password:  l.Setting("LABS_VM_PASSWORD", "lab"),
 		Files:     map[string][]byte{},
-		InstantID: instanceID(s.Name),
+		InstantID: vmdef.InstanceID(s.Name),
 	}
 	if first := s.Nets[0]; first.Address != "" && env.Gateway == "" {
 		if n := nets[first.Network]; n.Forward == "nat" || n.Forward == "route" {
@@ -150,7 +151,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 			return fmt.Errorf("fichier introuvable : %s", s.UserData)
 		}
 	}
-	ci := renderCloudInit(&s, env)
+	ci := vmdef.RenderCloudInit(&s, env)
 
 	dir := filepath.Join(l.VMDir(), s.Name)
 	disk, seed := filepath.Join(dir, "disk.qcow2"), filepath.Join(dir, "seed.iso")
@@ -164,7 +165,7 @@ func (l *Lab) CreateVM(s VMSpec, o CreateOptions) (err error) {
 	if !cloud {
 		seed = ""
 	}
-	domXML := renderDomainXML(&s, disk, seed, desc)
+	domXML := vmdef.RenderDomainXML(&s, disk, seed, desc)
 
 	if o.DryRun && !cloud {
 		fmt.Fprintf(out, "----- disque fourni\n%s\n----- domaine libvirt\n%s", s.Base, domXML)

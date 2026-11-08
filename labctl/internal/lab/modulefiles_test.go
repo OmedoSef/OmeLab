@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 )
 
@@ -22,10 +23,10 @@ func TestModuleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.SaveModuleFileText("fic", "conf/app.ini", "x", "", true); !errors.Is(err, ErrExists) {
+	if _, err := l.SaveModuleFileText("fic", "conf/app.ini", "x", "", true); !errors.Is(err, modfiles.ErrExists) {
 		t.Errorf("création d'un fichier existant : %v", err)
 	}
-	if _, err := l.SaveModuleFileText("fic", "conf/app.ini", "a=2\n", "mauvaise", false); !errors.Is(err, ErrConflict) {
+	if _, err := l.SaveModuleFileText("fic", "conf/app.ini", "a=2\n", "mauvaise", false); !errors.Is(err, modfiles.ErrConflict) {
 		t.Errorf("conflit non détecté : %v", err)
 	}
 	if _, err := l.SaveModuleFileText("fic", "conf/app.ini", "a=2\n", h, false); err != nil {
@@ -37,7 +38,7 @@ func TestModuleFiles(t *testing.T) {
 	if err := l.UploadModuleFile("fic", "bin.dat", strings.NewReader("\x00\x01"), false); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.UploadModuleFile("fic", "bin.dat", strings.NewReader("z"), false); !errors.Is(err, ErrExists) {
+	if err := l.UploadModuleFile("fic", "bin.dat", strings.NewReader("z"), false); !errors.Is(err, modfiles.ErrExists) {
 		t.Errorf("écrasement sans overwrite : %v", err)
 	}
 	if _, _, err := l.ModuleFileText("fic", "bin.dat"); err == nil {
@@ -72,7 +73,7 @@ func TestModuleFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := map[string]ModuleFile{}
+	got := map[string]modfiles.File{}
 	for _, f := range fl.Files {
 		got[f.Path] = f
 	}

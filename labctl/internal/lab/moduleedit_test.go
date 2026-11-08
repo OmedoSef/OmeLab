@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 )
 
@@ -57,7 +58,7 @@ func TestModuleTextEdit(t *testing.T) {
 
 	// Modification concurrente : refusée
 	good := strings.Replace(sk, "ip: 10", "ip: 11", 1)
-	if _, _, err := l.SaveModuleText("neuf", good, "autre-empreinte", false); !errors.Is(err, ErrConflict) {
+	if _, _, err := l.SaveModuleText("neuf", good, "autre-empreinte", false); !errors.Is(err, modfiles.ErrConflict) {
 		t.Errorf("conflit non détecté : %v", err)
 	}
 	h2, _, err := l.SaveModuleText("neuf", good, hash, false)

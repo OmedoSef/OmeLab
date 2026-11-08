@@ -1,4 +1,4 @@
-package lab
+package vmdef
 
 import (
 	"encoding/xml"
@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-func baseSpec() VMSpec {
-	return VMSpec{Name: "web1", Image: "debian13", CPUs: 2, MemoryMiB: 1024, DiskGiB: 10,
+func baseSpec() Spec {
+	return Spec{Name: "web1", Image: "debian13", CPUs: 2, MemoryMiB: 1024, DiskGiB: 10,
 		Nets: []NetSpec{{Network: "lab", Address: "10.10.0.11/24", MAC: "52:54:00:aa:bb:cc"}, {Network: "default", MAC: "52:54:00:aa:bb:dd"}}}
 }
 
@@ -15,16 +15,16 @@ func TestValidate(t *testing.T) {
 	if s := baseSpec(); s.Validate() != nil {
 		t.Fatal(s.Validate())
 	}
-	bad := map[string]func(*VMSpec){
-		"nom":        func(s *VMSpec) { s.Name = "a b" },
-		"image":      func(s *VMSpec) { s.Image = "windows" },
-		"mémoire":    func(s *VMSpec) { s.MemoryMiB = 64 },
-		"réseau":     func(s *VMSpec) { s.Nets = nil },
-		"masque":     func(s *VMSpec) { s.Nets[0].Address = "10.10.0.11" },
-		"mac":        func(s *VMSpec) { s.Nets[0].MAC = "zz" },
-		"fichier":    func(s *VMSpec) { s.Files = []FileSpec{{Src: "a", Dest: "relatif"}} },
-		"mode":       func(s *VMSpec) { s.Files = []FileSpec{{Src: "a", Dest: "/x", Mode: "999"}} },
-		"passerelle": func(s *VMSpec) { s.Gateway = "pas-une-ip" },
+	bad := map[string]func(*Spec){
+		"nom":        func(s *Spec) { s.Name = "a b" },
+		"image":      func(s *Spec) { s.Image = "windows" },
+		"mémoire":    func(s *Spec) { s.MemoryMiB = 64 },
+		"réseau":     func(s *Spec) { s.Nets = nil },
+		"masque":     func(s *Spec) { s.Nets[0].Address = "10.10.0.11" },
+		"mac":        func(s *Spec) { s.Nets[0].MAC = "zz" },
+		"fichier":    func(s *Spec) { s.Files = []FileSpec{{Src: "a", Dest: "relatif"}} },
+		"mode":       func(s *Spec) { s.Files = []FileSpec{{Src: "a", Dest: "/x", Mode: "999"}} },
+		"passerelle": func(s *Spec) { s.Gateway = "pas-une-ip" },
 	}
 	for what, mutate := range bad {
 		s := baseSpec()
@@ -40,7 +40,7 @@ func TestRenderCloudInit(t *testing.T) {
 	s.Packages = []string{"curl"}
 	s.Run = []string{`echo "a b" > /x`}
 	s.Files = []FileSpec{{Src: "local", Dest: "/etc/x", Mode: "0600"}}
-	ci := renderCloudInit(&s, cloudEnv{Domain: "lab.omedo.lab", Gateway: "10.10.0.1", Keyboard: "fr", User: "lab", Password: "pw",
+	ci := RenderCloudInit(&s, CloudEnv{Domain: "lab.omedo.lab", Gateway: "10.10.0.1", Keyboard: "fr", User: "lab", Password: "pw",
 		PubKey: "ssh-ed25519 AAA test\n", RootCA: "-----BEGIN CERTIFICATE-----\nAAA\n-----END CERTIFICATE-----\n",
 		Files: map[string][]byte{"local": []byte("bonjour")}, InstantID: "web1-1"})
 	for _, want := range []string{
@@ -59,10 +59,10 @@ func TestRenderCloudInit(t *testing.T) {
 		}
 	}
 	s.NoCA = true
-	if strings.Contains(renderCloudInit(&s, cloudEnv{RootCA: "x"}).UserData, "ca_certs") {
+	if strings.Contains(RenderCloudInit(&s, CloudEnv{RootCA: "x"}).UserData, "ca_certs") {
 		t.Error("--no-ca : pas de CA")
 	}
-	ud := renderCloudInit(&s, cloudEnv{UserData: []byte("#cloud-config\nperso: true\n")}).UserData
+	ud := RenderCloudInit(&s, CloudEnv{UserData: []byte("#cloud-config\nperso: true\n")}).UserData
 	if ud != "#cloud-config\nperso: true\n" {
 		t.Errorf("user-data fourni : remplacé tel quel attendu, obtenu %q", ud)
 	}
@@ -70,7 +70,7 @@ func TestRenderCloudInit(t *testing.T) {
 
 func TestRenderDomainXML(t *testing.T) {
 	s := baseSpec()
-	x := renderDomainXML(&s, "/vms/web1/disk.qcow2", "/vms/web1/seed.iso", "managed-by=labs-scripts lab=a&b")
+	x := RenderDomainXML(&s, "/vms/web1/disk.qcow2", "/vms/web1/seed.iso", "managed-by=labs-scripts lab=a&b")
 	var d struct {
 		Name string `xml:"name"`
 		Desc string `xml:"description"`

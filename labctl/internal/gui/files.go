@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"labs/labctl/internal/lab"
+	"labs/labctl/internal/modfiles"
 )
 
 // Fichiers d'un module (files/) : liste, lecture, enregistrement, envoi, renommage, suppression.
@@ -58,14 +58,14 @@ type fileSave struct {
 
 func (s *server) handleFileSave(w http.ResponseWriter, r *http.Request) {
 	var req fileSave
-	if err := json.NewDecoder(io.LimitReader(r.Body, lab.MaxTextFile*2)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(r.Body, modfiles.MaxTextFile*2)).Decode(&req); err != nil {
 		http.Error(w, "requête invalide", http.StatusBadRequest)
 		return
 	}
 	hash, err := s.lab.SaveModuleFileText(req.Module, req.Path, req.Text, req.Hash, req.Create)
 	if err != nil {
 		code := http.StatusBadRequest
-		if errors.Is(err, lab.ErrConflict) || errors.Is(err, lab.ErrExists) {
+		if errors.Is(err, modfiles.ErrConflict) || errors.Is(err, modfiles.ErrExists) {
 			code = http.StatusConflict
 		}
 		http.Error(w, err.Error(), code)
@@ -77,11 +77,11 @@ func (s *server) handleFileSave(w http.ResponseWriter, r *http.Request) {
 // handleFileUpload : corps brut = contenu du fichier ; module, path et overwrite dans l'adresse.
 func (s *server) handleFileUpload(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	body := http.MaxBytesReader(w, r.Body, lab.MaxUpload+1)
+	body := http.MaxBytesReader(w, r.Body, modfiles.MaxUpload+1)
 	err := s.lab.UploadModuleFile(q.Get("module"), q.Get("path"), body, q.Get("overwrite") == "1")
 	if err != nil {
 		code := http.StatusBadRequest
-		if errors.Is(err, lab.ErrExists) {
+		if errors.Is(err, modfiles.ErrExists) {
 			code = http.StatusConflict
 		}
 		http.Error(w, err.Error(), code)
@@ -116,7 +116,7 @@ func (s *server) handleFileOp(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		code := http.StatusBadRequest
-		if errors.Is(err, lab.ErrExists) {
+		if errors.Is(err, modfiles.ErrExists) {
 			code = http.StatusConflict
 		}
 		http.Error(w, err.Error(), code)

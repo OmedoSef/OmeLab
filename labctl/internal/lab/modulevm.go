@@ -11,6 +11,7 @@ import (
 
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // Moteur des modules : création et reprise des VMs (voir moduleup.go).
@@ -158,7 +159,7 @@ func (r *run) createVM(vm string) (err error) {
 	}
 	// IP fixe : la MAC est choisie maintenant et écrite dans le YAML, pour que la réservation DHCP soit stable
 	if e.IP > 0 && e.MAC == "" {
-		mac := RandomMAC()
+		mac := vmdef.RandomMAC()
 		if err := r.y.SetVMValue(vm, "mac", mac); err != nil {
 			return err
 		}
@@ -175,11 +176,11 @@ func (r *run) createVM(vm string) (err error) {
 		return err
 	}
 
-	s := VMSpec{
+	s := vmdef.Spec{
 		Name: lv, Image: e.Image, CPUs: e.CPUs, MemoryMiB: e.Memory, DiskGiB: e.Disk, Keyboard: e.Keyboard,
-		Nets: []NetSpec{{Network: r.y.NetworkName(), MAC: e.MAC}},
+		Nets: []vmdef.NetSpec{{Network: r.y.NetworkName(), MAC: e.MAC}},
 		Lab:  r.y.Module, Role: e.Role, NoAgent: !e.Agent,
-		HW: Hardware{Machine: e.Hardware.Machine, DiskBus: e.Hardware.DiskBus, NICModel: e.Hardware.NICModel,
+		HW: vmdef.Hardware{Machine: e.Hardware.Machine, DiskBus: e.Hardware.DiskBus, NICModel: e.Hardware.NICModel,
 			Graphics: e.Hardware.Graphics, Video: e.Hardware.Video, OSInfo: e.Hardware.OSInfo, Firmware: e.Hardware.Firmware, SecureBoot: e.Hardware.SecureBoot, TPM: e.Hardware.TPM},
 	}
 	win := e.VM.Windows
@@ -322,7 +323,7 @@ func (r *run) keyboard(vm, layout string) error {
 
 // cloudContent complète la description d'une VM à image cloud : paquets, fichiers (modèles ${...}
 // remplacés), commandes, certificats.
-func (r *run) cloudContent(vm string, s *VMSpec, tmp string) error {
+func (r *run) cloudContent(vm string, s *vmdef.Spec, tmp string) error {
 	e := r.eff(vm)
 	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard(), LabVars: r.l.LabVars()}
 	s.Packages = e.VM.Packages
@@ -345,7 +346,7 @@ func (r *run) cloudContent(vm string, s *VMSpec, tmp string) error {
 				return err
 			}
 		}
-		s.Files = append(s.Files, FileSpec{Src: src, Dest: f.Dest, Mode: f.Mode})
+		s.Files = append(s.Files, vmdef.FileSpec{Src: src, Dest: f.Dest, Mode: f.Mode})
 	}
 	for _, c := range e.VM.Run {
 		cmd, err := vars.Expand(c)
@@ -359,7 +360,7 @@ func (r *run) cloudContent(vm string, s *VMSpec, tmp string) error {
 		if err != nil {
 			return err
 		}
-		s.Files = append(s.Files, FileSpec{Src: crt, Dest: c.Cert, Mode: "0644"}, FileSpec{Src: key, Dest: c.Key, Mode: "0600"})
+		s.Files = append(s.Files, vmdef.FileSpec{Src: crt, Dest: c.Cert, Mode: "0644"}, vmdef.FileSpec{Src: key, Dest: c.Key, Mode: "0600"})
 	}
 	return nil
 }

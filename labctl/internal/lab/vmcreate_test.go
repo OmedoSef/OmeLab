@@ -13,6 +13,7 @@ import (
 
 	"labs/labctl/internal/virt"
 	"labs/labctl/internal/virt/virtfake"
+	"labs/labctl/internal/vmdef"
 )
 
 // fakeTools remplace qemu-img et cloud-localds (Lab.Tool) : note chaque appel et crée le fichier produit.
@@ -76,9 +77,9 @@ func createLab(t *testing.T) (*Lab, *virtfake.Fake, *fakeTools) {
 	return l, f, tools
 }
 
-func spec() VMSpec {
-	return VMSpec{Name: "web1", Image: "debian13", CPUs: 2, MemoryMiB: 1024, DiskGiB: 10, Lab: "demo",
-		Nets: []NetSpec{{Network: "demo", Address: "10.10.0.11/24", MAC: "52:54:00:12:34:56"}}}
+func spec() vmdef.Spec {
+	return vmdef.Spec{Name: "web1", Image: "debian13", CPUs: 2, MemoryMiB: 1024, DiskGiB: 10, Lab: "demo",
+		Nets: []vmdef.NetSpec{{Network: "demo", Address: "10.10.0.11/24", MAC: "52:54:00:12:34:56"}}}
 }
 
 // Création complète : disque lié à l'image de base et agrandi, disque cloud-init, définition libvirt (carte, MAC,

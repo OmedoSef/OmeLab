@@ -13,6 +13,7 @@ import (
 
 	"labs/labctl/internal/portal"
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // Passerelle core-gw : création, mise à jour, démarrage, arrêt, état (voir gateway.go).
@@ -31,9 +32,9 @@ func (g *Gateway) Create() error {
 			return err
 		}
 		defer os.RemoveAll(tmp)
-		s := VMSpec{
+		s := vmdef.Spec{
 			Name: GatewayVM, Image: "debian13", CPUs: 1, MemoryMiB: GatewayProxyMiB, DiskGiB: 10,
-			Nets: []NetSpec{{Network: "default"}}, Lab: "core", Role: "gateway",
+			Nets: []vmdef.NetSpec{{Network: "default"}}, Lab: "core", Role: "gateway",
 			Packages: []string{"nftables", "dnsmasq", "dnsmasq-utils", "conntrack"},
 			Run: []string{"sysctl --system >/dev/null", "systemctl disable --now dnsmasq",
 				"systemctl daemon-reload && systemctl enable --now gw.service", "systemctl enable systemd-networkd"},
@@ -47,7 +48,7 @@ func (g *Gateway) Create() error {
 			if err := os.WriteFile(src, b, 0o600); err != nil {
 				return err
 			}
-			s.Files = append(s.Files, FileSpec{Src: src, Dest: f.dest, Mode: f.mode})
+			s.Files = append(s.Files, vmdef.FileSpec{Src: src, Dest: f.dest, Mode: f.mode})
 		}
 		if err := g.l.CreateVM(s, CreateOptions{Wait: true, Out: g.Out}); err != nil {
 			return err

@@ -1,8 +1,6 @@
 package lab
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/names"
 )
@@ -19,21 +18,12 @@ import (
 // Édition d'un module.yaml en texte (éditeur de la GUI) : le texte est validé tel quel, et seul un texte
 // sans erreur est enregistré. Un enregistrement refuse d'écraser un fichier modifié entre-temps.
 
-// ErrConflict : le fichier a changé depuis qu'il a été lu.
-var ErrConflict = errors.New("le fichier a été modifié entre-temps (ailleurs que dans cet éditeur) : recharger avant d'enregistrer")
-
 // ErrInvalid : le texte contient des erreurs.
 var ErrInvalid = errors.New("enregistrement refusé : le module contient des erreurs")
 
 var (
 	reYAMLLine = regexp.MustCompile(`ligne (\d+)`)
 )
-
-// TextHash est l'empreinte d'un contenu (détection des modifications concurrentes).
-func TextHash(b []byte) string {
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
-}
 
 func (l *Lab) moduleFile(name string) string {
 	return filepath.Join(l.Root, "modules", name, module.FileName)
@@ -51,7 +41,7 @@ func (l *Lab) ModuleText(name string) (text, hash string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	return string(b), TextHash(b), nil
+	return string(b), modfiles.TextHash(b), nil
 }
 
 // CheckModuleText valide un texte de module.yaml sans l'enregistrer. Une erreur de lecture (syntaxe,
@@ -96,8 +86,8 @@ func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []mo
 		if err != nil {
 			return "", nil, err
 		}
-		if TextHash(cur) != base {
-			return "", nil, ErrConflict
+		if modfiles.TextHash(cur) != base {
+			return "", nil, modfiles.ErrConflict
 		}
 	}
 	if !strings.HasSuffix(text, "\n") {
@@ -120,7 +110,7 @@ func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []mo
 	if err := os.Rename(tmp, path); err != nil {
 		return "", nil, err
 	}
-	return TextHash([]byte(text)), issues, nil
+	return modfiles.TextHash([]byte(text)), issues, nil
 }
 
 // ensureSchema pose le schéma de module.yaml à la racine du lab s'il n'y est pas (lab créé avant qu'init le pose).

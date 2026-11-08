@@ -15,6 +15,7 @@ import (
 	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // VMs Windows (windows: du module.yaml) : installation sans intervention depuis l'ISO de Microsoft.
@@ -128,7 +129,7 @@ type unattendData struct {
 	DriverPaths                                                       []string
 }
 
-var unattendTmpl = template.Must(template.New("unattend").Funcs(template.FuncMap{"x": xmlEsc}).Parse(`<?xml version="1.0" encoding="utf-8"?>
+var unattendTmpl = template.Must(template.New("unattend").Funcs(template.FuncMap{"x": vmdef.XMLEsc}).Parse(`<?xml version="1.0" encoding="utf-8"?>
 <!-- Généré par labctl : installation sans intervention (windows: du module.yaml) -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
   <settings pass="windowsPE">
@@ -262,7 +263,7 @@ shutdown.exe /s /t 5 /c "labctl : installation terminée"
 `
 
 // windowsMedia prépare l'installation : ISO vérifié, virtio-win, ISO de réponses ; renseigne s.Install.
-func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
+func (r *run) windowsMedia(vm string, e module.Effective, s *vmdef.Spec) error {
 	w := e.VM.Windows
 	lw := logWriter{r}
 	if err := verifyWindowsISO(w.ISOPath(), w.Checksum, lw); err != nil {
@@ -336,7 +337,7 @@ func (r *run) windowsMedia(vm string, e module.Effective, s *VMSpec) error {
 		return fmt.Errorf("ISO de réponses (xorriso) : %s", strings.TrimSpace(string(b)))
 	}
 	_ = os.Chmod(answer, 0o644) // lisible par qemu
-	s.Install = &InstallSpec{ISOs: []string{w.ISOPath(), virtio, answer}}
+	s.Install = &vmdef.InstallSpec{ISOs: []string{w.ISOPath(), virtio, answer}}
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"labs/labctl/internal/virt"
+	"labs/labctl/internal/vmdef"
 )
 
 // CheckAttach valide une demande de branchement (câblage local) : ref au format <module>/<vm>, module cible et
@@ -180,7 +181,7 @@ func (r *run) ensureAttach() error {
 		}
 		mac := strings.ToLower(a.MAC)
 		if mac == "" {
-			mac = RandomMAC()
+			mac = vmdef.RandomMAC()
 			dest := r.y.Path
 			if a.Local { // branchement local : la MAC va dans network.local.yaml, pas dans le module.yaml partagé
 				if err := r.l.setLocalAttachMAC(r.y.Module, a.VM, mac); err != nil {

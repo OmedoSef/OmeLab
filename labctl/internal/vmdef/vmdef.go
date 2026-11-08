@@ -1,4 +1,7 @@
-package lab
+// Package vmdef décrit une VM à créer (Spec) et produit ce que libvirt et la VM reçoivent : cloud-init
+// (user-data, network-config, meta-data) et définition XML du domaine. Fonctions pures, sans hyperviseur ni réseau ;
+// la création elle-même (disques, définition, démarrage) est faite par lab.CreateVM.
+package vmdef
 
 import (
 	"crypto/rand"
@@ -15,9 +18,9 @@ import (
 	"labs/labctl/internal/names"
 )
 
-// VMSpec décrit une VM à créer depuis une image cloud. C'est la forme générique qu'utilisent
-// « labctl vm create » et, demain, les entrées vms: des module.yaml.
-type VMSpec struct {
+// Spec décrit une VM à créer depuis une image cloud. C'est la forme générique qu'utilisent
+// « labctl vm create » et les VMs des module.yaml.
+type Spec struct {
 	Name      string
 	Image     string // image du catalogue (Images)
 	CPUs      int
@@ -102,7 +105,7 @@ func ParseFile(s string) (FileSpec, error) {
 var reFileMode = regexp.MustCompile(`^0?[0-7]{3}$`) // droits d'un fichier copié (ex. 0644)
 
 // Validate contrôle une description de VM avant toute création.
-func (s *VMSpec) Validate() error {
+func (s *Spec) Validate() error {
 	switch {
 	case !names.Host(s.Name):
 		return fmt.Errorf("nom invalide (lettres, chiffres, tirets) : %q", s.Name)
@@ -151,8 +154,8 @@ func RandomMAC() string {
 	return fmt.Sprintf("52:54:00:%02x:%02x:%02x", b[0], b[1], b[2])
 }
 
-// cloudEnv rassemble ce que la génération cloud-init lit dans l'environnement (réglages, clés, réseaux).
-type cloudEnv struct {
+// CloudEnv rassemble ce que la génération cloud-init lit dans l'environnement (réglages, clés, réseaux).
+type CloudEnv struct {
 	Domain    string // domaine du réseau de la 1re carte
 	Gateway   string // passerelle résolue pour une 1re carte en IP fixe
 	Keyboard  string
@@ -172,8 +175,8 @@ type CloudInit struct {
 	MetaData      string
 }
 
-// renderCloudInit produit user-data, network-config et meta-data (même contenu que l'ancien vm-create.sh).
-func renderCloudInit(s *VMSpec, e cloudEnv) CloudInit {
+// RenderCloudInit produit user-data, network-config et meta-data (même contenu que l'ancien vm-create.sh).
+func RenderCloudInit(s *Spec, e CloudEnv) CloudInit {
 	var nc strings.Builder
 	nc.WriteString("version: 2\nethernets:\n")
 	for i, n := range s.Nets {
@@ -253,23 +256,23 @@ func XkbConf(layout string) string {
 	return fmt.Sprintf("Section \"InputClass\"\n    Identifier \"system-keyboard\"\n    MatchIsKeyboard \"on\"\n    Option \"XkbLayout\" \"%s\"\nEndSection\n", layout)
 }
 
-func xmlEsc(s string) string {
+func XMLEsc(s string) string {
 	var b strings.Builder
 	_ = xml.EscapeText(&b, []byte(s))
 	return strings.ReplaceAll(b.String(), "'", "&apos;")
 }
 
-// renderDomainXML produit la définition libvirt (mêmes périphériques que virt-install : q35, CPU de l'hôte,
+// RenderDomainXML produit la définition libvirt (mêmes périphériques que virt-install : q35, CPU de l'hôte,
 // virtio, console série, agent invité, SPICE en local). seed vide : pas de disque cloud-init.
-func renderDomainXML(s *VMSpec, disk, seed, description string) string {
+func RenderDomainXML(s *Spec, disk, seed, description string) string {
 	hw := s.HW
 	machine, bus, nic := or(hw.Machine, "q35"), or(hw.DiskBus, "virtio"), or(hw.NICModel, "virtio")
 	graphics, video := or(hw.Graphics, "spice"), or(hw.Video, "virtio")
 	osinfo := or(hw.OSInfo, fetch.Images[s.Image].OSInfo)
 	var b strings.Builder
-	fmt.Fprintf(&b, "<domain type='kvm'>\n  <name>%s</name>\n  <description>%s</description>\n", xmlEsc(s.Name), xmlEsc(description))
+	fmt.Fprintf(&b, "<domain type='kvm'>\n  <name>%s</name>\n  <description>%s</description>\n", XMLEsc(s.Name), XMLEsc(description))
 	if osinfo != "" {
-		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", xmlEsc(osinfoURI(osinfo)))
+		fmt.Fprintf(&b, "  <metadata>\n    <libosinfo:libosinfo xmlns:libosinfo=\"http://libosinfo.org/xmlns/libvirt/domain/1.0\">\n      <libosinfo:os id=\"%s\"/>\n    </libosinfo:libosinfo>\n  </metadata>\n", XMLEsc(osinfoURI(osinfo)))
 	}
 	fmt.Fprintf(&b, "  <memory unit='MiB'>%d</memory>\n  <currentMemory unit='MiB'>%d</currentMemory>\n  <vcpu placement='static'>%d</vcpu>\n", s.MemoryMiB, s.MemoryMiB, s.CPUs)
 	bootCD := ""
@@ -279,9 +282,9 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 	if hw.Firmware == "efi" {
 		// OVMF choisi par libvirt (descripteurs de firmware)
 		sb := map[bool]string{true: "yes", false: "no"}[hw.SecureBoot]
-		fmt.Fprintf(&b, "  <os firmware='efi'>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <firmware>\n      <feature enabled='%s' name='secure-boot'/>\n      <feature enabled='%s' name='enrolled-keys'/>\n    </firmware>\n    %s<boot dev='hd'/>\n  </os>\n", xmlEsc(machine), sb, sb, bootCD)
+		fmt.Fprintf(&b, "  <os firmware='efi'>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    <firmware>\n      <feature enabled='%s' name='secure-boot'/>\n      <feature enabled='%s' name='enrolled-keys'/>\n    </firmware>\n    %s<boot dev='hd'/>\n  </os>\n", XMLEsc(machine), sb, sb, bootCD)
 	} else {
-		fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    %s<boot dev='hd'/>\n  </os>\n", xmlEsc(machine), bootCD)
+		fmt.Fprintf(&b, "  <os>\n    <type arch='x86_64' machine='%s'>hvm</type>\n    %s<boot dev='hd'/>\n  </os>\n", XMLEsc(machine), bootCD)
 	}
 	smm := ""
 	if hw.SecureBoot {
@@ -301,10 +304,10 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
   <devices>
 `)
 	dev := map[string]string{"virtio": "vda", "sata": "sda", "ide": "hda"}[bus]
-	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", xmlEsc(disk), dev, bus)
+	fmt.Fprintf(&b, "    <disk type='file' device='disk'>\n      <driver name='qemu' type='qcow2' discard='unmap'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n    </disk>\n", XMLEsc(disk), dev, bus)
 	if s.Install != nil { // lecteurs SATA (q35) : ISO d'installation amorçable, puis les autres
 		for i, iso := range s.Install.ISOs {
-			fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='sd%c' bus='sata'/>\n      <readonly/>\n    </disk>\n", xmlEsc(iso), 'a'+i)
+			fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='sd%c' bus='sata'/>\n      <readonly/>\n    </disk>\n", XMLEsc(iso), 'a'+i)
 		}
 	}
 	if seed != "" {
@@ -315,10 +318,10 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 		if machine == "pc" { // i440fx : pas de SATA
 			cdBus, cdDev = "ide", "hdc"
 		}
-		fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n      <readonly/>\n    </disk>\n", xmlEsc(seed), cdDev, cdBus)
+		fmt.Fprintf(&b, "    <disk type='file' device='cdrom'>\n      <driver name='qemu' type='raw'/>\n      <source file='%s'/>\n      <target dev='%s' bus='%s'/>\n      <readonly/>\n    </disk>\n", XMLEsc(seed), cdDev, cdBus)
 	}
 	for _, n := range s.Nets {
-		fmt.Fprintf(&b, "    <interface type='network'>\n      <mac address='%s'/>\n      <source network='%s'/>\n      <model type='%s'/>\n    </interface>\n", xmlEsc(strings.ToLower(n.MAC)), xmlEsc(n.Network), xmlEsc(nic))
+		fmt.Fprintf(&b, "    <interface type='network'>\n      <mac address='%s'/>\n      <source network='%s'/>\n      <model type='%s'/>\n    </interface>\n", XMLEsc(strings.ToLower(n.MAC)), XMLEsc(n.Network), XMLEsc(nic))
 	}
 	b.WriteString("    <serial type='pty'><target type='isa-serial' port='0'><model name='isa-serial'/></target></serial>\n    <console type='pty'><target type='serial' port='0'/></console>\n")
 	if !s.NoAgent {
@@ -332,7 +335,7 @@ func renderDomainXML(s *VMSpec, disk, seed, description string) string {
 		b.WriteString("    <input type='tablet' bus='usb'/>\n    <graphics type='vnc' autoport='yes'><listen type='address' address='127.0.0.1'/></graphics>\n")
 	}
 	if graphics != "none" {
-		fmt.Fprintf(&b, "    <video><model type='%s' heads='1' primary='yes'/></video>\n", xmlEsc(video))
+		fmt.Fprintf(&b, "    <video><model type='%s' heads='1' primary='yes'/></video>\n", XMLEsc(video))
 	}
 	if hw.TPM {
 		b.WriteString("    <tpm model='tpm-crb'><backend type='emulator' version='2.0'/></tpm>\n")
@@ -361,4 +364,4 @@ func osinfoURI(id string) string {
 	return id
 }
 
-func instanceID(name string) string { return fmt.Sprintf("%s-%d", name, time.Now().Unix()) }
+func InstanceID(name string) string { return fmt.Sprintf("%s-%d", name, time.Now().Unix()) }
