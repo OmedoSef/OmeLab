@@ -33,15 +33,16 @@ Sans cette ligne, VS Code applique à tort le schéma d'un autre outil (cfgd) do
   une configuration invalide.
 - L'**isolation n'est pas optionnelle** : une VM de module n'a de cartes que sur le réseau de son module (règle
   imposée par le moteur et le validateur, pas par chaque module).
-- Le module `core` reste intégré à labctl (c'est l'infrastructure commune), mais son contenu actuel par module
-  (`core.conf` : alias, réservations, liens) **rejoint le `module.yaml`**.
+- Le module `core` reste intégré à labctl (c'est l'infrastructure commune) ; ce qui le concerne dans chaque module
+  (alias, réservations, liens) est dans le `module.yaml` (l'ancien `core.conf` n'est plus lu).
 - **Tout est facultatif sauf le nom du module**, avec des valeurs par défaut à plusieurs niveaux (voir
   *Valeurs par défaut*) : un module minimal tient en quelques lignes.
 
 ## Le module pentest en YAML
 
-> Exemple d'origine : Kali est depuis passée dans le module `attacker`, branchée sur `pentest` par `attach:`
-> (voir [modules/pentest/module.yaml](../modules/pentest/module.yaml) et [modules/attacker](../modules/attacker/module.yaml)).
+> Exemple d'origine, gardé pour la lecture : depuis, Kali est passée dans le module `attacker` et se branche sur
+> `pentest` par câblage local (`labctl pentest attach attacker/kali 10`, voir *VMs branchées*), et `pentest` est
+> déclaré `vulnerable: true`. Le module réel : [modules/pentest/module.yaml](../modules/pentest/module.yaml).
 
 ```yaml
 # modules/pentest/module.yaml
@@ -118,7 +119,7 @@ vms:
     snapshot: clean
 ```
 
-Et à côté, `modules/pentest/files/compose.yaml` et `files/nginx.conf` (aujourd'hui générés en dur dans le bash),
+Et à côté, `modules/pentest/files/compose.yaml` et `files/nginx.conf` (autrefois générés en dur dans le bash),
 par exemple :
 
 ```nginx
@@ -130,7 +131,7 @@ server {
 }
 ```
 
-Le `module.sh` du pentest (≈ 500 lignes de bash) disparaît : tout est dans ces trois fichiers.
+Le `module.sh` du pentest (≈ 500 lignes de bash) a disparu : tout est dans ces trois fichiers.
 
 ## Référence
 
@@ -352,16 +353,16 @@ connections:
 | `mac` | avec `ip` : générée et **ajoutée au YAML** ; sans `ip` : générée à la création, non écrite | MAC de la carte (sert à la réservation DHCP quand `ip` est donnée) |
 | `role` | — | `attacker`, `target`, `server`… (affichage, filtres de la GUI) |
 | `image`, `source` *ou* `windows` | — (un des trois) | image cloud du catalogue (cloud-init), disque fourni, *ou* installation de Windows depuis un ISO (voir *Windows*) |
-| `source.url` + `checksum` | — | téléchargement à empreinte figée (`sha256:`, `sha512:`, `md5:`) |
+| `source.url` + `checksum` | — | téléchargement à empreinte figée (`sha256:`, `sha512:`, `sha1:`, `md5:`) |
 | `source.sums` + `file` | — | empreinte lue dans le fichier publié ; `file` peut contenir `*` (dernière version) |
 | `source.extract` | — | fichier à extraire d'une archive (`.7z`, `.zip`, `.tar.*`) ; vmdk/vdi convertis en qcow2. Un nom ou un motif, sans chemin ni tiret en tête ; une archive qui contient un lien symbolique (ou un disque dont un morceau en est un) est refusée |
 | `cpus` / `memory` / `disk` | 1 vCPU, 2048 Mio, 20 Gio (voir *Valeurs par défaut*) | ressources (Mio, Gio) ; `disk` agrandit le disque des images cloud |
 | `image` (si ni `image` ni `source`) | `debian13` | image cloud par défaut |
-| `hardware` | q35, virtio, spice, bios | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video`, `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
-| `guest.agent` | true si `image` | agent invité : clavier depuis l'hôte, IP, commandes |
+| `hardware` | q35, virtio, spice, virtio (vidéo), bios (efi pour Windows) | `machine` (q35/pc), `disk_bus` (virtio/sata/ide), `nic_model` (virtio/e1000), `graphics` (spice/vnc/none), `video` (virtio/vga/qxl/cirrus), `osinfo`, `firmware` (bios/efi), `secure_boot`, `tpm` (TPM 2.0 émulé, swtpm). Une VM `efi` (OVMF) prend ses snapshots **arrêtée** (limite de libvirt) : labctl l'arrête, la photographie et la redémarre (restauration : coupure, retour, redémarrage) |
+| `guest.agent` | true pour une image cloud et pour Windows | agent invité : clavier depuis l'hôte, IP, commandes |
 | `internet` | `off` | `off` : fermé (ouvrable à la main) · `install` : ouvert pendant l'installation · `never` : jamais, même par un lien |
 | `keyboard` | clavier de l'hôte | disposition appliquée à la VM (console et X) à la création ; par défaut celle de l'hôte (`LABS_KEYBOARD`, sinon `localectl`) ; à préciser (ex. `us`) pour forcer une autre disposition |
-| `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}`. `files[].src` est **relatif au dossier du module** (ex. `files/x.conf`) : chemin absolu, `~`, `..` et lien symbolique sont refusés — un module ne peut pas copier dans une VM un fichier de l'hôte (clé de `pki/`, `~/.ssh`…) |
+| `packages`, `files`, `run` | — | images cloud (cloud-init) ; Windows : `files` et `run` (PowerShell, par SSH) ; `files[].template: true` remplace les `${...}`, `files[].mode` fixe les droits (ex. `0644`). `files[].src` est **relatif au dossier du module** (ex. `files/x.conf`) : chemin absolu, `~`, `..` et lien symbolique sont refusés — un module ne peut pas copier dans une VM un fichier de l'hôte (clé de `pki/`, `~/.ssh`…) |
 | `certificates` | — | certificats émis par la CA du module et **installés dans la VM** (par SSH) ; `reload` relancé après |
 | `snapshot` | — | nom du snapshot pris une fois la VM prête (ex. `clean`) |
 
@@ -465,14 +466,17 @@ ses propres valeurs. Dans `lab.yaml`, une variable peut en référencer une autr
 
 | Commande | Effet |
 |---|---|
-| `labctl module list` | modules et leur état |
-| `labctl module validate [MODULE]` | contrôle sans rien créer (code de sortie ≠ 0 en cas d'erreur) |
+| `labctl module list` | modules, leur réseau et leur nombre de VMs |
+| `labctl module validate [MODULE]` (ou `labctl <m> validate`) | contrôle sans rien créer (code de sortie ≠ 0 en cas d'erreur) |
+| `labctl module show MODULE` (ou `labctl <m> show`) | valeurs effectives de chaque VM et leur origine (VM, `defaults:`, réglages, intégré) |
+| `labctl module edit MODULE` | ouvre le `module.yaml` dans l'éditeur (`$EDITOR`) |
+| `labctl module schema` | écrit le schéma JSON du `module.yaml` (complétion et contrôle dans VS Code) |
 | `labctl <m> check` | prérequis de l'hôte pour ce module (KVM, libvirt, outils, clé SSH, PKI, passerelle, disque) |
 | `labctl <m> up [VM...] [--apply-changes] [--dry-run]` | crée ce qui manque : réseau, branchement à la passerelle, CA, VMs, certificats, snapshots ; `--dry-run` montre le plan sans rien créer |
 | `labctl <m> status` | VMs, IP, snapshots, écarts entre le YAML et la réalité |
 | `labctl <m> start` / `stop [--force]` [VM...] | démarre / arrête (isolation vérifiée avant tout démarrage) |
-| `labctl <m> snapshot VM [NOM]` / `restore VM [SNAPSHOT]` | snapshot ; retour au snapshot (défaut : celui de `snapshot:`) |
-| `labctl <m> certs [--renew]` | (ré)émet et réinstalle les certificats déclarés : réémis d'office s'ils viennent d'une autre CA (PKI renouvelée), si leurs noms ont changé ou s'ils expirent dans 30 jours |
+| `labctl <m> snapshot VM [NOM]` / `restore [VM [SNAPSHOT]]` | snapshot ; retour au snapshot (défaut : celui de `snapshot:` ; `restore` sans VM : toutes, chacune au sien) |
+| `labctl <m> certs [VM...] [--renew]` | (ré)émet et réinstalle les certificats déclarés : réémis d'office s'ils viennent d'une autre CA (PKI renouvelée), si leurs noms ont changé ou s'ils expirent dans 30 jours |
 | `labctl <m> keyboard VM [DISPOSITION]` | clavier d'une VM (SSH, sinon agent invité), puis redémarrage |
 | `labctl <m> ssh VM [cmd]` | shell SSH (images cloud) |
 | `labctl <m> attach MODULE/VM [IP]` | branche une VM d'un autre module sur ce réseau (câblage local ; adresse libre si omise) |
@@ -526,7 +530,7 @@ modules/pentest/module.yaml
   erreur  vms.web.ip : 20 déjà utilisé par vms.msf2
   erreur  dns.aliases.intranet : la VM « intra » n'existe pas
   avert.  vms.msf2.source.checksum : MD5 seulement (seule empreinte publiée)
-2 erreurs, 1 avertissement
+2 erreur(s), 1 avertissement(s)
 ```
 
 ## GUI
@@ -534,7 +538,7 @@ modules/pentest/module.yaml
 - Onglet **module.yaml** de la page d'un module : éditeur avec coloration,
   numéros de ligne, **validation à la volée** (erreurs et avertissements à leur ligne, cliquables).
   - *Enregistrer* (Ctrl+S) : refusé tant qu'il reste une erreur, ou si le fichier a été modifié ailleurs
-    depuis son ouverture (*Recharger le fichier* pour repartir de la version sur le disque).
+    depuis son ouverture (*Recharger* pour repartir de la version sur le disque).
   - *Appliquer (up)* : construit le module enregistré ; le fichier est relu ensuite (sous-réseau, MAC ajoutés).
   - *Nouveau module…* : squelette commenté, valide tel quel ; *Créer le module* crée `modules/<nom>/` et `files/`.
 - Onglet **Réseau** de la page d'un module : alias, réservations, liens (une case par sens) et connexions
@@ -549,10 +553,10 @@ Chaque champ facultatif d'une VM est pris, dans l'ordre, du premier niveau qui l
 |---|---|---|
 | 1 | la VM | `vms.kali.cpus: 4` |
 | 2 | `defaults:` du module | `defaults: {memory: 2048, image: ubuntu2404}` |
-| 3 | tes réglages (`config.local.env`, sinon `config.env`, à la racine) | `LABS_DEFAULT_CPUS=1`, `LABS_DEFAULT_MEMORY`, `LABS_DEFAULT_DISK`, `LABS_DEFAULT_IMAGE` |
+| 3 | tes réglages (variable d'environnement, sinon `config.local.env`, sinon `config.env`, à la racine) | `LABS_DEFAULT_CPUS=1`, `LABS_DEFAULT_MEMORY`, `LABS_DEFAULT_DISK`, `LABS_DEFAULT_IMAGE` |
 | 4 | intégré à labctl | 1 vCPU, 2048 Mio, 20 Gio, `debian13`, q35/virtio/spice, `internet: off`, pas de snapshot |
 
-`labctl module <m> status` (et la GUI) affiche la valeur effective de chaque champ et son origine.
+`labctl <m> show` (et la GUI) affiche la valeur effective de chaque champ et son origine.
 
 ## Module minimal
 
@@ -579,9 +583,9 @@ vms:
 
 ## Décisions
 
-1. **`core.conf` rejoint le `module.yaml`** : une seule source par module. La GUI (onglet Réseau) et les
-   commandes `core dhcp|dns|link` écrivent dans le YAML en préservant commentaires et mise en forme ; les
-   `core.conf` existants sont importés une fois puis retirés.
+1. **`core.conf` a rejoint le `module.yaml`** : une seule source par module. La GUI (onglet Réseau) et les
+   commandes `core dhcp|dns|link` écrivent dans le YAML en préservant commentaires et mise en forme. Les anciens
+   `core.conf` et `module.env` ne sont plus lus.
 2. **Sous-réseaux en `/24`** (convention .1 hôte, .2-.99 IP fixes, .100-.199 DHCP libre, .254 passerelle).
 3. **Tout est facultatif sauf le nom du module.** `ip` et `mac` : sans `ip`, la VM est en DHCP libre (nom DNS
    par le bail) ; avec `ip`, la MAC est lue dans le YAML, ou générée et ajoutée au fichier. `network` : sans
@@ -590,6 +594,6 @@ vms:
 4. **Variables `${module.domain}`** : syntaxe simple, entièrement vérifiée par le validateur.
 5. **Stockage** : disques des nouvelles VMs de module dans le dossier des VMs (`~/Virtualisation/kvm/vms/`, sans
    sudo) ; les VMs existantes restent où elles sont.
-6. **Changement d'une VM existante** (CPU, mémoire, disque…) : `status` et `validate` signalent l'écart ;
-   `labctl module <m> up --apply-changes` l'applique (arrêt et redémarrage de la VM concernée). Jamais de
+6. **Changement d'une VM existante** (vCPU, mémoire ; le disque n'est pas suivi) : `status` et `validate`
+   signalent l'écart ; `labctl module <m> up --apply-changes` l'applique (arrêt et redémarrage de la VM concernée). Jamais de
    redémarrage sans demande explicite.

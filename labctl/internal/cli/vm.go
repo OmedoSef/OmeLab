@@ -124,7 +124,7 @@ Réseau : -n RESEAU[:IP/CIDR], répétable ; la 1re carte est la carte de gestio
 La VM reçoit l'utilisateur ` + l.VMUser() + ` (sudo, ta clé SSH), le clavier de ce poste, la CA racine des labs
 et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 		Example: `  labctl vm create web1 -l demo -w
-  labctl vm create db1 -i rocky9 -m 4096 -n default -n lab-demo:10.10.0.11/24 -l demo`,
+  labctl vm create db1 -i rocky9 -m 4096 -n default -n demo:10.10.0.11/24 -l demo`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(cmd *cobra.Command, args []string) error {

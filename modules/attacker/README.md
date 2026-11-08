@@ -3,7 +3,8 @@
 Postes d'attaque : Kali et Parrot Security. Décrit par [module.yaml](module.yaml), piloté par `labctl attacker <commande>`.
 
 Chaque poste a sa carte principale sur le réseau `attacker-lab` (Internet à la demande, comme tout module), et une
-carte de plus sur le réseau de chaque lab cible qui l'accueille (`attach:` dans le `module.yaml` de la cible) :
+carte de plus sur le réseau de chaque lab cible où il est branché (câblage local de ce poste :
+`labctl <cible> attach attacker/kali`, ou `attach:` dans le `module.yaml` de la cible) :
 il est alors sur le même réseau local que les cibles, comme un attaquant branché sur le LAN.
 
 | VM | Libvirt | attacker-lab | Identifiants |
@@ -15,7 +16,7 @@ il est alors sur le même réseau local que les cibles, comme un attaquant branc
 labctl attacker up                  # crée ce qui manque (images officielles, empreintes vérifiées)
 labctl attacker start kali          # un seul poste à la fois suffit en général (4 Go chacun)
 labctl core internet on attacker kali   # mises à jour, outils (fermé par défaut)
-labctl pentest up                   # branche les postes que pentest accueille (attach:)
+labctl pentest attach attacker/kali 10   # branche Kali sur pentest (câblage local, une fois par poste)
 ```
 
 - Sur un réseau cible, la carte n'a **ni route par défaut ni DNS** : Internet et la résolution passent par

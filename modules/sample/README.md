@@ -4,7 +4,7 @@ Exemple **complet et fonctionnel**, à lire pour comprendre le système et à co
 Un petit serveur web intranet (`nginx`), servi en **HTTPS** avec un certificat de la CA du module, joignable
 par son nom. Réseau isolé comme tout module. Décrit par [module.yaml](module.yaml).
 
-Pour un squelette vide à remplir soi-même, préférer `labctl module new <nom>`. Ce module-ci est l'inverse :
+Pour un squelette vide à remplir soi-même, préférer *+ Nouveau module…* dans la GUI (squelette commenté, valide tel quel). Ce module-ci est l'inverse :
 tout est rempli et marche, pour servir de référence vivante.
 
 ## Ce qu'il montre

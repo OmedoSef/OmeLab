@@ -6,7 +6,7 @@ GOAD, mais intégré à labctl : une commande construit tout.
 
 Réseau **isolé**, **sans Internet** : l'installation de Windows se fait hors ligne (les pilotes virtio et
 OpenSSH sont sur les ISO locales). Les postes d'attaque viennent du module `attacker`, branchés sur le réseau
-du lab (`attach:`), comme un attaquant sur le LAN de l'entreprise.
+du lab (câblage local : `labctl pjpt attach attacker/kali 50`, `attacker/parrot 51`), comme un attaquant sur le LAN de l'entreprise.
 
 | VM | Libvirt | Rôle | IP | OS |
 |---|---|---|---|---|
@@ -36,7 +36,7 @@ dans `module.yaml` par celle du fichier téléchargé (`sha256sum <iso>`), et au
 
 ```bash
 labctl attacker up                  # une fois : prépare Kali et Parrot
-labctl pjpt up                      # installe dc01 (promotion), puis cli01 et cli02, puis branche les attaquants
+labctl pjpt up                      # installe dc01 (promotion), puis cli01 et cli02, puis branche les attaquants câblés sur ce poste
 labctl pjpt start dc01 cli01        # un seul client suffit pour commencer (16 Go de RAM avec une attaquante)
 labctl pjpt restore                 # revient au snapshot « clean » de toutes les VMs (voir ci-dessous)
 ```

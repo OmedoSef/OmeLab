@@ -10,7 +10,7 @@ la passerelle.
 
 ```bash
 labctl netlab up                 # réseau, poste (bureau installé), snapshot « clean » — compter quelques minutes
-labctl netlab console poste      # ouvre le bureau (session XFCE de « lab », Firefox) sur la console SPICE
+virt-viewer -c qemu:///system netlab-poste   # bureau (session XFCE de « lab », Firefox) ; ou bouton Console de la GUI
 labctl netlab ssh poste          # shell sur le poste ; ou  labctl netlab ssh poste 'commande'
 ```
 
@@ -47,7 +47,7 @@ labctl netlab ssh poste 'curl -s -o /dev/null -w "%{http_code} -> %{redirect_url
 Puis ouvre le bureau et **navigue dans Firefox** — c'est le plus parlant pour un portail captif :
 
 ```bash
-labctl netlab console poste      # dans Firefox : va sur http://example.com → la page du portail s'affiche
+virt-viewer -c qemu:///system netlab-poste   # dans Firefox : va sur http://example.com → la page du portail s'affiche
                                  # saisis « labs », valide ; ensuite la navigation passe jusqu'à expiration (30 min)
 labctl core portal               # sessions en cours ; labctl core portal kick N IP pour en fermer une
 ```

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../module.schema.json
 # Module pjpt : petit Active Directory d'entraînement (préparation PJPT), volontairement faible et ISOLÉ.
-# Les postes d'attaque viennent du module attacker (attach:). Voir docs/module-yaml.md pour toutes les clés,
+# Les postes d'attaque viennent du module attacker (câblage local : labctl pjpt attach attacker/kali 50). Voir docs/module-yaml.md pour toutes les clés,
 # et README.md pour le déroulé (ce qui est volontairement faible, démarrage, snapshots).
 module: pjpt
 description: "Lab Active Directory d'entraînement PJPT (volontairement vulnérable, réseau isolé sans Internet)"

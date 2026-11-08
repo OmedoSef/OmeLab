@@ -18,7 +18,13 @@ Voir [labctl](labctl/README.md) pour la GUI, la complétion et le débogage.
 ```
 Labs/
 ├── activate          active l'environnement (labctl, complétion, Go du projet) ; deactivate pour sortir
+├── install.sh        installe labctl compilé sur le PATH, avec l'autocomplétion
 ├── config.env        réglages (stockage, utilisateur des VMs, clavier, domaine…) ; config.local.env pour les tiens
+├── lab.yaml          variables partagées par les modules ; lab.local.yaml pour les tiennes (non versionné)
+├── network.local.yaml  câblage et connexions propres à ce poste (non versionné)
+├── module.schema.json  schéma du module.yaml pour les éditeurs (VS Code)
+├── LICENSE, NOTICE   licence Apache-2.0
+├── .github/          CI et release
 ├── docs/             documentation : modules déclaratifs, passerelle core, VMs/réseaux/PKI
 ├── labctl/           outil de pilotage en Go : CLI avec complétion + GUI web locale
 ├── modules/
@@ -52,7 +58,7 @@ labctl tient en quelques familles. Au quotidien, **`labctl <module> …`** suffi
 | `labctl <module> …` | piloter **un** module : `up`, `status`, `start`/`stop`, `snapshot`/`restore`, `attach`/`detach`, `destroy`… | **le plus courant** |
 | `labctl module …` | les modules **en général** : `list`, `validate` (tous), `show <m>`, `edit <m>` ; `module <m> …` fait la même chose que `labctl <m> …` | déclaratif, transverse |
 | `labctl lab …` | un **groupe de VMs** par étiquette libvirt (sans `module.yaml`) : `up`/`down`/`destroy`/`status`/`snapshot`/`revert` — surtout pour des VMs faites à la main (`vm create -l LAB`) | brut (libvirt) |
-| `labctl vm …` | **une** VM : `create`, `destroy`, `ip`, `ssh`, `snapshot` | plus bas niveau |
+| `labctl vm …` | **une** VM : `list`, `create`, `destroy`, `ip`, `ssh`, `snapshot`, `keyboard` | plus bas niveau |
 | `labctl core …` / `labctl pki …` | la passerelle (Internet, DHCP, DNS, liens) / la PKI (CA, certificats) | infrastructure |
 
 En clair :
@@ -109,7 +115,7 @@ Un module est un dossier `modules/<nom>/` contenant :
 | `files/` | fichiers copiés dans les VMs (configurations, modèles avec variables `${...}`) |
 | `README.md` | exercices, notes |
 
-Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|attach|detach|destroy`
+Le moteur de labctl construit le module : `labctl <m> check|up|status|start|stop|snapshot|restore|certs|keyboard|ssh|attach|detach|destroy|show|validate`
 (aussi sous `labctl module <m> …` ; voir *Repères de commandes* plus haut). Aucune ligne de code propre à un module.
 La passerelle `core` n'est pas un module : elle est intégrée à labctl (`labctl core …`, voir [docs/core.md](docs/core.md)).
 

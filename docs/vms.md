@@ -35,7 +35,7 @@ Chaque commande a son aide : `labctl <commande> --help`.
 
 - **Stockage** : images de base dans `~/Virtualisation/kvm/images`, une VM = un dossier
   `~/Virtualisation/kvm/vms/<nom>/` (disque qcow2 lié à l'image de base, ISO cloud-init, fichiers générés).
-- **Accès** : utilisateur `lab`, sudo sans mot de passe, ta clé `~/.ssh/id_ed25519.pub`.
+- **Accès** : utilisateur `lab`, sudo sans mot de passe, la clé désignée par `LABS_SSH_PUBKEY` (celle du lab, `$LABS_ROOT/.ssh/`, après `labctl init`).
   Mot de passe `lab` utilisable seulement sur la console (`virsh console <vm>`), SSH par mot de passe désactivé.
 - **Labs** : `vm create -l <lab>` étiquette la VM dans sa description libvirt (`managed-by=labs-scripts lab=<lab>`).
   `vm destroy` refuse de supprimer une VM sans cette étiquette (sauf `--force`) : les VMs existantes sont protégées.

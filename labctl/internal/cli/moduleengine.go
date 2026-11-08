@@ -85,8 +85,8 @@ sont signalés, et appliqués avec --apply-changes (vCPU et mémoire ; arrêt pu
 	stop.Flags().BoolVar(&force, "force", false, "coupe une VM qui ne s'arrête pas en 90 s")
 
 	restore := &cobra.Command{
-		Use: "restore VM [SNAPSHOT]", Short: "Revient à un snapshot (défaut : celui de snapshot:)",
-		Args: cobra.RangeArgs(1, 2),
+		Use: "restore [VM [SNAPSHOT]]", Short: "Revient à un snapshot (défaut : celui de snapshot: ; sans VM : toutes, chacune au sien)",
+		Args: cobra.RangeArgs(0, 2),
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, s string) ([]string, cobra.ShellCompDirective) {
 			if len(args) == 1 {
 				return l.SnapshotsOf(name + "-" + args[0]), cobra.ShellCompDirectiveNoFileComp
@@ -94,6 +94,9 @@ sont signalés, et appliqués avec --apply-changes (vCPU et mémoire ; arrêt pu
 			return oneVM(cmd, args, s)
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return l.ModuleRestoreAll(name, os.Stdout)
+			}
 			snap := ""
 			if len(args) == 2 {
 				snap = args[1]
@@ -120,6 +123,9 @@ les VMs démarrées s'ils diffèrent de ceux en place, et lance leur commande re
 		Use: "snapshot VM [NOM]", Short: "Snapshot d'une VM (défaut : le nom de snapshot:, sinon clean)",
 		Args: cobra.RangeArgs(1, 2), ValidArgsFunction: oneVM,
 		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return l.ModuleRestoreAll(name, os.Stdout)
+			}
 			snap := ""
 			if len(args) == 2 {
 				snap = args[1]

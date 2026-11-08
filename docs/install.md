@@ -22,7 +22,8 @@ labctl/build.sh release
 | `labctl.sha256` | somme de contrôle du binaire |
 | `install.sh` | installe le binaire sur le PATH + l'autocomplétion |
 | `labctl_<version>_linux-amd64.tar.gz` | archive prête à installer : binaire, `install.sh`, licence, schéma |
-| `labctl_<version>_amd64.deb` | paquet Debian/Ubuntu : binaire, autocomplétion, doc, schéma (`/usr/share/labctl/`) |
+| `labctl_<version>_amd64.deb` | paquet Debian/Ubuntu : binaire, autocomplétion, doc, schéma (`/usr/share/labctl/`) ; construit seulement si `dpkg-deb` est présent |
+| `LICENSE`, `NOTICE` | licence Apache-2.0 et mentions |
 | `module.schema.json` | schéma de `module.yaml` pour les éditeurs (voir [module-yaml.md](module-yaml.md)) |
 | `modules/<nom>.tar.gz` | une archive par module (état **commité** : ni fichiers non suivis, ni surcharges locales) |
 
@@ -64,7 +65,7 @@ labctl completion bash | sudo tee /usr/share/bash-completion/completions/labctl
 
 ```bash
 labctl check                           # prérequis de l'hôte
-labctl init ~/mon-lab                  # config.env, lab.yaml, modules/ (vide)
+labctl init ~/mon-lab                  # config.env, lab.yaml, .gitignore, module.schema.json, clé SSH (.ssh/), modules/ (vide)
 cd ~/mon-lab
 
 tar -xzf /chemin/modules/pjpt.tar.gz -C modules/   # déposer un module
@@ -82,6 +83,10 @@ injectée dans les VMs et que labctl présente pour s'y connecter, pas ta clé p
 `$LABS_ROOT/.ssh/id_ed25519.pub` : le lab peut être déplacé. Pour garder ta clé personnelle, régler
 `LABS_SSH_PUBKEY` dans `config.local.env`.
 
+Les réglages (stockage, accès aux VMs, gabarit par défaut d'une VM, clavier, PKI) sont listés et commentés dans
+`config.env`. Ordre de priorité : variable d'environnement, puis `config.local.env` (propre au poste, non
+versionné), puis `config.env`.
+
 labctl retrouve le lab s'il est lancé **depuis son dossier** (ou un sous-dossier), ou via
 `LABS_ROOT=/chemin/du/lab`.
 
@@ -95,7 +100,7 @@ labctl core update      # recopie labctl et les fichiers système sur la passere
 ```
 
 La passerelle garde sa propre copie de labctl (elle sert les portails captifs, `via: portal`). Cette copie est
-rafraîchie à chaque démarrage de la passerelle et par `labctl core update` ; tant que ce n'est pas fait, hôte et
+posée par `labctl core gw` et rafraîchie par `labctl core update` (pas au démarrage de la passerelle) ; tant que ce n'est pas fait, hôte et
 passerelle tournent sur deux versions différentes. `labctl check`, `labctl core status` et la page *Passerelle* de
 la GUI le signalent (« labctl de la passerelle en version …, hôte en … »).
 

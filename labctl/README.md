@@ -9,14 +9,14 @@ la passerelle core est intégrée, et il n'y a plus de script bash.
 ```bash
 source ./activate          # depuis Labs/ : (labs) dans l'invite, labctl + complétion disponibles
 labctl status              # état de la passerelle, des modules et des VMs
-labctl pentest restore <TAB>          # kali msf2 web
+labctl pentest restore <TAB>          # msf2 web (sans VM : toutes)
 labctl pentest restore msf2 <TAB>     # clean (snapshots existants)
-labctl core internet on pentest <TAB> # kali msf2 web
+labctl core internet on attacker <TAB> # kali parrot
 labctl pki issue srv -C <TAB>         # pentest (CA dérivées)
 labctl gui                 # ouvre l'interface dans le navigateur
 labctl hostfw status       # pare-feu de l'hôte face aux VMs des modules (on/off : avec sudo)
 labctl vm list             # toutes les VMs : état, lab, IP ; labctl vm ip VM ; labctl vm snapshot ...
-labctl vm create web1 -n default -n lab-demo:10.10.0.11/24 -l demo -w   # labctl vm create --help
+labctl vm create web1 -n default -n demo:10.10.0.11/24 -l demo -w   # labctl vm create --help
 labctl vm ssh web1 ; labctl vm destroy web1
 labctl image list ; labctl image get rocky9
 labctl net list            # réseaux libvirt ; labctl net create|delete
@@ -174,13 +174,14 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 |---|---|
 | `cmd/labctl/` | point d'entrée |
 | `internal/module/` | modules déclaratifs : lecture stricte du `module.yaml`, valeurs effectives, variables, validateur, édition préservant la mise en forme |
-| `internal/lab/` | découverte des modules, lecture des `module.yaml` (et anciens `module.env`) / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
+| `internal/lab/` | découverte des modules, lecture des `module.yaml` / aide, état libvirt, moteur des modules (`moduleup.go` : up et plan ; `modulevm.go`, `modulecerts.go`, `modulelife.go`, `modulestatus.go`), passerelle (`gateway.go` : modules et application ; `gwnet.go`, `gwdhcpdns.go`, `gwlife.go`, `gwproxy.go`), état détaillé de la passerelle (`core.go`), lecture de la PKI (`pki.go`), complétion |
 | `internal/fetch/` | tout ce qui entre depuis Internet ou un éditeur : catalogue des images cloud, téléchargements, empreintes, signatures GPG des éditeurs (clés embarquées dans `keys/`), contrôle de structure des disques ; point de départ d'un audit de la chaîne d'approvisionnement |
 | `internal/virt/` | accès direct à libvirt (go-libvirt, Go pur, sans virsh) : domaines, IP, snapshots, réseaux ; reconnexion automatique ; interface `Hypervisor` (`hypervisor.go`) par laquelle passe tout le reste de labctl (`Lab.Hypervisor()`) |
 | `internal/virt/virtfake/` | faux libvirt en mémoire pour les tests du moteur (`internal/lab/engine_test.go` : up, plan, start/stop, snapshots, destroy, status) |
 | `internal/coreconf/` | génération de la configuration de la passerelle (fonctions pures, testées sans VM) |
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
-| `internal/cli/` | commandes cobra (une par module, `pki`, `status`, `gui`, `completion`) |
+| `internal/cli/` | commandes cobra : une par module (moteur), `module`, `lab`, `vm`, `net`, `image`, `core`, `pki`, `hostfw`, `init`, `status`, `gui`, `completion`, `version` |
+| `internal/audit/` | journal d'audit des actions (CLI et GUI), JSONL par utilisateur |
 | `internal/gui/` | serveur web local et page `static/` (`index.html`, `app.css`, `js/*.js` chargés dans l'ordre ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
 | `internal/portal/` | service de portail captif, lancé sur la passerelle (`labctl gw-portal serve`) |
 

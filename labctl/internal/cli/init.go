@@ -57,7 +57,7 @@ est demandée dans un terminal (Entrée : ` + lab.DefaultOrg + `, ` + lab.Defaul
 	}
 	c.Flags().BoolVar(&force, "force", false, "continue même si le dossier contient déjà un lab (n'écrase jamais un fichier existant)")
 	c.Flags().StringVar(&id.org, "org", lab.DefaultOrg, "organisation du lab : nom des CA (« <org> Root CA »), propriétaire des VMs Windows")
-	c.Flags().StringVar(&id.domain, "domain", lab.DefaultDomain, "domaine racine des labs (sous-domaines par module : <module>.<domaine>)")
+	c.Flags().StringVar(&id.domain, "domain", lab.DefaultDomain, "domaine racine des labs (domaine d'un module par défaut : <module>-lab.<domaine>)")
 	return c
 }
 
@@ -218,7 +218,7 @@ func runInit(out io.Writer, in io.Reader, dir string, force bool, id identity) e
 
 	fmt.Fprintf(out, "\nLab prêt dans %s\n", abs)
 	if newConfig {
-		fmt.Fprintf(out, "Identité : organisation « %s », domaine %s (CA « %s Root CA », modules en <module>.%s)\n", id.org, id.domain, id.org, id.domain)
+		fmt.Fprintf(out, "Identité : organisation « %s », domaine %s (CA « %s Root CA », modules en <module>-lab.%s)\n", id.org, id.domain, id.org, id.domain)
 	}
 	fmt.Fprintf(out, "Prochaines étapes :\n")
 	fmt.Fprintf(out, "  cd %s\n", dir)

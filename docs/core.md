@@ -1,6 +1,6 @@
 # Passerelle core (intégrée à labctl)
 
-Services communs à tous les modules, centralisés sur une petite VM **`core-gw`** (Debian 13, 512 Mo) :
+Services communs à tous les modules, centralisés sur une petite VM **`core-gw`** (Debian 13, 1 Gio) :
 
 - **DHCP** de tous les modules, avec IP fixes par adresse MAC ;
 - **DNS** : noms des VMs, alias, noms Internet seulement pour les VMs autorisées ;
@@ -28,9 +28,9 @@ Services communs à tous les modules, centralisés sur une petite VM **`core-gw`
 labctl core gw                       # crée la passerelle et la branche sur chaque module existant
 labctl core status                   # cartes, services, état Internet, liens
 
-labctl core internet on pentest              # ouvre tout le module
-labctl core internet on pentest kali web     # ou seulement ces VMs
-labctl core internet off pentest [VM...]     # referme
+labctl core internet on netlab               # ouvre tout le module (refusé pour un module vulnérable : pentest, pjpt)
+labctl core internet on attacker kali        # ou seulement ces VMs
+labctl core internet off netlab [VM...]      # referme
 labctl core internet status
 
 labctl core link pentest autre               # pentest peut joindre et résoudre « autre »
@@ -39,7 +39,7 @@ labctl core unlink pentest autre [--both]
 labctl core links
 # accès restreints (ports, VMs précises, Internet) : section connections: du module.yaml (docs/module-yaml.md)
 
-labctl core dhcp list [MODULE]               # réservations (IP fixes)
+labctl core dhcp list [MODULE...]            # réservations (IP fixes)
 labctl core dhcp leases [MODULE]             # baux en cours
 labctl core dhcp add pentest dc01 40 52:54:00:aa:bb:cc   # 10.66.66.40 + dc01.<domaine>
 labctl core dhcp del pentest dc01
@@ -51,7 +51,7 @@ labctl core dns alias del pentest dvwa
 
 labctl core apply                    # régénère tout (réseau, DHCP, DNS, pare-feu) sur la passerelle
 labctl core update                   # pousse une nouvelle version des fichiers système, puis apply
-labctl core attach|detach MODULE     # (fait automatiquement par « <module> network » / « destroy »)
+labctl core attach|detach MODULE     # (fait automatiquement par « <module> up » / « destroy »)
 labctl core start|stop|ssh|destroy
 ```
 
@@ -85,7 +85,7 @@ Vérifiées par des tests depuis des VMs de deux modules :
 | Suppression d'une VM (`labctl vm destroy`, `<module> destroy`) | Son bail est libéré : IP disponible, nom DNS retiré tout de suite |
 | `core apply` | Les baux des réseaux qui ne sont plus branchés sont purgés |
 | Module `vulnerable: true` | `core internet on` refusé (module et VMs) ; ses connexions et liens sortants ne sont jamais générés, même ajoutés à la main ; Internet seulement le temps de l'installation d'une VM `internet: install` (tests automatisés) |
-| Module à l'identifiant douteux | Un nom de module, de VM ou d'alias, une MAC, un domaine ou une cible de connexion qui pourrait casser la configuration (saut de ligne, accolade, guillemet, `/`…) : le module est **écarté** de la passerelle avec un message (`core apply`, `core-config`), même s'il n'a jamais été validé ni lancé. Les autres modules restent servis (tests automatisés) |
+| Module à l'identifiant douteux | Un nom de module, de VM ou d'alias, une MAC, un domaine ou une cible de connexion qui pourrait casser la configuration (saut de ligne, accolade, guillemet, `/`…) : le module est **écarté** de la passerelle avec un message (`core apply`, `core config`), même s'il n'a jamais été validé ni lancé. Les autres modules restent servis (tests automatisés) |
 
 Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est immédiat et non un délai d'attente.
 
@@ -94,11 +94,13 @@ Les refus sont explicites (ICMP *administratively prohibited*) : l'échec est im
 
 ## DNS
 
-- Le domaine d'un module est `network.domain` dans son `module.yaml` (défaut `<réseau>.omelab.internal`). Il peut avoir
-  plusieurs niveaux (`k8s.client-a.omelab.internal`). En changer après coup impose de recréer la CA dérivée du module.
+- Le domaine d'un module vient de son `module.yaml` : `network.domain` (complet), ou `network.subdomain`
+  (`<sous-domaine>.<racine>`), sinon `<réseau>.<racine>` ; la racine est `LABS_PKI_DOMAIN` (`omelab.internal`
+  par défaut, choisie à `labctl init`). Il peut avoir plusieurs niveaux (`k8s.client-a.omelab.internal`), et doit
+  rester sous la racine ou sous un suffixe privé (`.internal`, `.local`…) : jamais un domaine d'Internet. En changer après coup impose de recréer la CA dérivée du module.
 - Le DHCP fournit le domaine de recherche : `kali`, `dvwa`… marchent aussi en nom court.
 - Les VMs en DHCP libre (plage `.100`–`.199`) sont aussi résolues, sous le nom qu'elles annoncent.
-- Les domaines des modules non liés et tout `omelab.internal` répondent NXDOMAIN, sans jamais être relayés vers Internet.
+- Les domaines des modules non liés et tout le domaine racine du lab répondent NXDOMAIN, sans jamais être relayés vers Internet.
 
 ## Fonctionnement interne
 
@@ -117,7 +119,8 @@ Ces fichiers sont embarqués dans l'exécutable. Pour en mettre un au point sans
 dans `core/files/<nom>` à la racine de `Labs/` : elle remplace celle de labctl. Puis `labctl core update`
 l'installe sur la passerelle.
 
-`labctl core apply` génère sur l'hôte la configuration, depuis le `module.yaml` de chaque module branché, puis
+`labctl core apply` génère sur l'hôte la configuration, depuis le `module.yaml` de chaque module branché et le
+câblage et les connexions locaux de ce poste (`network.local.yaml`, à la racine), puis
 l'envoie sur la passerelle (`labctl core config` l'affiche sans rien appliquer, `--diff` : seulement ce qui change) :
 
 - l'adresse `.254` de la passerelle sur chaque réseau (`/etc/systemd/network/50-gw-<module>.network`) ;

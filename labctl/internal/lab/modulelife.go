@@ -148,6 +148,30 @@ func (l *Lab) ModuleRestore(name, vm, snap string, out io.Writer) error {
 	return nil
 }
 
+// ModuleRestoreAll ramène chaque VM du module à son snapshot de référence (snapshot:), dans l'ordre du
+// module.yaml : un ensemble de VMs qui dépendent les unes des autres (domaine AD…) revient à un état cohérent. Une
+// VM sans snapshot déclaré, ou pas encore créée, est laissée telle quelle (signalé).
+func (l *Lab) ModuleRestoreAll(name string, out io.Writer) error {
+	r, err := l.loadRun(name, out)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, vm := range r.y.VMNames() {
+		switch {
+		case l.DomState(r.libvirtName(vm)) == virt.StateAbsent:
+			r.logf("attention: %s n'existe pas : ignorée", vm)
+		case r.eff(vm).Snapshot == "":
+			r.logf("attention: %s n'a pas de snapshot déclaré (snapshot:) : ignorée", vm)
+		default:
+			if err := l.ModuleRestore(name, vm, "", out); err != nil {
+				errs = append(errs, fmt.Errorf("%s : %w", vm, err))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // ModuleSnapshot prend un snapshot d'une VM (replace : remplace un snapshot du même nom).
 func (l *Lab) ModuleSnapshot(name, vm, snap string, replace bool, out io.Writer) error {
 	r, err := l.loadRun(name, out)

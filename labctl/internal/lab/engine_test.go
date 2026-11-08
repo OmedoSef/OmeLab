@@ -357,3 +357,38 @@ func TestModuleStatus(t *testing.T) {
 		t.Errorf("cli : %+v", c)
 	}
 }
+
+// restore sans VM : chaque VM revient à son propre snapshot de référence ; une VM sans snapshot déclaré est ignorée.
+func TestRestoreAll(t *testing.T) {
+	l, f := engineLab(t, map[string]string{"web": "module: web\nnetwork: {subnet: 10.90.90.0/24}\nvms:\n  a: {ip: 10, snapshot: base}\n  b: {ip: 11, snapshot: propre}\n  c: {ip: 12}\n"})
+	isolatedNet(f, netName(t, l, "web"), "10.90.90", true)
+	var names []string
+	for vm, snap := range map[string]string{"a": "base", "b": "propre", "c": ""} {
+		d := vmOf(t, l, f, "web", vm, "shut off")
+		names = append(names, d.Name)
+		if snap != "" {
+			if err := f.CreateSnapshot(d.Name, snap, ""); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := l.ModuleStart("web", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := l.ModuleRestoreAll("web", &out); err != nil {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+	for _, n := range names {
+		want := "shut off" // état au moment du snapshot
+		if n == "web-c" {
+			want = virt.StateRunning // pas de snapshot déclaré : laissée telle quelle
+		}
+		if st := f.VM(n).State; st != want {
+			t.Errorf("%s : %s, attendu %s", n, st, want)
+		}
+	}
+	if !strings.Contains(out.String(), "c n'a pas de snapshot déclaré") {
+		t.Errorf("VM sans snapshot non signalée :\n%s", out.String())
+	}
+}
