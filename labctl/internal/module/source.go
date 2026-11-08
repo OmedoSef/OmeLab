@@ -44,7 +44,7 @@ func SourcePath(dir, src string) (string, error) {
 
 // microsoftHosts : domaines dont labctl ne télécharge jamais rien (ISO Windows : téléchargement soumis à
 // inscription et à conditions, à faire soi-même ; l'ISO est donné en chemin local dans windows: iso).
-var microsoftHosts = []string{"microsoft.com", "windows.com", "windowsupdate.com", "msft.net", "live.com"}
+var microsoftHosts = []string{"microsoft.com", "windows.com", "windowsupdate.com", "msft.net", "live.com", "aka.ms", "msecnd.net"}
 
 // ForbiddenSource refuse ce que labctl ne télécharge jamais pour un disque fourni (source:) : rien depuis
 // Microsoft, et aucun ISO (un ISO n'est pas un disque de VM ; l'installation de Windows passe par windows: iso,
@@ -84,7 +84,7 @@ func ForbiddenURL(raw string) error {
 // MicrosoftHost refuse un hôte de Microsoft. Vérifié aussi à chaque redirection de tout téléchargement de labctl
 // (paquet fetch) : une adresse tierce ne peut pas renvoyer vers Microsoft.
 func MicrosoftHost(host string) error {
-	host = strings.ToLower(host)
+	host = strings.TrimRight(strings.ToLower(host), ".") // « microsoft.com. » est le même hôte (nom absolu)
 	for _, h := range microsoftHosts {
 		if host == h || strings.HasSuffix(host, "."+h) {
 			return fmt.Errorf("labctl ne télécharge jamais rien depuis Microsoft (%s) : pour Windows, windows: iso avec un ISO local", host)

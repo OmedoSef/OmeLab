@@ -28,7 +28,7 @@ import (
 
 // client : pas de délai global (téléchargements de plusieurs Gio), mais des délais de connexion et d'attente de la
 // réponse. Chaque redirection est contrôlée : https seulement (l'empreinte attendue ne doit pas pouvoir être
-// réécrite en chemin), et jamais vers Microsoft.
+// réécrite en chemin), jamais vers Microsoft, jamais vers un ISO.
 var client = &http.Client{Transport: transport(), CheckRedirect: checkRedirect}
 
 func transport() *http.Transport {
@@ -46,7 +46,15 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	case req.URL.Scheme != "https":
 		return fmt.Errorf("redirection refusée vers %s : https attendu", req.URL.Redacted())
 	}
-	return module.MicrosoftHost(req.URL.Hostname())
+	if err := module.MicrosoftHost(req.URL.Hostname()); err != nil {
+		return err
+	}
+	// Une adresse qui n'était pas un ISO ne peut pas mener à un ISO (seuls les ISO voulus et à empreinte figée,
+	// comme les pilotes virtio-win, sont téléchargés tels quels)
+	if module.ForbiddenName(via[0].URL.Path) == nil {
+		return module.ForbiddenName(req.URL.Path)
+	}
+	return nil
 }
 
 // Small télécharge un petit fichier (empreintes, signature : 4 Mo au plus) en mémoire.

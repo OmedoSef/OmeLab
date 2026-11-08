@@ -101,7 +101,7 @@ func TestForbiddenNameAndHost(t *testing.T) {
 	if ForbiddenName("Win11_x64.ISO") == nil || ForbiddenName("disk.qcow2") != nil {
 		t.Error("ForbiddenName")
 	}
-	if MicrosoftHost("download.MICROSOFT.com") == nil || MicrosoftHost("cdimage.debian.org") != nil {
+	if MicrosoftHost("download.MICROSOFT.com") == nil || MicrosoftHost("download.microsoft.com.") == nil || MicrosoftHost("cdimage.debian.org") != nil {
 		t.Error("MicrosoftHost")
 	}
 }
