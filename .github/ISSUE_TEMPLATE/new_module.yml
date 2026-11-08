@@ -1,0 +1,68 @@
+name: Nouveau module
+description: Proposer un lab prêt à l'emploi (un dossier modules/<nom>/ avec son module.yaml)
+title: "[Module] "
+labels: ["module"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Un module est un lab complet décrit par un module.yaml : réseau isolé, VMs, CA, connexions. Voir
+        docs/module-yaml.md et l'exemple modules/sample. Les cibles volontairement vulnérables sont les
+        bienvenues, déclarées `vulnerable: true` : labctl garantit alors qu'elles ne sont jamais joignables
+        depuis le LAN ni Internet.
+
+  - type: input
+    id: name
+    attributes:
+      label: Nom proposé
+      description: 9 caractères au plus, minuscules, chiffres et tirets.
+      placeholder: "adlab"
+    validations:
+      required: true
+
+  - type: textarea
+    id: purpose
+    attributes:
+      label: À quoi sert ce lab
+      description: L'exercice, la formation ou la certification visée, et ce qu'on y apprend.
+    validations:
+      required: true
+
+  - type: textarea
+    id: vms
+    attributes:
+      label: Les VMs
+      description: >-
+        Pour chacune : système, rôle (cible, attaquant, serveur…), d'où vient son disque (image du catalogue,
+        disque d'éditeur avec son empreinte, ISO Windows fourni par l'utilisateur).
+    validations:
+      required: true
+
+  - type: dropdown
+    id: vulnerable
+    attributes:
+      label: Contient des cibles volontairement vulnérables ?
+      options:
+        - Oui (vulnerable: true)
+        - Non
+    validations:
+      required: true
+
+  - type: textarea
+    id: draft
+    attributes:
+      label: Brouillon du module.yaml
+      description: Facultatif. `labctl module validate` doit passer sans erreur.
+      render: yaml
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Avant d'envoyer
+      options:
+        - label: Tous les téléchargements ont une empreinte publiée par l'éditeur (jamais d'ISO Microsoft téléchargé)
+          required: true
+        - label: J'ai cherché dans les issues existantes, ce lab n'a pas déjà été proposé
+          required: true

@@ -1,0 +1,68 @@
+name: Demande d'évolution
+description: Proposer une commande, une capacité de la passerelle, de la GUI ou du format de module qui manque
+title: "[Évolution] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Certaines choses sont volontairement hors du périmètre — un autre hyperviseur que libvirt/KVM,
+        télécharger des ISO Microsoft — et d'autres sont peut-être déjà prévues. Ni l'un ni l'autre n'empêche de
+        demander : savoir que quelqu'un en a besoin, c'est ce qui fait avancer une demande. Pour proposer un lab
+        complet, utiliser plutôt le formulaire « Nouveau module ».
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Domaine
+      options:
+        - Format du module.yaml
+        - Moteur des modules (up, snapshots, destroy…)
+        - Passerelle core-gw (DHCP, DNS, Internet, liens)
+        - Connexions, portail captif, proxy
+        - PKI et certificats
+        - VMs Windows
+        - Images et téléchargements
+        - Interface graphique
+        - Ligne de commande, installation, distribution
+        - Ailleurs
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Qu'est-ce que tu essaies de faire ?
+      description: >-
+        Le lab ou l'exercice, plutôt que la fonctionnalité. Ce qu'on cherche à monter se résout souvent d'une
+        façon que personne n'avait pensé à demander.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Ce que tu as en tête
+      description: >-
+        Facultatif. Si tu sais à peu près à quoi ça devrait ressembler (une clé du module.yaml, une commande),
+        dis-le ; sinon, le besoin ci-dessus est ce qui compte.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Comment tu fais aujourd'hui
+      description: >-
+        Facultatif, et plus utile qu'il n'y paraît : un contournement simplement pénible n'est pas le même
+        problème qu'une impossibilité.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Avant d'envoyer
+      options:
+        - label: J'ai cherché dans les issues existantes, ce n'a pas déjà été demandé
+          required: true

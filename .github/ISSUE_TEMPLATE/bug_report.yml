@@ -1,0 +1,123 @@
+name: Bug
+description: Quelque chose que labctl fait alors qu'il ne devrait pas, ou ne fait pas alors qu'il devrait
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Merci de prendre le temps. Les champs ci-dessous sont ceux qui décident en général si un problème peut
+        être reproduit — et un problème reproduit est presque résolu. **Avant de coller une sortie ou un
+        module.yaml, retirer les secrets** : mots de passe (vars:, portail), contenu de pki/, adresses de ton
+        réseau si elles te gênent.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version de labctl
+      description: Sortie de `labctl version`.
+      placeholder: "labctl v1.0.0 (linux/amd64)"
+    validations:
+      required: true
+
+  - type: input
+    id: host
+    attributes:
+      label: Hôte et installation
+      description: >-
+        Distribution, et comment labctl a été installé : paquet .deb, archive, ou compilé depuis les sources.
+      placeholder: "Ubuntu 24.04, paquet .deb"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Où ça se passe
+      options:
+        - Un module (module.yaml, up, start/stop, snapshots, destroy)
+        - Validation d'un module.yaml
+        - La passerelle core-gw (DHCP, DNS, Internet, liens entre modules)
+        - Connexions restreintes, portail captif ou proxy
+        - PKI et certificats
+        - VMs Windows (installation depuis un ISO)
+        - Images, disques éditeurs et téléchargements
+        - Branchements entre modules (attach) ou réseau local (network.local.yaml)
+        - L'interface graphique (labctl gui)
+        - Installation, labctl init, labctl clear
+        - Ailleurs / je ne sais pas
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Ce qui s'est passé
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ce qui était attendu
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      description: >-
+        Depuis un lab neuf si possible (`labctl init`). Si le problème tient à un module précis, joindre son
+        module.yaml (champ suivant) est le plus rapide.
+      placeholder: |
+        1. labctl core gw
+        2. labctl sample up
+        3. ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: module
+    attributes:
+      label: Le module.yaml concerné
+      description: Si le problème touche un module. Secrets retirés.
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: state
+    attributes:
+      label: État du lab
+      description: >-
+        Sorties de `labctl check` et de `labctl status` (ou `labctl <module> status`) : elles disent ce que
+        labctl voit de l'hôte, de libvirt et de la passerelle — souvent toute la réponse.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sortie de la commande en erreur
+      description: >-
+        Relancée avec `-v` si possible (affiche les commandes lancées). Mise en forme en bloc shell, pas besoin
+        de backticks.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Avant d'envoyer
+      options:
+        - label: J'ai cherché dans les issues existantes, ce n'est pas l'une d'elles
+          required: true
+        - label: >-
+            Ce n'est pas une faille de sécurité — celles-ci passent par le signalement privé, pas par une issue
+            publique
+          required: true
+        - label: J'ai retiré les secrets (mots de passe, contenu de pki/) de ce que j'ai collé
+          required: true

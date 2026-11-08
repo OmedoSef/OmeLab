@@ -1,0 +1,14 @@
+# Pas d'issue libre : les formulaires demandent ce qui permet de reproduire un problème.
+blank_issues_enabled: false
+contact_links:
+  - name: Signaler une faille de sécurité dans labctl
+    url: https://github.com/OmedoSef/OmeLab/security/advisories/new
+    about: >-
+      Jamais en issue publique : passer par le signalement privé. Les cibles des modules (Metasploitable,
+      DVWA, AD pjpt…) sont vulnérables exprès : ce n'est pas une faille, sauf si elles deviennent joignables
+      depuis le LAN ou Internet.
+  - name: Poser une question ou proposer une idée
+    url: https://github.com/OmedoSef/OmeLab/discussions
+    about: >-
+      Pour ce qui n'est pas encore un bug ni une demande précise. Une issue est une chose à faire ; une
+      question n'en est pas une.
