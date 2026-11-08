@@ -72,7 +72,7 @@ func requireRoot(args string) error {
 		self = "labctl"
 	}
 	return fmt.Errorf("droits insuffisants : cette commande modifie le pare-feu de l'hôte et doit être lancée en root.\n"+
-		"Relancer avec sudo (chemin complet : sudo ne garde pas le PATH de « source ./activate ») :\n\n  sudo %s %s\n", self, args)
+		"Relancer avec sudo (chemin complet : sudo ne garde pas le PATH de « source ./activate ») :\n\n  sudo %s %s", self, args)
 }
 
 func run(name string, args ...string) error {

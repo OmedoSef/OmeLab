@@ -100,7 +100,7 @@ func TestClearAll(t *testing.T) {
 // Sans option, PKI et téléchargements restent ; si une VM de module ne peut pas être supprimée (pas créée par
 // labctl), ils restent aussi, même demandés : des VMs restantes peuvent en dépendre.
 func TestClearKeepsPKIAndImages(t *testing.T) {
-	l, f, images := clearLab(t)
+	l, _, images := clearLab(t)
 	p, _ := l.PlanClear(ClearOptions{})
 	if err := l.Clear(p, &bytes.Buffer{}); err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestClearKeepsPKIAndImages(t *testing.T) {
 		t.Fatal("PKI ou images supprimées sans --pki / --images")
 	}
 
-	l, f, images = clearLab(t)
+	l, f, images := clearLab(t)
 	d := f.VM("web-srv")
 	d.Desc = "faite à la main"
 	f.AddVM(*d)
