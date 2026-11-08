@@ -50,7 +50,7 @@ var (
 var ReservedNames = []string{
 	"list", "validate", "show", "edit", "schema", // labctl module …
 	"core", "core-config", "module", "vm", "net", "image", "pki", "status", "check", "lab", "init", "version",
-	"gui", "gw-portal", "hostfw", "completion", "help",
+	"gui", "gw-portal", "hostfw", "completion", "help", "clear",
 }
 
 type checker struct {

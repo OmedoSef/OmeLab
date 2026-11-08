@@ -90,6 +90,15 @@ versionné), puis `config.env`.
 labctl retrouve le lab s'il est lancé **depuis son dossier** (ou un sous-dossier), ou via
 `LABS_ROOT=/chemin/du/lab`.
 
+## Repartir de zéro
+
+`labctl clear` vide le lab : VMs, disques et réseaux de tous les modules, puis la passerelle, après une seule
+confirmation qui détaille ce qui sera supprimé. `--pki` supprime aussi la PKI (CA et certificats ; si `labctl pki
+trust-host` avait été fait, retirer l'ancienne racine des autorités du poste), `--images` ce que labctl a téléchargé
+(images du catalogue, disques éditeurs convertis, cache). Restent les `module.yaml`, `config.env`, `lab.yaml`, les
+fichiers `*.local.*`, les VMs faites à la main et les fichiers déposés à la main (ISO Windows). `labctl <module> up`
+reconstruit ensuite chaque module.
+
 ## 4. Mettre à jour labctl
 
 Installer la nouvelle version comme la première (`./install.sh`, ou `sudo apt install ./labctl_<version>_amd64.deb`),

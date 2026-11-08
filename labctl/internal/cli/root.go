@@ -114,7 +114,7 @@ func newRoot() *cobra.Command {
 			root.AddCommand(engineCmd(l, m.Name, "modules"))
 		}
 	}
-	root.AddCommand(checkCmd(l), labCmd(l), modulesCmd(l), vmCmd(l), netCmd(l), imageCmd(l), pkiCmd(l), coreCmd(l), coreConfigCmd(l, "core-config", true), hostfwCmd(), statusCmd(l), guiCmd(l, &verbose), completionCmd())
+	root.AddCommand(checkCmd(l), labCmd(l), modulesCmd(l), vmCmd(l), netCmd(l), imageCmd(l), pkiCmd(l), coreCmd(l), coreConfigCmd(l, "core-config", true), hostfwCmd(), statusCmd(l), clearCmd(l), guiCmd(l, &verbose), completionCmd())
 	return root
 }
 
