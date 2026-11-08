@@ -43,8 +43,8 @@ body:
     attributes:
       label: Contient des cibles volontairement vulnérables ?
       options:
-        - Oui (vulnerable: true)
-        - Non
+        - "Oui (vulnerable: true)"
+        - "Non"
     validations:
       required: true
 
