@@ -3,7 +3,6 @@ package lab
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -292,7 +291,7 @@ func (r *run) waitSSH(vm string, timeout int) bool {
 	target := r.l.VMUser() + "@" + r.vmIP(vm)
 	for t := 0; t < timeout; t += 3 {
 		// « exit 0 » : compris par sh (Linux) comme par PowerShell (Windows)
-		if exec.Command("ssh", r.l.sshArgs(target, "exit 0")...).Run() == nil {
+		if _, _, err := r.l.shell(target, "exit 0", nil); err == nil {
 			return true
 		}
 		time.Sleep(3 * time.Second)

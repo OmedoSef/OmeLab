@@ -91,45 +91,36 @@ func expiry(c *x509.Certificate) string {
 
 // ---------------------------------------------------------------- VMs et hôte
 
-// Remote donne accès aux VMs par SSH (adresse IP résolue par l'appelant).
+// Remote donne accès aux VMs par SSH : adresse IP résolue et exécution fournies par l'appelant (lab.Lab.Remote, qui
+// passe par son exécution SSH unique ; un faux dans les tests).
 type Remote struct {
-	IP      func(vm string) (string, error)
-	User    string
-	SSHOpts []string
+	IP   func(vm string) (string, error)
+	User string
+	Run  func(target, script string, stdin io.Reader) (stdout, stderr []byte, err error)
 }
 
 func (r Remote) ssh(vm, script string, stdin io.Reader) error {
-	ip, err := r.IP(vm)
-	if err != nil {
-		return fmt.Errorf("%s : %w", vm, err)
-	}
-	args := append(append([]string{}, r.SSHOpts...), r.User+"@"+ip, script)
-	cmd := exec.Command("ssh", args...)
-	cmd.Stdin = stdin
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s : %v %s", vm, err, strings.TrimSpace(stderr.String()))
-	}
-	return nil
+	_, err := r.run(vm, script, stdin)
+	return err
 }
 
-// sshOut exécute un script dans la VM et renvoie sa sortie standard (pour sonder, sans rien modifier).
-func (r Remote) sshOut(vm, script string) ([]byte, error) {
+func (r Remote) run(vm, script string, stdin io.Reader) ([]byte, error) {
+	if r.IP == nil || r.Run == nil {
+		return nil, fmt.Errorf("%s : accès SSH non configuré", vm)
+	}
 	ip, err := r.IP(vm)
 	if err != nil {
 		return nil, fmt.Errorf("%s : %w", vm, err)
 	}
-	args := append(append([]string{}, r.SSHOpts...), r.User+"@"+ip, script)
-	cmd := exec.Command("ssh", args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s : %v %s", vm, err, strings.TrimSpace(stderr.String()))
+	stdout, stderr, err := r.Run(r.User+"@"+ip, script, stdin)
+	if err != nil {
+		return nil, fmt.Errorf("%s : %v %s", vm, err, strings.TrimSpace(string(stderr)))
 	}
-	return stdout.Bytes(), nil
+	return stdout, nil
 }
+
+// sshOut exécute un script dans la VM et renvoie sa sortie standard (pour sonder, sans rien modifier).
+func (r Remote) sshOut(vm, script string) ([]byte, error) { return r.run(vm, script, nil) }
 
 // Script exécuté dans la VM : installe la CA lue sur l'entrée standard (Debian/Ubuntu ou famille RHEL)
 const remoteTrust = `set -e

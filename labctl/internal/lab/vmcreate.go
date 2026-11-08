@@ -216,7 +216,7 @@ func (l *Lab) CreateVM(s vmdef.Spec, o CreateOptions) (err error) {
 	fmt.Fprintf(out, "==> Création de %s (%s)\n", s.Name, what)
 	// Disque lié à l'image de base (un disque fourni garde sa taille d'origine) ; installation : disque vierge
 	if s.Install == nil { // image de base : contrôlée à chaque création (y compris si téléchargée avant ce contrôle)
-		if f, err := fetch.CheckDisk(base); err != nil {
+		if f, err := fetch.CheckDiskUsing(l.tool, base); err != nil {
 			return err
 		} else if f != "qcow2" {
 			return fmt.Errorf("image de base %s : qcow2 attendu, %s trouvé", filepath.Base(base), f)
@@ -229,8 +229,8 @@ func (l *Lab) CreateVM(s vmdef.Spec, o CreateOptions) (err error) {
 	case cloud:
 		args = append(args, fmt.Sprintf("%dG", s.DiskGiB))
 	}
-	if b, err := l.tool("qemu-img", args...); err != nil {
-		return fmt.Errorf("qemu-img : %s", strings.TrimSpace(string(b)))
+	if o, e, err := l.tool("qemu-img", args...); err != nil {
+		return fmt.Errorf("qemu-img : %s", strings.TrimSpace(string(e)+string(o)))
 	}
 	if cloud {
 		for name, content := range map[string]string{"user-data": ci.UserData, "network-config": ci.NetworkConfig, "meta-data": ci.MetaData} {
@@ -238,9 +238,9 @@ func (l *Lab) CreateVM(s vmdef.Spec, o CreateOptions) (err error) {
 				return err
 			}
 		}
-		if b, err := l.tool("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
+		if o, e, err := l.tool("cloud-localds", "-N", filepath.Join(dir, "network-config"), seed,
 			filepath.Join(dir, "user-data"), filepath.Join(dir, "meta-data")); err != nil {
-			return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(b)))
+			return fmt.Errorf("cloud-localds : %s", strings.TrimSpace(string(e)+string(o)))
 		}
 	}
 	if err := v.DefineDomain(domXML); err != nil {

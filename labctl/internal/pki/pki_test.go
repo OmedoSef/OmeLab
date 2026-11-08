@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"software.sslmate.com/src/go-pkcs12"
+
+	"labs/labctl/internal/testtool"
 )
 
 // newTestPKI crée une PKI initialisée dans un dossier temporaire (clés courtes pour aller vite).
@@ -200,9 +202,7 @@ func TestIssuePFX(t *testing.T) {
 
 // TestOpenSSLInterop vérifie la compatibilité avec openssl dans les deux sens (ignoré sans openssl).
 func TestOpenSSLInterop(t *testing.T) {
-	if _, err := exec.LookPath("openssl"); err != nil {
-		t.Skip("openssl absent")
-	}
+	testtool.Need(t, "openssl")
 	openssl := func(args ...string) string {
 		t.Helper()
 		out, err := exec.Command("openssl", args...).CombinedOutput()

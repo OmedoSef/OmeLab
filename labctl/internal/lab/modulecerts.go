@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -115,9 +114,8 @@ func (r *run) installCerts(vm string, renew bool) error {
 	}
 	target := r.l.VMUser() + "@" + ip
 	ssh := func(script string, stdin io.Reader) ([]byte, error) {
-		cmd := exec.Command("ssh", r.l.sshArgs(target, script)...)
-		cmd.Stdin = stdin
-		return cmd.CombinedOutput()
+		stdout, stderr, err := r.l.shell(target, script, stdin)
+		return append(stdout, stderr...), err
 	}
 	vars := module.VarContext{Module: r.y, VM: vm, Root: r.l.pkiDomain(), Keyboard: r.l.Keyboard(), LabVars: r.l.LabVars()}
 	for _, c := range e.VM.Certificates {

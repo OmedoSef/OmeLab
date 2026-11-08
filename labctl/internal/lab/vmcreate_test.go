@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,16 +15,24 @@ import (
 	"labs/labctl/internal/vmdef"
 )
 
-// fakeTools remplace qemu-img et cloud-localds (Lab.Tool) : note chaque appel et crée le fichier produit.
+// fakeTools remplace qemu-img et cloud-localds (Lab.Tool) : note chaque appel (sauf qemu-img info, qui décrit les
+// images : info[chemin], qcow2 sain par défaut) et crée le fichier produit.
 type fakeTools struct {
 	calls [][]string
-	fail  string // outil qui échoue
+	fail  string            // outil qui échoue
+	info  map[string]string // sortie de qemu-img info --output=json par image
 }
 
-func (f *fakeTools) run(name string, args ...string) ([]byte, error) {
+func (f *fakeTools) run(name string, args ...string) ([]byte, []byte, error) {
+	if name == "qemu-img" && len(args) > 0 && args[0] == "info" {
+		if j, ok := f.info[args[len(args)-1]]; ok {
+			return []byte(j), nil, nil
+		}
+		return []byte(`{"format":"qcow2"}`), nil, nil
+	}
 	f.calls = append(f.calls, append([]string{name}, args...))
 	if name == f.fail {
-		return []byte(name + " : panne simulée"), errors.New("exit status 1")
+		return nil, []byte(name + " : panne simulée"), errors.New("exit status 1")
 	}
 	var out string
 	switch name {
@@ -41,16 +48,13 @@ func (f *fakeTools) run(name string, args ...string) ([]byte, error) {
 	if out != "" {
 		_ = os.WriteFile(out, nil, 0o644)
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
-// createLab : lab de test avec un réseau NAT, une image de base qcow2 réelle (contrôlée par qemu-img info) et une
-// clé SSH ; outils et SSH remplacés.
+// createLab : lab de test avec un réseau NAT, une image de base et une clé SSH ; hyperviseur, outils et SSH remplacés
+// (aucun outil de l'hôte n'est nécessaire).
 func createLab(t *testing.T) (*Lab, *virtfake.Fake, *fakeTools) {
 	t.Helper()
-	if _, err := exec.LookPath("qemu-img"); err != nil {
-		t.Skip("qemu-img absent (contrôle de l'image de base)")
-	}
 	l, f := engineLab(t, nil)
 	t.Setenv("LABS_IMAGES_DIR", filepath.Join(l.Root, "images"))
 	t.Setenv("LABS_SSH_PUBKEY", filepath.Join(l.Root, "id.pub"))
@@ -61,12 +65,12 @@ func createLab(t *testing.T) (*Lab, *virtfake.Fake, *fakeTools) {
 	if err := os.MkdirAll(l.ImagesDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", l.ImagePath("debian13"), "1M").CombinedOutput(); err != nil {
-		t.Fatalf("qemu-img : %s", b)
+	if err := os.WriteFile(l.ImagePath("debian13"), []byte("QFI\xfb"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	f.AddNetwork(virt.Network{Name: "demo", Forward: "nat", HostIP: "10.10.0.1", Prefix: 24, Active: true})
 	f.IPs = map[string]string{"web1": "10.10.0.11"}
-	tools := &fakeTools{}
+	tools := &fakeTools{info: map[string]string{}}
 	l.Tool = tools.run
 	l.Shell = func(_, script string, _ io.Reader) ([]byte, []byte, error) {
 		if strings.Contains(script, "cloud-init status") {
@@ -150,13 +154,8 @@ func TestCreateVMRefusals(t *testing.T) {
 	if err := l.CreateVM(s, CreateOptions{}); err == nil || !strings.Contains(err.Error(), "réseau libvirt inexistant") {
 		t.Errorf("réseau inconnu : %v", err)
 	}
-	// Image de base qui dépend d'un fichier de l'hôte : refusée avant de créer le disque
-	secret := filepath.Join(l.Root, "secret.raw")
-	_ = os.WriteFile(secret, make([]byte, 1<<20), 0o600)
-	_ = os.Remove(l.ImagePath("debian13"))
-	if b, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", "-F", "raw", "-b", secret, l.ImagePath("debian13")).CombinedOutput(); err != nil {
-		t.Fatalf("qemu-img : %s", b)
-	}
+	// Image de base qui dépend d'un fichier de l'hôte (backing file) : refusée avant de créer le disque
+	tools.info[l.ImagePath("debian13")] = `{"format":"qcow2","backing-filename":"/home/u/.ssh/id_ed25519"}`
 	s.Name, s.Nets[0].Network = "web3", "demo"
 	if err := l.CreateVM(s, CreateOptions{}); err == nil || !strings.Contains(err.Error(), "refusée") {
 		t.Errorf("image de base piégée : %v", err)

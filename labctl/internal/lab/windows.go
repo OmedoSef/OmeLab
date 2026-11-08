@@ -440,10 +440,7 @@ func (r *run) winSSH(target, script string) error {
 	for i, c := range u {
 		b[2*i], b[2*i+1] = byte(c), byte(c>>8)
 	}
-	cmd := exec.Command("ssh", r.l.sshArgs(target,
-		"powershell -NoProfile -NonInteractive -EncodedCommand "+base64.StdEncoding.EncodeToString(b))...)
-	cmd.Stdout, cmd.Stderr = r.out, r.out
-	return cmd.Run()
+	return r.l.shellTo(target, "powershell -NoProfile -NonInteractive -EncodedCommand "+base64.StdEncoding.EncodeToString(b), nil, r.out)
 }
 
 func psQuote(s string) string { return strings.ReplaceAll(s, "'", "''") }

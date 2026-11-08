@@ -1,10 +1,8 @@
 package lab
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"os/exec"
 	"regexp"
 	"strings"
 
@@ -49,17 +47,14 @@ func (l *Lab) VMKeyboard(name, layout string, out io.Writer) error {
 	var result, how string
 	if ip := l.VMIP(name); ip != "" {
 		target := l.VMUser() + "@" + ip
-		args := l.sshArgs(target)
-		if exec.Command("ssh", append(args, "true")...).Run() == nil {
+		if _, _, err := l.shell(target, "true", nil); err == nil {
 			how = "SSH"
-			cmd := exec.Command("ssh", append(args, "sudo sh -s")...)
-			cmd.Stdin = strings.NewReader(script)
-			var b bytes.Buffer
-			cmd.Stdout, cmd.Stderr = &b, &b
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("%s : échec (SSH) : %s", name, strings.TrimSpace(b.String()))
+			stdout, stderr, err := l.shell(target, "sudo sh -s", strings.NewReader(script))
+			b := string(stdout) + string(stderr)
+			if err != nil {
+				return fmt.Errorf("%s : échec (SSH) : %s", name, strings.TrimSpace(b))
 			}
-			result = b.String()
+			result = b
 		}
 	}
 	if how == "" {

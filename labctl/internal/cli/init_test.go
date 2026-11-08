@@ -3,12 +3,12 @@ package cli
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"labs/labctl/internal/lab"
+	"labs/labctl/internal/testtool"
 )
 
 // settings relit l'organisation et le domaine d'un lab créé par runInit, comme labctl le fera ensuite.
@@ -86,9 +86,7 @@ func TestInitKeepsExistingConfig(t *testing.T) {
 // labctl init crée une clé SSH propre au lab, privée, exclue de git, que labctl utilise ensuite — même si le
 // dossier du lab est déplacé ($LABS_ROOT).
 func TestInitCreatesLabSSHKey(t *testing.T) {
-	if _, err := exec.LookPath("ssh-keygen"); err != nil {
-		t.Skip("ssh-keygen absent")
-	}
+	testtool.Need(t, "ssh-keygen")
 	t.Setenv("LABS_SSH_PUBKEY", "")
 	os.Unsetenv("LABS_SSH_PUBKEY")
 	dir := t.TempDir()

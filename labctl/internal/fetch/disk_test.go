@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/testtool"
 )
 
 func TestCheckDiskInfoJSON(t *testing.T) {
@@ -32,9 +34,7 @@ func TestCheckDiskInfoJSON(t *testing.T) {
 // Vraies images piégées, fabriquées avec qemu-img : un fichier « secret » de l'hôte ne doit jamais pouvoir être
 // référencé par une image.
 func TestCheckDiskRealImages(t *testing.T) {
-	if _, err := exec.LookPath("qemu-img"); err != nil {
-		t.Skip("qemu-img absent")
-	}
+	testtool.Need(t, "qemu-img")
 	root := t.TempDir()
 	hostDir, imgDir := filepath.Join(root, "hote"), filepath.Join(root, "images")
 	for _, d := range []string{hostDir, imgDir} {
@@ -77,9 +77,7 @@ func TestCheckDiskRealImages(t *testing.T) {
 // Un VMDK dont un morceau (extent) est un lien symbolique posé à côté de lui — vers un fichier de l'hôte — est
 // refusé, même si le lien est dans le dossier de l'image (seul cas que voyait l'ancien contrôle).
 func TestCheckDiskRefusesSymlinkedExtent(t *testing.T) {
-	if _, err := exec.LookPath("qemu-img"); err != nil {
-		t.Skip("qemu-img absent")
-	}
+	testtool.Need(t, "qemu-img")
 	root := t.TempDir()
 	secret := filepath.Join(root, "secret.raw")
 	if err := os.WriteFile(secret, make([]byte, 1<<20), 0o600); err != nil {

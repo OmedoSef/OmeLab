@@ -18,6 +18,7 @@ import (
 	"sync"
 	"syscall"
 
+	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
 )
@@ -30,11 +31,12 @@ type Lab struct {
 	// (virt/virtfake).
 	Virt virt.Hypervisor
 	// Shell exécute un script sur une machine du lab (utilisateur@IP) par SSH ; nil = ssh, avec les options de
-	// sshArgs. Les tests y mettent un faux. Sert à la passerelle (Gateway.SSH) et à l'attente de cloud-init (CreateVM).
+	// sshArgs. Les tests y mettent un faux. Tout SSH non interactif de labctl vers une VM ou la passerelle passe par
+	// là (shell, shellTo, pki.Remote) ; seuls le shell interactif et le tunnel du proxy lancent ssh eux-mêmes.
 	Shell func(target, script string, stdin io.Reader) (stdout, stderr []byte, err error)
-	// Tool lance un outil de l'hôte (qemu-img, cloud-localds) et renvoie sa sortie et son erreur réunies ; nil = exec.
-	// Les tests y mettent un faux. Sert à la création des VMs (CreateVM).
-	Tool func(name string, args ...string) ([]byte, error)
+	// Tool lance un outil de l'hôte (qemu-img, cloud-localds) et renvoie ses sorties standard et d'erreur ; nil = exec.
+	// Les tests y mettent un faux. Sert à la création des VMs, au contrôle et à la conversion des disques.
+	Tool func(name string, args ...string) (stdout, stderr []byte, err error)
 
 	labVarsMu    sync.Mutex
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
@@ -56,14 +58,29 @@ func (l *Lab) shell(target, script string, stdin io.Reader) (stdout, stderr []by
 }
 
 // tool lance un outil de l'hôte : l.Tool s'il est fourni, sinon exec (absent du PATH : erreur qui nomme le paquet).
-func (l *Lab) tool(name string, args ...string) ([]byte, error) {
+func (l *Lab) tool(name string, args ...string) (stdout, stderr []byte, err error) {
 	if l.Tool != nil {
 		return l.Tool(name, args...)
 	}
 	if _, err := exec.LookPath(name); err != nil {
-		return nil, fmt.Errorf("commande manquante : %s (paquets qemu-utils, cloud-image-utils)", name)
+		return nil, nil, fmt.Errorf("commande manquante : %s (paquets qemu-utils, cloud-image-utils)", name)
 	}
-	return exec.Command(name, args...).CombinedOutput()
+	return fetch.Exec(name, args...)
+}
+
+// shellTo exécute script sur target en écrivant sortie et erreur dans w au fil de l'eau (installations longues).
+func (l *Lab) shellTo(target, script string, stdin io.Reader, w io.Writer) error {
+	if l.Shell != nil {
+		stdout, stderr, err := l.Shell(target, script, stdin)
+		_, _ = w.Write(stdout)
+		_, _ = w.Write(stderr)
+		return err
+	}
+	cmd := exec.Command("ssh", l.sshArgs(target, script)...)
+	cmd.Stdin = stdin
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	cmd.Stdout, cmd.Stderr = w, w
+	return cmd.Run()
 }
 
 // Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).

@@ -3,9 +3,10 @@ package fetch
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"labs/labctl/internal/testtool"
 )
 
 // Les clés embarquées se décodent toutes.
@@ -28,9 +29,7 @@ func TestEmbeddedKeysDearmor(t *testing.T) {
 // Vraie signature publiée par Rocky Linux (testdata/gpg) : acceptée avec sa clé, refusée si le fichier
 // d'empreintes est altéré ou si la clé est celle d'un autre éditeur.
 func TestVerifySumsRealSignature(t *testing.T) {
-	if _, err := exec.LookPath("gpgv"); err != nil {
-		t.Skip("gpgv absent")
-	}
+	testtool.Need(t, "gpgv")
 	sums, err := os.ReadFile(filepath.Join("testdata", "CHECKSUM"))
 	if err != nil {
 		t.Fatal(err)

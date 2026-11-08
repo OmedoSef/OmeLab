@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"labs/labctl/internal/testtool"
 )
 
 func sum256(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
@@ -123,9 +125,7 @@ func TestNewHashUnknown(t *testing.T) {
 // Image du catalogue de bout en bout : empreinte lue avant, image vérifiée puis publiée ; une image dont
 // l'empreinte publiée ne correspond pas n'est jamais publiée.
 func TestFetchImage(t *testing.T) {
-	if _, err := exec.LookPath("qemu-img"); err != nil {
-		t.Skip("qemu-img absent")
-	}
+	testtool.Need(t, "qemu-img")
 	src := filepath.Join(t.TempDir(), "img.qcow2")
 	if b, err := exec.Command("qemu-img", "create", "-q", "-f", "qcow2", src, "1M").CombinedOutput(); err != nil {
 		t.Fatalf("qemu-img : %s", b)

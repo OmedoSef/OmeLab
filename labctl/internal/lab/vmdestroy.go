@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -92,8 +91,7 @@ func (l *Lab) releaseLeases(macs []string, out io.Writer) {
 	if gw == "" {
 		return
 	}
-	args := l.sshArgs(l.VMUser()+"@"+gw, "sudo gwctl release "+strings.Join(macs, " "))
-	if err := exec.Command("ssh", args...).Run(); err != nil {
+	if _, _, err := l.shell(l.VMUser()+"@"+gw, "sudo gwctl release "+strings.Join(macs, " "), nil); err != nil {
 		fmt.Fprintf(out, "attention: baux DHCP non libérés sur %s (%s) : labctl core dhcp release %s\n", GatewayVM, err, strings.Join(macs, " "))
 	}
 }

@@ -141,3 +141,37 @@ func TestGatewayInternetOn(t *testing.T) {
 		t.Errorf("passerelle non branchée : %v", err)
 	}
 }
+
+// La suppression d'une VM libère ses baux DHCP sur la passerelle (gwctl release avec ses MAC).
+func TestReleaseLeases(t *testing.T) {
+	l, gw := gatewayLab(t)
+	var out bytes.Buffer
+	l.releaseLeases([]string{"52:54:00:aa:bb:01", "52:54:00:aa:bb:02"}, &out)
+	if !slices.Contains(gw.scripts, "sudo gwctl release 52:54:00:aa:bb:01 52:54:00:aa:bb:02") {
+		t.Errorf("scripts envoyés : %q\n%s", gw.scripts, out.String())
+	}
+}
+
+// Clavier d'une VM par SSH : sonde, puis le script passé sur l'entrée standard de « sudo sh -s ».
+func TestVMKeyboardOverSSH(t *testing.T) {
+	l, _ := gatewayLab(t)
+	f := l.Virt.(*virtfake.Fake)
+	f.AddVM(virtfake.VM{Name: "good-srv", State: virt.StateRunning, IP: "10.81.81.10",
+		Ifaces: []virt.Interface{{Type: "network", Network: "x", MAC: "52:54:00:81:81:10"}}})
+	var got []string
+	var stdin string
+	l.Shell = func(target, script string, in io.Reader) ([]byte, []byte, error) {
+		got = append(got, target+" "+script)
+		if in != nil {
+			b, _ := io.ReadAll(in)
+			stdin = string(b)
+		}
+		return []byte("ok\n"), nil, nil
+	}
+	if err := l.VMKeyboard("good-srv", "fr", io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got, []string{"lab@10.81.81.10 true", "lab@10.81.81.10 sudo sh -s"}) || !strings.Contains(stdin, "fr") {
+		t.Errorf("SSH : %q, script %q", got, stdin)
+	}
+}

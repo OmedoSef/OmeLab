@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -58,10 +59,22 @@ func checkDiskInfo(path string, info []byte) (string, error) {
 }
 
 // CheckDisk décrit l'image avec qemu-img et la vérifie ; renvoie son format, à passer explicitement (-f) ensuite.
-func CheckDisk(path string) (string, error) {
-	out, err := exec.Command("qemu-img", "info", "-U", "--output=json", path).Output()
+func CheckDisk(path string) (string, error) { return CheckDiskUsing(Exec, path) }
+
+// Exec lance un outil de l'hôte et renvoie ses sorties standard et d'erreur, séparées.
+func Exec(name string, args ...string) (stdout, stderr []byte, err error) {
+	cmd := exec.Command(name, args...)
+	var o, e bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &o, &e
+	err = cmd.Run()
+	return o.Bytes(), e.Bytes(), err
+}
+
+// CheckDiskUsing est CheckDisk avec un exécutant de qemu-img fourni (lab.Lab.Tool, faux dans les tests).
+func CheckDiskUsing(run func(name string, args ...string) ([]byte, []byte, error), path string) (string, error) {
+	out, stderr, err := run("qemu-img", "info", "-U", "--output=json", path)
 	if err != nil {
-		return "", fmt.Errorf("image invalide (%s) : %v", filepath.Base(path), err)
+		return "", fmt.Errorf("image invalide (%s) : %v %s", filepath.Base(path), err, strings.TrimSpace(string(stderr)))
 	}
 	format, err := checkDiskInfo(path, out)
 	if err != nil {

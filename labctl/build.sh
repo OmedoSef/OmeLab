@@ -126,7 +126,8 @@ case ${1:-build} in
     cd "$SRC"
     echo "==> formatage (gofmt)"; out=$(gofmt -l .); [[ -z $out ]] || { echo "à formater (gofmt -w) :"; echo "$out"; exit 1; }
     echo "==> go vet"; go vet ./...
-    echo "==> tests (courses, ordre aléatoire)"; CGO_ENABLED=1 go test -race -shuffle=on ./...
+    # LABCTL_TEST_STRICT : un test qui a besoin d'un outil absent (qemu-img, gpgv, python3…) échoue au lieu d'être sauté
+    echo "==> tests (courses, ordre aléatoire)"; CGO_ENABLED=1 LABCTL_TEST_STRICT=1 go test -race -shuffle=on ./...
     echo "==> vulnérabilités connues (govulncheck)"; go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
     echo "==> analyse statique (staticcheck)"; go run honnef.co/go/tools/cmd/staticcheck@2026.2.2 ./...
     cd "$LABS"
@@ -140,8 +141,10 @@ case ${1:-build} in
       for f in labctl/internal/gui/static/js/*.js; do # modules ES : extension .mjs pour que node les lise comme tels
         cp "$f" "$js/$(basename "$f" .js).mjs" && node --check "$js/$(basename "$f" .js).mjs"
       done
+    elif [[ ${CI:-} == true ]]; then
+      echo "node absent : requis en CI pour contrôler les scripts de la GUI" >&2; exit 1
     else
-      echo "    node absent : contrôle sauté"
+      echo "    node absent : contrôle sauté (exigé en CI)"
     fi
     echo "ok  tous les contrôles passent" ;;
   tools)

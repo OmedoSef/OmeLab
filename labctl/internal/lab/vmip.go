@@ -2,7 +2,6 @@ package lab
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -30,8 +29,7 @@ func (l *Lab) VMIP(name string) string {
 	if gw == "" {
 		return ""
 	}
-	args := l.sshArgs(l.VMUser()+"@"+gw, "cat /var/lib/misc/gwdhcp.leases")
-	out, err := exec.Command("ssh", args...).Output()
+	out, _, err := l.shell(l.VMUser()+"@"+gw, "cat /var/lib/misc/gwdhcp.leases", nil)
 	if err != nil {
 		return ""
 	}

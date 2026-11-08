@@ -32,8 +32,8 @@ func (l *Lab) PKIDir() string { return l.Setting("LABS_PKI_DIR", filepath.Join(l
 // VMIP vide (VM éteinte) → erreur immédiate, pas d'attente.
 func (l *Lab) Remote() pki.Remote {
 	return pki.Remote{
-		User:    l.VMUser(),
-		SSHOpts: l.SSHArgs(true), // options SSH communes (lab/ssh.go)
+		User: l.VMUser(),
+		Run:  l.shell, // SSH unique de labctl (options de lab/ssh.go)
 		IP: func(vm string) (string, error) {
 			if ip := l.VMIP(vm); ip != "" {
 				return ip, nil

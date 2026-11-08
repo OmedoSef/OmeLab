@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/testtool"
 )
 
 func TestGatewayFiles(t *testing.T) {
@@ -104,10 +106,7 @@ func TestCoreInputDropsPublicDomain(t *testing.T) {
 
 // Le module mitmproxy de la passerelle (Python) : choix de la règle, filtre par domaine (testdata/gwproxy_test.py).
 func TestGwproxyPython(t *testing.T) {
-	py, err := exec.LookPath("python3")
-	if err != nil {
-		t.Skip("python3 absent")
-	}
+	py := testtool.Need(t, "python3")
 	cmd := exec.Command(py, "-I", "-B", filepath.Join("testdata", "gwproxy_test.py"))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("%v\n%s", err, out)

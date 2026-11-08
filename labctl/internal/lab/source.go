@@ -87,12 +87,13 @@ func (l *Lab) EnsureSource(mod, vm string, s *module.Source, out io.Writer) (str
 		disk = matches[0]
 	}
 	// Structure vérifiée avant conversion (aucune référence vers un fichier de l'hôte), format explicite ensuite
-	format, err := fetch.CheckDisk(disk)
+	format, err := fetch.CheckDiskUsing(l.tool, disk)
 	if err != nil {
 		return "", err
 	}
 	fmt.Fprintf(out, "==> Conversion en qcow2 (depuis %s)\n", format)
-	if b, err := exec.Command("qemu-img", "convert", "-f", format, "-O", "qcow2", disk, dst+".part").CombinedOutput(); err != nil {
+	if o, e, err := l.tool("qemu-img", "convert", "-f", format, "-O", "qcow2", disk, dst+".part"); err != nil {
+		b := append(e, o...)
 		os.Remove(dst + ".part")
 		return "", fmt.Errorf("qemu-img convert : %s", strings.TrimSpace(string(b)))
 	}

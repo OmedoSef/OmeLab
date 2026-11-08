@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -54,7 +53,7 @@ func (l *Lab) ImageUsers(image string) []string {
 		if _, err := os.Stat(disk); err != nil {
 			continue
 		}
-		out, err := exec.Command("qemu-img", "info", "-U", "--output=json", disk).Output()
+		out, _, err := l.tool("qemu-img", "info", "-U", "--output=json", disk)
 		if err != nil {
 			users = append(users, d.Name()+" (disque illisible : prudence)")
 			continue
