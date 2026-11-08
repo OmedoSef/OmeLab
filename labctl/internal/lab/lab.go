@@ -5,9 +5,12 @@
 package lab
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"sort"
@@ -26,10 +29,27 @@ type Lab struct {
 	// Virt est l'hyperviseur ; nil = libvirt (connexion commune au processus). Les tests y mettent un faux
 	// (virt/virtfake).
 	Virt virt.Hypervisor
+	// Shell exécute un script sur une machine du lab (utilisateur@IP) par SSH ; nil = ssh, avec les options de
+	// sshArgs. Les tests y mettent un faux. Sert aujourd'hui à la passerelle (Gateway.SSH).
+	Shell func(target, script string, stdin io.Reader) (stdout, stderr []byte, err error)
 
 	labVarsMu    sync.Mutex
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
 	labVarsKey   string            // taille et date des fichiers lus
+}
+
+// shell exécute script sur target : l.Shell s'il est fourni, sinon ssh (LC_ALL=C, sortie et erreur séparées).
+func (l *Lab) shell(target, script string, stdin io.Reader) (stdout, stderr []byte, err error) {
+	if l.Shell != nil {
+		return l.Shell(target, script, stdin)
+	}
+	cmd := exec.Command("ssh", l.sshArgs(target, script)...)
+	cmd.Stdin = stdin
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	var out, errb bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	err = cmd.Run()
+	return out.Bytes(), errb.Bytes(), err
 }
 
 // Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).

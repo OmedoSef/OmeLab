@@ -92,16 +92,12 @@ func (g *Gateway) SSH(script string, stdin io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command("ssh", g.l.sshArgs(t, script)...)
-	cmd.Stdin = stdin
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	var out bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &out, &out
-	err = cmd.Run()
+	stdout, stderr, err := g.l.shell(t, script, stdin)
+	out := append(stdout, stderr...)
 	if err != nil {
-		return out.Bytes(), fmt.Errorf("%s : %w", strings.TrimSpace(out.String()), err)
+		return out, fmt.Errorf("%s : %w", strings.TrimSpace(string(out)), err)
 	}
-	return out.Bytes(), nil
+	return out, nil
 }
 
 // sshOut lance un script et ne renvoie que sa sortie standard (lecture d'état).
@@ -110,9 +106,8 @@ func (g *Gateway) sshOut(script string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := exec.Command("ssh", g.l.sshArgs(t, script)...)
-	cmd.Env = append(os.Environ(), "LC_ALL=C")
-	return cmd.Output()
+	stdout, _, err := g.l.shell(t, script, nil)
+	return stdout, err
 }
 
 // Interactive ouvre un shell (ou lance une commande) sur la passerelle, terminal compris.
