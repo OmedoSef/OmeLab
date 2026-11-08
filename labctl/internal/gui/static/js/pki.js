@@ -1,17 +1,18 @@
-// GUI de labctl — page PKI. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — page PKI. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, checkTrust, download, editConfig, esc, pki, pkiTrust, running, toast, trustChecking } from "./core.js";
+import { run } from "./run.js";
+import { tr } from "./traffic.js";
 
 // --- Vue PKI : CA, certificats, émission, déploiement
-const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };
-function expiry(c) {
+export const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };
+export function expiry(c) {
   const cls = c.daysLeft < 30 ? "err" : c.daysLeft < 90 ? "warn" : "meta";
   return `<span class="${cls}">${esc(c.notAfter)} (${c.daysLeft} j)</span>`;
 }
-function files(c) {
+export function files(c) {
   return (c.files || []).map(f => `<button data-download="${esc(f)}" title="${esc(f)}">${esc(f.split("/").pop())}</button>`).join(" ");
 }
-function renderPKI() {
+export function renderPKI() {
   const p = pki && pki.pki, vms = (pki && pki.vms) || [], busy = running ? "disabled" : "";
   if (!p) return;
   if (!p.initialized) {

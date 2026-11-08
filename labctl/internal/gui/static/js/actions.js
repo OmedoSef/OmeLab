@@ -1,6 +1,8 @@
-// GUI de labctl — actions (délégation d'événements). Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — actions (délégation d'événements).
+// Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, ask, attachPicker, core, detachVM, download, editConfig, go, load, pki } from "./core.js";
+import { console_, run } from "./run.js";
+import { openPending } from "./pending.js";
 
 // --- Actions (délégation d'événements)
 document.addEventListener("click", e => {
@@ -32,20 +34,20 @@ document.addEventListener("click", e => {
       .then(done => { const el = $(`[data-cmd="${CSS.escape(t.dataset.cmdRun)}"]`); if (done !== false && el) el.value = ""; }); // champ recréé par le rendu
   }
 });
-async function rotateRoot() {
+export async function rotateRoot() {
   const word = await ask({ title: "Régénérer toute la chaîne", danger: true, ok: "Régénérer", input: true, pattern: "RACINE", hint: "taper RACINE en majuscules",
     text: "Nouvelle racine, toutes les CA, tous les certificats (nouvelles clés).\nLes VMs ne feront plus confiance aux certificats tant qu'elles n'auront pas la nouvelle racine. L'ancienne PKI est archivée.\n\nTaper RACINE pour confirmer :" });
   if (word === "RACINE") run(["pki", "renew", "root", "--yes", ...($("#rotate-trust")?.checked ? ["--trust-vms"] : [])]);
 }
 
-async function snapshotVM(m, vm) {
+export async function snapshotVM(m, vm) {
   const name = await ask({ title: `Snapshot de ${vm}`, text: "Un snapshot existant du même nom est remplacé.\nNom : lettres, chiffres, . _ -",
     input: true, value: "clean", pattern: "[A-Za-z0-9._\\-]+", hint: "lettres, chiffres, . _ - (sans espace)", ok: "Prendre le snapshot" });
   if (name) run([m, "snapshot", vm, name]);
 }
 
 // Choix du snapshot et confirmation dans la même boîte
-async function restoreVM(m, vm, snaps) {
+export async function restoreVM(m, vm, snaps) {
   const text = `L'état actuel de ${vm} sera perdu.`;
   const name = snaps.length === 1
     ? (await ask({ title: `Restaurer ${vm} au snapshot « ${snaps[0]} » ?`, text, ok: "Restaurer", danger: true }) && snaps[0])

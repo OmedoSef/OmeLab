@@ -1,11 +1,12 @@
-// GUI de labctl — changements en attente sur la passerelle. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — changements en attente sur la passerelle.
+// Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, config, esc, go, running } from "./core.js";
+import { tr } from "./traffic.js";
 
 // --- Changements en attente sur la passerelle : bandeau en haut de toutes les pages
 // Changements de la passerelle non appliqués : pilule compacte dans l'en-tête (cliquable), détail dans une
 // modale. Seul le cas d'erreur garde une bannière rouge en haut du contenu.
-function renderPending() {
+export function renderPending() {
   const c = config;
   if (!c) return;
   const pending = c.pending || [];
@@ -22,7 +23,7 @@ function renderPending() {
   }
 }
 
-function pendingModal() {
+export function pendingModal() {
   const pending = (config && config.pending) || [], busy = running ? "disabled" : "";
   return `<div class="card-head"><h3 style="margin:0;font-size:16px">Modifications non appliquées sur la passerelle</h3>
       <span class="spacer"></span><button data-close-pending aria-label="Fermer">×</button></div>
@@ -35,14 +36,14 @@ function pendingModal() {
     </div>`;
 }
 
-function openPending() {
+export function openPending() {
   const dlg = $("#pending-dlg");
   dlg.innerHTML = pendingModal();
   dlg.showModal();
 }
 
 // Connexions restreintes (connections: du module.yaml) : celles du module, et celles qui arrivent vers lui
-function connCard(m, mods, busy) {
+export function connCard(m, mods, busy) {
   const fixed = mod => (mods.find(x => x.name === mod)?.hosts || []).filter(x => x.ip).map(x => x.name).sort();
   const desc = c => `${(c.from || []).length ? esc(c.from.join(", ")) : `<span class="meta">tout le module</span>`}`;
   const ports = c => (c.ports || []).length ? `<div class="tags">${c.ports.map(p => `<span class="pill mono">${esc(p)}</span>`).join("")}</div>` : `<span class="meta">tous</span>`;

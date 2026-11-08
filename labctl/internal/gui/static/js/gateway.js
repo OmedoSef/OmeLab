@@ -1,9 +1,10 @@
-// GUI de labctl — page Passerelle. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — page Passerelle. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, core, esc, running, stLabel } from "./core.js";
+import { run } from "./run.js";
+import { tr } from "./traffic.js";
 
 // --- Vue Core : passerelle, services, DHCP, pare-feu
-function renderCore() {
+export function renderCore() {
   const c = core, busy = running ? "disabled" : "";
   if (!c) return;
   const up = c.state === "running", absent = c.state === "absente";

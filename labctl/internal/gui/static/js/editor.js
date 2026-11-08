@@ -1,15 +1,17 @@
-// GUI de labctl — éditeur de module.yaml. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — éditeur de module.yaml. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, ask, esc, go, load, loadConfig, running, state, toast, token } from "./core.js";
+import { run } from "./run.js";
+import { render } from "./render.js";
+import { fdirty } from "./files.js";
 
 // --- Éditeur de module.yaml : coloration, numéros de ligne, validation à la volée
-const ed = { want: "", modules: [], name: "", text: "", saved: "", hash: "", create: false, issues: [], timer: 0, seq: 0, msg: "" };
-const dirty = () => ed.name && ed.text !== ed.saved;
+export const ed = { want: "", modules: [], name: "", text: "", saved: "", hash: "", create: false, issues: [], timer: 0, seq: 0, msg: "" };
+export const dirty = () => ed.name && ed.text !== ed.saved;
 addEventListener("beforeunload", e => { if (dirty() || fdirty()) e.preventDefault(); });
-const discard = text => ask({ title: "Modifications non enregistrées", text, ok: "Abandonner les modifications", danger: true });
+export const discard = text => ask({ title: "Modifications non enregistrées", text, ok: "Abandonner les modifications", danger: true });
 
 // ed.want : module à ouvrir (page m/<module>/yaml)
-async function openEditor() {
+export async function openEditor() {
   const name = ed.want; ed.want = "";
   try { ed.modules = (await (await api("/api/modules")).json()).modules; }
   catch (e) { $("#view-editor").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; return; }
@@ -21,7 +23,7 @@ async function openEditor() {
   renderEditor();
 }
 
-async function loadModuleText(name) {
+export async function loadModuleText(name) {
   if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return false;
   try {
     const d = await (await api("/api/module?name=" + encodeURIComponent(name))).json();
@@ -31,14 +33,14 @@ async function loadModuleText(name) {
 }
 
 // Relit le fichier sur le disque (abandonne les modifications, après confirmation)
-async function reloadModule() {
+export async function reloadModule() {
   if (dirty() && !(await discard(`Relire modules/${ed.name}/module.yaml depuis le disque : les modifications seront perdues.`))) return;
   const name = ed.name;
   ed.saved = ed.text; // la question vient d'être posée
   if (await loadModuleText(name)) renderEditor();
 }
 
-async function newModule() {
+export async function newModule() {
   if (dirty() && !(await discard(`Les modifications de ${ed.name} seront perdues.`))) return false;
   const name = await ask({ title: "Nouveau module", text: "Nom : minuscules, chiffres et tirets, 9 caractères au plus.\nIl donne aussi le nom des VMs (<module>-<vm>).",
     input: true, pattern: "[a-z0-9]([a-z0-9-]{0,7}[a-z0-9])?", hint: "minuscules, chiffres, tirets ; 9 caractères au plus", ok: "Créer le brouillon" });
@@ -54,7 +56,7 @@ async function newModule() {
 }
 
 // Coloration d'une ligne YAML (clés, chaînes, nombres, variables ${...}, commentaires)
-function hlLine(line) {
+export function hlLine(line) {
   let code = line, comment = "", q = "";
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
@@ -77,13 +79,13 @@ function hlLine(line) {
   return out;
 }
 
-function lineLevels() {
+export function lineLevels() {
   const lv = {};
   for (const i of ed.issues) if (i.line > 0) lv[i.line] = i.error ? "e" : (lv[i.line] || "w");
   return lv;
 }
 
-function paintEditor() {
+export function paintEditor() {
   const ta = $("#ed-text");
   if (!ta) return;
   const lines = ed.text.split("\n"), lv = lineLevels();
@@ -105,13 +107,13 @@ function paintEditor() {
   $("#ed-apply").disabled = running || dirty() || ed.create || !!errs;
 }
 
-function syncScroll() {
+export function syncScroll() {
   const ta = $("#ed-text");
   $("#ed-hl").scrollTop = ta.scrollTop; $("#ed-hl").scrollLeft = ta.scrollLeft;
   $("#ed-gutter").scrollTop = ta.scrollTop;
 }
 
-function renderEditor() {
+export function renderEditor() {
   $("#view-editor").innerHTML = `<section class="card">
     <div class="ed-bar">
       <button id="ed-save" class="primary" title="Ctrl+S">${ed.create ? "Créer le module" : "Enregistrer"}</button>
@@ -136,7 +138,7 @@ function renderEditor() {
   paintEditor();
 }
 
-function scheduleCheck() {
+export function scheduleCheck() {
   clearTimeout(ed.timer);
   ed.timer = setTimeout(async () => {
     const seq = ++ed.seq;
@@ -147,7 +149,7 @@ function scheduleCheck() {
   }, 350);
 }
 
-async function saveModule() {
+export async function saveModule() {
   if (!dirty() || ed.issues.some(i => i.error)) return;
   const r = await fetch("/api/module/save", { method: "POST", headers: { "X-Lab-Token": token, "Content-Type": "application/json" },
     body: JSON.stringify({ name: ed.name, text: ed.text, hash: ed.hash, create: ed.create }) });
@@ -169,7 +171,7 @@ async function saveModule() {
 }
 
 // Un « up » peut réécrire le fichier (sous-réseau, MAC) : on le relit ensuite
-async function applyModule() {
+export async function applyModule() {
   const name = ed.name;
   await run([name, "up"], `Construire le module ${name} (labctl ${name} up) : réseau, CA, VMs manquantes ? Les VMs existantes ne sont pas recréées.`);
   const saved = ed.saved;

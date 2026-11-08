@@ -1,12 +1,13 @@
-// GUI de labctl — console : redimensionnement, ligne de commande labctl. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — console : redimensionnement, ligne de commande labctl.
+// Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, ask, esc, running, toast } from "./core.js";
+import { run } from "./run.js";
 
 // --- Console : panneau redimensionnable (hauteur mémorisée dans ce navigateur), et ligne de commande labctl
 // avec la complétion du terminal (cobra, via /api/complete). Seules les commandes labctl : le serveur refuse le
 // reste, et les commandes destructives demandent confirmation (elles tournent ensuite sans autre question).
-const LOGH_MIN = 120, LOGH_DEFAULT = 240;
-function setLogH(h, save = true) {
+export const LOGH_MIN = 120, LOGH_DEFAULT = 240;
+export function setLogH(h, save = true) {
   h = Math.round(Math.max(LOGH_MIN, Math.min(h, innerHeight - 80)));
   document.documentElement.style.setProperty("--logh", h + "px");
   if (save) try { localStorage.setItem("console-h", String(h)); } catch {}
@@ -22,12 +23,12 @@ $("#log-grip").addEventListener("pointerdown", e => {
 });
 $("#log-grip").addEventListener("dblclick", () => setLogH($("#log").offsetHeight < innerHeight * 0.6 ? innerHeight - 80 : LOGH_DEFAULT));
 
-const cin = $("#console-in"), sugg = $("#console-sugg");
-let hist = [], hpos = -1, sitems = [], ssel = -1;
+export const cin = $("#console-in"), sugg = $("#console-sugg");
+export let hist = [], hpos = -1, sitems = [], ssel = -1;
 try { hist = JSON.parse(localStorage.getItem("console-hist") || "[]"); } catch {}
 
 // splitArgs découpe comme un shell simple : espaces, '…' et "…" (pour « netlab ssh poste 'ip a' »).
-function splitArgs(s) {
+export function splitArgs(s) {
   const out = []; let cur = "", q = "", any = false;
   for (const c of s) {
     if (q) { if (c === q) q = ""; else cur += c; }
@@ -38,21 +39,21 @@ function splitArgs(s) {
   if (cur || any) out.push(cur);
   return { args: out, open: !!q };
 }
-const atWordStart = v => !v.trim() || /\s$/.test(v);
-function hideSugg() { sugg.hidden = true; sitems = []; ssel = -1; }
-function showSugg() {
+export const atWordStart = v => !v.trim() || /\s$/.test(v);
+export function hideSugg() { sugg.hidden = true; sitems = []; ssel = -1; }
+export function showSugg() {
   sugg.innerHTML = sitems.slice(0, 60).map((it, i) =>
     `<div class="${i === ssel ? "sel" : ""}" data-sugg="${i}"><span>${esc(it.v)}</span><span class="d">${esc(it.d || "")}</span></div>`).join("");
   sugg.hidden = false;
   sugg.querySelector(".sel")?.scrollIntoView({ block: "nearest" });
 }
 // acceptWord remplace le mot en cours par `word` (suivi d'une espace, sauf directive cobra « pas d'espace »).
-function acceptWord(word, space = true) {
+export function acceptWord(word, space = true) {
   const v = cin.value, base = atWordStart(v) ? v : v.slice(0, v.length - (v.match(/\S+$/) || [""])[0].length);
   cin.value = base + word + (space ? " " : "");
   hideSugg(); cin.focus();
 }
-async function completeLine() {
+export async function completeLine() {
   const v = cin.value, { args } = splitArgs(v);
   if (args[0] === "labctl") args.shift();
   const cur = atWordStart(v) ? "" : (args.pop() ?? "");

@@ -1,16 +1,20 @@
-// GUI de labctl — onglet Fichiers d'un module. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — onglet Fichiers d'un module. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, ask, esc, go, modPage, state, toast } from "./core.js";
+import { doing } from "./run.js";
+import { render } from "./render.js";
+import { tr } from "./traffic.js";
+import { files } from "./pki.js";
+import { ed } from "./editor.js";
 
 // --- Onglet Fichiers : modules/<m>/files/, copiés dans les VMs par files: du module.yaml
 // fx.open : fichier ouvert dans l'éditeur texte (create : pas encore enregistré)
-const fx = { module: "", list: null, dir: "", open: null, busy: "" };
-const fdirty = () => !!fx.open && (fx.open.create || fx.open.text !== fx.open.saved);
-const fpath = p => `files/${p}`;
-const fsize = n => n < 1024 ? `${n} o` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} Kio` : `${(n / (1 << 20)).toFixed(1)} Mio`;
-const fq = (path, extra = "") => `module=${encodeURIComponent(fx.module)}&path=${encodeURIComponent(path)}${extra}`;
+export const fx = { module: "", list: null, dir: "", open: null, busy: "" };
+export const fdirty = () => !!fx.open && (fx.open.create || fx.open.text !== fx.open.saved);
+export const fpath = p => `files/${p}`;
+export const fsize = n => n < 1024 ? `${n} o` : n < 1 << 20 ? `${(n / 1024).toFixed(1)} Kio` : `${(n / (1 << 20)).toFixed(1)} Mio`;
+export const fq = (path, extra = "") => `module=${encodeURIComponent(fx.module)}&path=${encodeURIComponent(path)}${extra}`;
 
-async function loadFiles(name) {
+export async function loadFiles(name) {
   if (name !== fx.module && fdirty()) {
     if (!(await ask({ title: "Fichier non enregistré", text: `Les modifications de ${fpath(fx.open.path)} (${fx.module}) seront perdues.`, ok: "Abandonner les modifications", danger: true }))) {
       go(`m/${fx.module}/files`); return;
@@ -22,7 +26,7 @@ async function loadFiles(name) {
   renderFiles();
 }
 
-function renderFiles() {
+export function renderFiles() {
   const [name, sub] = modPage();
   if (sub !== "files" || !fx.list || fx.module !== name) return;
   const L = fx.list, files = L.files || [], dirs = files.filter(f => f.dir).map(f => f.path);
@@ -75,14 +79,14 @@ function renderFiles() {
   if (o) { $("#f-text").value = o.text; paintFileState(); }
 }
 
-function paintFileState() {
+export function paintFileState() {
   const st = $("#f-state");
   if (!st || !fx.open) return;
   st.innerHTML = fx.open.create ? `<span class="pill">nouveau</span>` : fdirty() ? "<strong>modifié</strong>" : `<span class="meta">enregistré</span>`;
   $("#f-save").disabled = !fdirty();
 }
 
-async function openFile(path, create = false) {
+export async function openFile(path, create = false) {
   if (fx.open && fdirty() && fx.open.path !== path &&
       !(await ask({ title: "Fichier non enregistré", text: `Les modifications de ${fpath(fx.open.path)} seront perdues.`, ok: "Abandonner les modifications", danger: true }))) return;
   if (create) fx.open = { path, text: "", saved: "", hash: "", create: true };
@@ -97,7 +101,7 @@ async function openFile(path, create = false) {
   $("#f-text")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
-async function saveFile() {
+export async function saveFile() {
   const o = fx.open;
   if (!o || !fdirty()) return;
   try {
@@ -108,13 +112,13 @@ async function saveFile() {
   await loadFiles(fx.module); render();
 }
 
-async function closeFile() {
+export async function closeFile() {
   if (fdirty() && !(await ask({ title: "Fichier non enregistré", text: `Les modifications de ${fpath(fx.open.path)} seront perdues.`, ok: "Fermer sans enregistrer", danger: true }))) return;
   fx.open = null; renderFiles(); render();
 }
 
 // Envoi : un fichier après l'autre ; ceux qui existent déjà ne sont remplacés qu'après confirmation
-async function uploadFiles(list) {
+export async function uploadFiles(list) {
   const items = [...list].filter(f => f.size > 0 || f.type !== ""); // un dossier glissé arrive comme un fichier vide sans type
   if (!items.length) { toast("Rien à envoyer (les dossiers ne sont pas pris : envoyer leurs fichiers)", true); return; }
   const big = items.find(f => f.size > 512 * 1024 * 1024);
@@ -138,7 +142,7 @@ async function uploadFiles(list) {
   await loadFiles(fx.module);
 }
 
-async function fileOp(body, okMsg) {
+export async function fileOp(body, okMsg) {
   let ok = false;
   try { await api("/api/file/op", { method: "POST", body: JSON.stringify({ module: fx.module, ...body }) }); toast(okMsg); ok = true; }
   catch (e) { toast(e.message, true); }

@@ -1,22 +1,29 @@
-// GUI de labctl — état, utilitaires, appels à l'API, navigation, notifications. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — état, utilitaires, appels à l'API, navigation, notifications.
+// Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { render } from "./render.js";
+import { renderPending } from "./pending.js";
+import { renderNet } from "./net.js";
+import { loadFiles } from "./files.js";
+import { loadTraffic } from "./traffic.js";
+import { renderCore } from "./gateway.js";
+import { files, renderPKI } from "./pki.js";
+import { ed, openEditor } from "./editor.js";
 
-const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
+export const token = new URLSearchParams(location.hash.slice(1)).get("t") || "";
 // Nouvelle adresse (labctl gui relancé) collée dans un onglet déjà ouvert : seul le fragment change,
 // le navigateur ne recharge pas ; on recharge pour prendre le nouveau jeton. Sinon, c'est une navigation (précédent…)
 addEventListener("hashchange", () => {
   const h = new URLSearchParams(location.hash.slice(1));
   if ((h.get("t") || "") !== token) location.reload(); else if (h.get("p") !== page) go(h.get("p"));
 });
-const $ = (sel, el = document) => el.querySelector(sel);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-let state = null, running = false, current = null, core = null, pki = null, pkiTrust = null, trustChecking = false, config = null;
-const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
-const stLabel = s => stateLabel[s] || s;
+export const $ = (sel, el = document) => el.querySelector(sel);
+export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+export let state = null, running = false, current = null, core = null, pki = null, pkiTrust = null, trustChecking = false, config = null;
+export const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
+export const stLabel = s => stateLabel[s] || s;
 
 // Notification en bas à droite ; les erreurs restent jusqu'à fermeture
-function toast(msg, err = false, withLog = false) {
+export function toast(msg, err = false, withLog = false) {
   const t = document.createElement("div");
   t.className = "toast" + (err ? " err" : "");
   t.innerHTML = `<span>${err ? "✗" : "✓"}</span><span class="msg">${esc(msg)}</span>${withLog ? `<button data-show-log>Console</button>` : ""}<button data-close aria-label="Fermer">×</button>`;
@@ -29,7 +36,7 @@ function toast(msg, err = false, withLog = false) {
 }
 
 // Boîte de dialogue : confirmation (true), saisie ou choix (valeur), annulation (null)
-function ask({ title, text = "", ok = "Confirmer", danger = false, input = false, options = null, value = "", pattern = "", hint = "", cancel = true }) {
+export function ask({ title, text = "", ok = "Confirmer", danger = false, input = false, options = null, value = "", pattern = "", hint = "", cancel = true }) {
   const d = $("#dlg");
   const field = options
     ? `<select name="v">${options.map(x => `<option ${x === value ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>`
@@ -56,24 +63,24 @@ function ask({ title, text = "", ok = "Confirmer", danger = false, input = false
   });
 }
 
-function openLog() { $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer"; }
+export function openLog() { $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer"; }
 // Page affichée : overview, core, pki, new (brouillon de nouveau module), m/<module>/<vms|yaml|files|net>.
 // Elle est dans l'adresse (#t=…&p=…) : un rechargement ou le bouton précédent y ramènent.
-let page = "overview";
-const modPage = () => page.startsWith("m/") ? page.split("/").slice(1) : [page === "new" ? ed.name : "", page === "new" ? "yaml" : ""];
-const openCmd = new Set(); // champs « autre commande » dépliés (le rendu toutes les 5 s ne doit pas les refermer)
+export let page = "overview";
+export const modPage = () => page.startsWith("m/") ? page.split("/").slice(1) : [page === "new" ? ed.name : "", page === "new" ? "yaml" : ""];
+export const openCmd = new Set(); // champs « autre commande » dépliés (le rendu toutes les 5 s ne doit pas les refermer)
 document.addEventListener("toggle", e => {
   const d = e.target.closest?.("details[data-cmd-box]");
   if (d) d.open ? openCmd.add(d.dataset.cmdBox) : openCmd.delete(d.dataset.cmdBox);
 }, true);
 
-async function api(path, opts = {}) {
+export async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { "X-Lab-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });
   if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
   return r;
 }
 
-function go(p) {
+export function go(p) {
   p = p || "overview";
   const [kind, name, sub] = p.split("/");
   if (kind === "m") p = name ? `m/${name}/${["vms", "yaml", "files", "net"].includes(sub) ? sub : "vms"}` : "overview";
@@ -101,26 +108,26 @@ function go(p) {
   else if (s === "vms" && m && !pki) loadPKI().then(render); // état de la PKI (fichiers locaux) pour le raccourci confiance
 }
 
-async function loadConfig() {
+export async function loadConfig() {
   try { config = await (await api("/api/config")).json(); renderPending(); renderNet(); render(); }
   catch (e) { $("#pending").innerHTML = `<div class="banner"><span class="err">${esc(e.message)}</span></div>`; }
 }
 
-async function editConfig(body) {
+export async function editConfig(body) {
   try { await api("/api/config", { method: "POST", body: JSON.stringify(body) }); await loadConfig(); return true; }
   catch (e) { toast(e.message, true); return false; }
 }
 
-const lastOctet = ip => { const m = /(\d+)\s*$/.exec(ip || ""); return m ? parseInt(m[1], 10) : 0; };
+export const lastOctet = ip => { const m = /(\d+)\s*$/.exec(ip || ""); return m ? parseInt(m[1], 10) : 0; };
 
 // Débrancher une VM externe (câblage local) : retire la carte et l'entrée de network.local.yaml.
-async function detachVM({ module, vm, name }) {
+export async function detachVM({ module, vm, name }) {
   if (!await ask({ title: "Débrancher", text: `Retirer ${vm} du réseau de ${module} ?`, ok: "Débrancher", danger: true })) return;
   if (await editConfig({ op: "attach-del", module, target: vm })) { toast(`${name} débranchée de ${module}`); load(true); }
 }
 
 // Brancher une VM d'un autre module : choisir la VM (à IP fixe), puis une adresse libre sur ce réseau.
-async function attachPicker(on) {
+export async function attachPicker(on) {
   const host = (state.modules || []).find(m => m.name === on);
   if (!host) return;
   const already = new Set((host.attached || []).map(a => a.from));
@@ -146,18 +153,18 @@ async function attachPicker(on) {
   if (await editConfig({ op: "attach-add", module: on, target: ref, octet })) { toast(`${ref} branchée sur ${on}`); load(true); }
 }
 
-async function loadCore(fresh = false) {
+export async function loadCore(fresh = false) {
   try { core = await (await api("/api/core" + (fresh ? "?fresh" : ""))).json(); renderCore(); }
   catch (e) { $("#view-core").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
 }
 
-async function loadPKI() {
+export async function loadPKI() {
   try { pki = await (await api("/api/pki")).json(); renderPKI(); }
   catch (e) { $("#view-pki").innerHTML = `<div class="empty err">${esc(e.message)}</div>`; }
 }
 
 // checkTrust sonde les VMs par SSH — à la demande seulement (bouton), jamais dans loadPKI ni au rafraîchissement.
-async function checkTrust() {
+export async function checkTrust() {
   if (running || trustChecking) return;
   trustChecking = true; renderPKI();
   try { pkiTrust = await (await api("/api/pki/trust")).json(); }
@@ -167,7 +174,7 @@ async function checkTrust() {
 
 // trustLine : raccourci confiance d'une VM dans l'onglet VMs d'un module (pastilles du dernier « Vérifier » +
 // boutons pour poser la racine ou l'autorité d'interception), pour ne pas quitter le module.
-function trustLine(lv, busy) {
+export function trustLine(lv, busy) {
   const t = pkiTrust && pkiTrust[lv];
   const pill = (ok, label) => !t ? `<span class="pill" title="pas encore vérifié">${label} ?</span>`
     : !t.reachable ? `<span class="pill" title="${esc(t.err || "injoignable")}">${label} —</span>`
@@ -177,7 +184,7 @@ function trustLine(lv, busy) {
     <button class="linkbtn" ${busy} data-trust='${esc(JSON.stringify(["pki", "trust-vm", "--interception", lv]))}'>poser interception</button></div>`;
 }
 
-async function download(path) {
+export async function download(path) {
   try {
     const blob = await (await api("/api/pki/file?path=" + encodeURIComponent(path))).blob();
     const a = document.createElement("a");
@@ -186,7 +193,7 @@ async function download(path) {
   } catch (e) { toast(e.message, true); }
 }
 
-async function load(fresh = false) {
+export async function load(fresh = false) {
   try {
     state = await (await api("/api/state" + (fresh ? "?fresh" : ""))).json();
     render();
@@ -195,3 +202,7 @@ async function load(fresh = false) {
     $("#updated").innerHTML = `<span class="err">${esc(e.message)}</span>`;
   }
 }
+
+// running et current sont lus partout mais réaffectés par run.js : un module ne peut pas réaffecter une liaison importée.
+export function setRunning(v) { running = v; }
+export function setCurrent(v) { current = v; }

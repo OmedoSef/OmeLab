@@ -1,16 +1,16 @@
-// GUI de labctl — page Trafic (proxy). Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — page Trafic (proxy). Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, api, esc, page, toast } from "./core.js";
+import { fsize } from "./files.js";
 
 // --- Page Trafic : journal du proxy de la passerelle (connexions via: proxy), accès à mitmweb
-const tr = { events: null, err: "", q: "", module: "", action: "" };
-async function loadTraffic() {
+export const tr = { events: null, err: "", q: "", module: "", action: "" };
+export async function loadTraffic() {
   if (!$("#tr-list")) renderTrafficShell();
   try { tr.events = await (await api("/api/proxy/log?n=500")).json(); tr.err = ""; }
   catch (e) { tr.err = e.message; }
   renderTraffic();
 }
-function renderTrafficShell() {
+export function renderTrafficShell() {
   $("#view-traffic").innerHTML = `<section class="card">
     <div class="card-head"><h2>Trafic du proxy</h2>
       <span class="meta">connexions <span class="mono">via: proxy</span> : log (HTTPS non déchiffré), filter, intercept</span>
@@ -28,7 +28,7 @@ function renderTrafficShell() {
       l'autorité d'interception (page PKI, « Confiance dans les VMs ») ; sinon on observe son comportement face au certificat inconnu.</div>
   </section>`;
 }
-function renderTraffic() {
+export function renderTraffic() {
   const box = $("#tr-list");
   if (!box) return;
   const mods = [...new Set((tr.events || []).map(e => e.module).filter(Boolean))].sort();

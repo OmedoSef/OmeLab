@@ -1,9 +1,10 @@
-// GUI de labctl — onglet Réseau d'un module. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — onglet Réseau d'un module. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, config, esc, modPage, page, running, stLabel } from "./core.js";
+import { connCard } from "./pending.js";
+import { tr } from "./traffic.js";
 
 // --- Onglet Réseau d'un module : réservations DHCP, alias DNS, liens dans les deux sens (section dns du module.yaml)
-function renderNet() {
+export function renderNet() {
   const [name, sub] = modPage();
   if (sub !== "net") return;
   const c = config, busy = running ? "disabled" : "";

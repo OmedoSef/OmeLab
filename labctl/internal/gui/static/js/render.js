@@ -1,14 +1,19 @@
-// GUI de labctl — rendu : vue d'ensemble, barre latérale, pages de module. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — rendu : vue d'ensemble, barre latérale, pages de module.
+// Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
+import { $, config, core, esc, go, modPage, openCmd, page, pki, running, stLabel, state, trustChecking, trustLine } from "./core.js";
+import { activeOn, doing, run } from "./run.js";
+import { fdirty, fx } from "./files.js";
+import { tr } from "./traffic.js";
+import { files } from "./pki.js";
+import { dirty, ed } from "./editor.js";
 
 // --- Rendu
-const has = (m, c) => (m.commands || []).includes(c);
-const runAttr = args => `data-run='${esc(JSON.stringify(args))}'`;
-const vmCount = m => { const vms = m.vms || []; return [vms.filter(v => v.state === "running").length, vms.length]; };
+export const has = (m, c) => (m.commands || []).includes(c);
+export const runAttr = args => `data-run='${esc(JSON.stringify(args))}'`;
+export const vmCount = m => { const vms = m.vms || []; return [vms.filter(v => v.state === "running").length, vms.length]; };
 
 // Actions qui portent sur tout le module (vue d'ensemble et page du module)
-function moduleActions(m, busy) {
+export function moduleActions(m, busy) {
   const vms = m.vms || [], wide = activeOn(m.name, "", true);
   if (wide) return doing(wide);
   const anyUp = vms.some(v => v.state === "running"), anyDown = vms.some(v => v.state !== "running" && v.state !== "absente");
@@ -22,7 +27,7 @@ function moduleActions(m, busy) {
   </span>`;
 }
 
-function render() {
+export function render() {
   if (!state) return;
   const gwUp = state.gateway.state === "running";
   $("#gw").className = gwUp ? "" : "down";
@@ -55,7 +60,7 @@ function render() {
   if (cur) renderModule(mods.find(m => m.name === cur), cur, sub, down, gwUp, busy);
 }
 
-function renderOverview(mods, down, busy) {
+export function renderOverview(mods, down, busy) {
   const links = [];
   for (const a of (config?.modules || [])) for (const b of a.links || []) {
     const back = (config.modules.find(x => x.name === b)?.links || []).includes(a.name);
@@ -84,7 +89,7 @@ function renderOverview(mods, down, busy) {
   </section>`;
 }
 
-function renderModule(m, name, sub, down, gwUp, busy) {
+export function renderModule(m, name, sub, down, gwUp, busy) {
   const dis = running || !gwUp ? "disabled" : "";
   const yamlMod = page === "new" || (m && has(m, "up"));
   const tabs = page === "new" ? [["yaml", "module.yaml"]]

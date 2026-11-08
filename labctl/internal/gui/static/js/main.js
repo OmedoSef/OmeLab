@@ -1,6 +1,17 @@
-// GUI de labctl — démarrage. Scripts classiques chargés dans l'ordre par index.html (portée globale
-// partagée) : une fonction n'est utilisable qu'après le chargement du fichier qui la définit.
-"use strict";
+// GUI de labctl — point d'entrée (seul script chargé par index.html) : charge les modules dans l'ordre, puis
+// démarre l'interface. Les modules qui ne font qu'installer des écouteurs sont importés pour cet effet.
+import "./run.js";
+import "./render.js";
+import "./pending.js";
+import "./net.js";
+import "./files.js";
+import "./gateway.js";
+import "./pki.js";
+import "./editor.js";
+import "./actions.js";
+import "./console.js";
+import { $, core, go, load, loadConfig, loadCore, page, running, token } from "./core.js";
+import { loadTraffic } from "./traffic.js";
 
 if (!token) $("#view-overview").innerHTML = `<div class="empty err">Jeton absent : ouvre l'adresse complète affichée par « labctl gui ».</div>`;
 else {

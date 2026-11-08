@@ -136,7 +136,10 @@ case ${1:-build} in
     python3 -c 'import ast, sys; ast.parse(open(sys.argv[1]).read(), sys.argv[1])' labctl/internal/lab/gwfiles/gwproxy.py
     echo "==> scripts de la GUI (syntaxe JavaScript)"
     if command -v node >/dev/null 2>&1; then
-      for f in labctl/internal/gui/static/js/*.js; do node --check "$f"; done
+      js=$(mktemp -d); trap 'rm -rf "$js"' EXIT
+      for f in labctl/internal/gui/static/js/*.js; do # modules ES : extension .mjs pour que node les lise comme tels
+        cp "$f" "$js/$(basename "$f" .js).mjs" && node --check "$js/$(basename "$f" .js).mjs"
+      done
     else
       echo "    node absent : contrôle sauté"
     fi

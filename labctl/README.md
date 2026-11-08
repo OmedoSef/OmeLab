@@ -184,7 +184,7 @@ En ligne de commande : `cd labctl && dlv debug ./cmd/labctl -- status`.
 | `internal/pki/` | PKI en Go : CA racine, intermédiaire, CA dérivées (nameConstraints), certificats, .p12, déploiement |
 | `internal/cli/` | commandes cobra : une par module (moteur), `module`, `lab`, `vm`, `net`, `image`, `core`, `pki`, `hostfw`, `init`, `status`, `gui`, `completion`, `version` |
 | `internal/audit/` | journal d'audit des actions (CLI et GUI), JSONL par utilisateur |
-| `internal/gui/` | serveur web local (`server.go` : routeur, jeton, contrôle de l'hôte, journal ; une API par fichier : `state`, `config`, `console`, `modules`, `files`, `proxy`) et page `static/` (`index.html`, `app.css`, `js/*.js` chargés dans l'ordre ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
+| `internal/gui/` | serveur web local (`server.go` : routeur, jeton, contrôle de l'hôte, journal ; une API par fichier : `state`, `config`, `console`, `modules`, `files`, `proxy`) et page `static/` (`index.html`, `app.css`, `js/*.js` en modules ES, point d'entrée `main.js`, imports explicites ; embarqués dans le binaire, sans script en ligne : CSP stricte) |
 | `internal/portal/` | service de portail captif, lancé sur la passerelle (`labctl gw-portal serve`) |
 
 Convention utilisée par labctl : la VM `<vm>` d'un module `<m>` s'appelle `<m>-<vm>` dans libvirt.
