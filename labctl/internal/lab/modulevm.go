@@ -289,24 +289,14 @@ func (r *run) waitSourceVM(vm string, e module.Effective) {
 // waitSSH attend que la VM accepte une connexion SSH (timeout en secondes).
 func (r *run) waitSSH(vm string, timeout int) bool {
 	target := r.l.VMUser() + "@" + r.vmIP(vm)
-	for t := 0; t < timeout; t += 3 {
-		// « exit 0 » : compris par sh (Linux) comme par PowerShell (Windows)
-		if _, _, err := r.l.shell(target, "exit 0", nil); err == nil {
-			return true
-		}
-		time.Sleep(3 * time.Second)
-	}
-	return false
+	return r.l.poll(time.Duration(timeout)*time.Second, 3*time.Second, func() bool {
+		_, _, err := r.l.shell(target, "exit 0", nil) // compris par sh (Linux) comme par PowerShell (Windows)
+		return err == nil
+	})
 }
 
 func (r *run) waitAgent(lv string, timeout int) bool {
-	for t := 0; t < timeout; t += 3 {
-		if r.l.Hypervisor().AgentReady(lv) {
-			return true
-		}
-		time.Sleep(3 * time.Second)
-	}
-	return false
+	return r.l.poll(time.Duration(timeout)*time.Second, 3*time.Second, func() bool { return r.l.Hypervisor().AgentReady(lv) })
 }
 
 // keyboard règle le clavier d'une VM (SSH, sinon agent invité) puis la redémarre pour l'interface graphique.
@@ -322,7 +312,7 @@ func (r *run) keyboard(vm, layout string) error {
 	if err := r.l.Hypervisor().RebootDomain(lv); err != nil {
 		return err
 	}
-	time.Sleep(10 * time.Second)
+	r.l.sleep(10 * time.Second) // l'agent répond encore pendant l'arrêt
 	r.waitAgent(lv, 180)
 	return nil
 }

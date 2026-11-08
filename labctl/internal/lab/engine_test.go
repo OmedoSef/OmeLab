@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"labs/labctl/internal/coreconf"
 	"labs/labctl/internal/module"
@@ -39,7 +40,7 @@ func engineLab(t *testing.T, modules map[string]string) (*Lab, *virtfake.Fake) {
 	t.Setenv("LABS_VM_DIR", filepath.Join(root, "vms"))
 	t.Setenv("LABS_PKI_DIR", filepath.Join(root, "pki"))
 	f := virtfake.New()
-	return &Lab{Root: root, Virt: f}, f
+	return &Lab{Root: root, Virt: f, Sleep: func(time.Duration) {}}, f // attentes instantanées
 }
 
 // vmOf déclare dans le faux la VM vm du module, conforme à sa description (vCPU, mémoire, carte sur le réseau du
@@ -407,5 +408,33 @@ func TestDestroyKeepsVMWhenDisksUnreadable(t *testing.T) {
 		if f.VM(d.Name) == nil {
 			t.Fatalf("VM supprimée alors que ses %s étaient illisibles", op)
 		}
+	}
+}
+
+// Délais dépassés, testés sans attendre (pause nulle) : une VM sourde à l'arrêt ACPI fait échouer stop, sauf avec
+// --force qui la coupe ; une VM sans adresse fait expirer l'attente d'IP au bout du nombre d'essais prévu.
+func TestTimeouts(t *testing.T) {
+	l, f := engineLab(t, map[string]string{"web": webYAML})
+	isolatedNet(f, netName(t, l, "web"), "10.90.90", true)
+	d := vmOf(t, l, f, "web", "srv", virt.StateRunning)
+	d.DeafACPI = true
+	f.AddVM(*d)
+	var pauses time.Duration
+	l.Sleep = func(p time.Duration) { pauses += p }
+	if err := l.ModuleStop("web", nil, false, nil); err == nil || !strings.Contains(err.Error(), "90 s") {
+		t.Fatalf("arrêt ignoré : %v", err)
+	}
+	if pauses < 90*time.Second {
+		t.Errorf("abandon après %s d'attente, 90 s prévues", pauses)
+	}
+	if f.VM(d.Name).State != virt.StateRunning {
+		t.Fatal("VM coupée sans --force")
+	}
+	if err := l.ModuleStop("web", nil, true, nil); err != nil || f.VM(d.Name).State != "shut off" {
+		t.Errorf("--force : %v, état %s", err, f.VM(d.Name).State)
+	}
+	pauses = 0
+	if ip := l.WaitVMIP(d.Name, 30); ip != "" || pauses != 30*time.Second {
+		t.Errorf("attente d'IP : %q après %s", ip, pauses)
 	}
 }

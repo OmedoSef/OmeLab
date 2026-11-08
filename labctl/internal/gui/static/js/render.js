@@ -7,12 +7,12 @@ import { fdirty, fx } from "./files.js";
 import { dirty, ed } from "./editor.js";
 
 // --- Rendu
-export const has = (m, c) => (m.commands || []).includes(c);
-export const runAttr = args => `data-run='${esc(JSON.stringify(args))}'`;
-export const vmCount = m => { const vms = m.vms || []; return [vms.filter(v => v.state === "running").length, vms.length]; };
+const has = (m, c) => (m.commands || []).includes(c);
+const runAttr = args => `data-run='${esc(JSON.stringify(args))}'`;
+const vmCount = m => { const vms = m.vms || []; return [vms.filter(v => v.state === "running").length, vms.length]; };
 
 // Actions qui portent sur tout le module (vue d'ensemble et page du module)
-export function moduleActions(m, busy) {
+function moduleActions(m, busy) {
   const vms = m.vms || [], wide = activeOn(m.name, "", true);
   if (wide) return doing(wide);
   const anyUp = vms.some(v => v.state === "running"), anyDown = vms.some(v => v.state !== "running" && v.state !== "absente");
@@ -59,7 +59,7 @@ export function render() {
   if (cur) renderModule(mods.find(m => m.name === cur), cur, sub, down, gwUp, busy);
 }
 
-export function renderOverview(mods, down, busy) {
+function renderOverview(mods, down, busy) {
   const links = [];
   for (const a of (config?.modules || [])) for (const b of a.links || []) {
     const back = (config.modules.find(x => x.name === b)?.links || []).includes(a.name);
@@ -88,7 +88,7 @@ export function renderOverview(mods, down, busy) {
   </section>`;
 }
 
-export function renderModule(m, name, sub, down, gwUp, busy) {
+function renderModule(m, name, sub, down, gwUp, busy) {
   const dis = running || !gwUp ? "disabled" : "";
   const yamlMod = page === "new" || (m && has(m, "up"));
   const tabs = page === "new" ? [["yaml", "module.yaml"]]

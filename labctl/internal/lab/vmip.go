@@ -49,19 +49,13 @@ func (l *Lab) VMIP(name string) string {
 
 // WaitVMIP attend qu'une VM ait une adresse (timeout en secondes).
 func (l *Lab) WaitVMIP(name string, timeout int) string {
-	deadline := time.Now().Add(time.Duration(timeout) * time.Second)
-	for {
-		if ip := l.VMIP(name); ip != "" {
-			return ip
-		}
-		if time.Now().After(deadline) {
-			return ""
-		}
-		time.Sleep(3 * time.Second)
-	}
+	ip := ""
+	l.poll(time.Duration(timeout)*time.Second, 3*time.Second, func() bool { ip = l.VMIP(name); return ip != "" })
+	return ip
 }
 
-// LabMarker est la marque des VMs créées par les scripts (description libvirt).
+// LabMarker est la marque des VMs créées par labctl (description libvirt). Sa valeur date des anciens scripts bash :
+// elle reste telle quelle, car les VMs existantes la portent.
 const LabMarker = "managed-by=labs-scripts"
 
 // VMLab extrait le lab d'une description libvirt (« lab=X »).

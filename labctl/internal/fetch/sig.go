@@ -54,8 +54,8 @@ func dearmor(armored []byte) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(b64.String())
 }
 
-// VerifySums vérifie la signature détachée sig du fichier d'empreintes sums avec la clé embarquée key.
-func VerifySums(key string, sums, sig []byte) error {
+// verifySums vérifie la signature détachée sig du fichier d'empreintes sums avec la clé embarquée key.
+func verifySums(key string, sums, sig []byte) error {
 	armored, err := signingKeys.ReadFile("keys/" + key + ".asc")
 	if err != nil {
 		return fmt.Errorf("clé de signature inconnue : %s", key)

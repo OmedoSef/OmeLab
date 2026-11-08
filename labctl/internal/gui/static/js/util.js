@@ -6,7 +6,7 @@ export const $ = (sel, el = document) => el.querySelector(sel);
 
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-export const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
+const stateLabel = { running: "démarrée", "shut off": "arrêtée", paused: "en pause", absente: "absente", crashed: "plantée", pmsuspended: "suspendue", "in shutdown": "en arrêt" };
 
 export const stLabel = s => stateLabel[s] || s;
 
@@ -51,7 +51,7 @@ export function ask({ title, text = "", ok = "Confirmer", danger = false, input 
   });
 }
 
-export function openLog() { $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer"; }
+function openLog() { $("#log").classList.remove("collapsed"); $("#log-toggle").textContent = "Masquer"; }
 
 export async function api(path, opts = {}) {
   const r = await fetch(path, { ...opts, headers: { "X-Lab-Token": token, "Content-Type": "application/json", ...(opts.headers || {}) } });

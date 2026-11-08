@@ -4,8 +4,8 @@ import { checkTrust, editConfig, pki, pkiTrust, running, trustChecking } from ".
 import { run } from "./run.js";
 
 // --- Vue PKI : CA, certificats, émission, déploiement
-export const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };
-export function expiry(c) {
+const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };
+function expiry(c) {
   const cls = c.daysLeft < 30 ? "err" : c.daysLeft < 90 ? "warn" : "meta";
   return `<span class="${cls}">${esc(c.notAfter)} (${c.daysLeft} j)</span>`;
 }

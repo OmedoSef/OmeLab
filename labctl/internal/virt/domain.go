@@ -219,11 +219,11 @@ func (c *Conn) SetResources(name string, cpus, memMiB int) error {
 	if err != nil {
 		return err
 	}
-	return c.DefineDomain(WithResources(x, cpus, memMiB))
+	return c.DefineDomain(withResources(x, cpus, memMiB))
 }
 
-// WithResources renvoie la définition x avec cpus vCPU et memMiB Mio (mémoire et mémoire courante).
-func WithResources(x string, cpus, memMiB int) string {
+// withResources renvoie la définition x avec cpus vCPU et memMiB Mio (mémoire et mémoire courante).
+func withResources(x string, cpus, memMiB int) string {
 	x = reVCPU.ReplaceAllString(x, fmt.Sprintf("${1}%d${2}", cpus))
 	return reMemory.ReplaceAllString(x, fmt.Sprintf("<${1} unit='KiB'>%d</${1}>", memMiB*1024))
 }
@@ -315,10 +315,10 @@ func (c *Conn) RemoveCDROMs(name string) error {
 	if err != nil {
 		return err
 	}
-	return c.DefineDomain(WithoutCDROMs(x))
+	return c.DefineDomain(withoutCDROMs(x))
 }
 
-// WithoutCDROMs renvoie la définition x sans lecteurs de CD ni démarrage sur CD.
-func WithoutCDROMs(x string) string {
+// withoutCDROMs renvoie la définition x sans lecteurs de CD ni démarrage sur CD.
+func withoutCDROMs(x string) string {
 	return reBootCDROM.ReplaceAllString(reCDROM.ReplaceAllString(x, ""), "")
 }

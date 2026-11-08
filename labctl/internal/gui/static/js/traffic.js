@@ -3,14 +3,14 @@ import { $, api, esc, toast } from "./util.js";
 import { fsize } from "./files.js";
 
 // --- Page Trafic : journal du proxy de la passerelle (connexions via: proxy), accès à mitmweb
-export const tr = { events: null, err: "", q: "", module: "", action: "" };
+const tr = { events: null, err: "", q: "", module: "", action: "" };
 export async function loadTraffic() {
   if (!$("#tr-list")) renderTrafficShell();
   try { tr.events = await (await api("/api/proxy/log?n=500")).json(); tr.err = ""; }
   catch (e) { tr.err = e.message; }
   renderTraffic();
 }
-export function renderTrafficShell() {
+function renderTrafficShell() {
   $("#view-traffic").innerHTML = `<section class="card">
     <div class="card-head"><h2>Trafic du proxy</h2>
       <span class="meta">connexions <span class="mono">via: proxy</span> : log (HTTPS non déchiffré), filter, intercept</span>
@@ -28,7 +28,7 @@ export function renderTrafficShell() {
       l'autorité d'interception (page PKI, « Confiance dans les VMs ») ; sinon on observe son comportement face au certificat inconnu.</div>
   </section>`;
 }
-export function renderTraffic() {
+function renderTraffic() {
   const box = $("#tr-list");
   if (!box) return;
   const mods = [...new Set((tr.events || []).map(e => e.module).filter(Boolean))].sort();

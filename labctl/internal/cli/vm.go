@@ -129,7 +129,7 @@ et qemu-guest-agent. Elle est rattachée à un lab avec -l.`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: cobra.NoFileCompletions,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s := l.DefaultVMSpec(args[0])
+			s := l.DefaultSpec(args[0])
 			if cmd.Flags().Changed("image") {
 				s.Image = image
 			}

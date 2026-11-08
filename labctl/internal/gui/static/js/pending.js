@@ -23,7 +23,7 @@ export function renderPending() {
   }
 }
 
-export function pendingModal() {
+function pendingModal() {
   const pending = (config && config.pending) || [], busy = running ? "disabled" : "";
   return `<div class="card-head"><h3 style="margin:0;font-size:16px">Modifications non appliquées sur la passerelle</h3>
       <span class="spacer"></span><button data-close-pending aria-label="Fermer">×</button></div>

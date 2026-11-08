@@ -38,17 +38,17 @@ func TestVerifySumsRealSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifySums("rocky", sums, sig); err != nil {
+	if err := verifySums("rocky", sums, sig); err != nil {
 		t.Fatalf("signature authentique refusée : %v", err)
 	}
 	altered := bytes.Replace(sums, []byte("SHA256"), []byte("SHA257"), 1)
-	if err := VerifySums("rocky", altered, sig); err == nil {
+	if err := verifySums("rocky", altered, sig); err == nil {
 		t.Error("fichier d'empreintes altéré accepté")
 	}
-	if err := VerifySums("alma", sums, sig); err == nil {
+	if err := verifySums("alma", sums, sig); err == nil {
 		t.Error("signature acceptée avec la clé d'un autre éditeur")
 	}
-	if err := VerifySums("inconnue", sums, sig); err == nil {
+	if err := verifySums("inconnue", sums, sig); err == nil {
 		t.Error("clé inconnue acceptée")
 	}
 }

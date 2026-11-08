@@ -16,12 +16,12 @@ SHA256 (Rocky-9-GenericCloud-Base.latest.x86_64.qcow2) = 92C206CC6F790C61583247E
 		"noble-server-cloudimg-amd64.img":               "04e8f246",
 		"Rocky-9-GenericCloud-Base.latest.x86_64.qcow2": "92c206cc",
 	} {
-		got, err := ParseSums(strings.NewReader(sums), file)
+		got, err := parseSums(strings.NewReader(sums), file)
 		if err != nil || !strings.HasPrefix(got, prefix) {
 			t.Errorf("%s : %q, %v", file, got, err)
 		}
 	}
-	if _, err := ParseSums(strings.NewReader(sums), "absent.qcow2"); err == nil {
+	if _, err := parseSums(strings.NewReader(sums), "absent.qcow2"); err == nil {
 		t.Error("fichier absent : erreur attendue")
 	}
 }

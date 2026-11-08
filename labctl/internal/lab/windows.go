@@ -419,7 +419,7 @@ func (r *run) windowsProvision(vm string, e module.Effective) error {
 			if err := r.l.Hypervisor().RebootDomain(r.libvirtName(vm)); err != nil {
 				return err
 			}
-			time.Sleep(30 * time.Second)
+			r.l.sleep(30 * time.Second)
 			if !r.waitSSH(vm, 900) {
 				return fmt.Errorf("%s ne revient pas après le redémarrage", vm)
 			}

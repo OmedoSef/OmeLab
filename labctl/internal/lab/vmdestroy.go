@@ -12,7 +12,7 @@ import (
 
 // DestroyVM supprime une VM : arrêt, suppression de sa définition (snapshots compris), libération de ses
 // baux DHCP sur la passerelle, suppression de son dossier dans le dossier des VMs. Les disques situés
-// ailleurs sont conservés. Une VM non créée par les scripts est refusée sauf force.
+// ailleurs sont conservés. Une VM sans la marque de labctl (LabMarker) est refusée sauf force.
 func (l *Lab) DestroyVM(name string, force bool, out io.Writer) error {
 	return l.destroyVM(name, force, false, out)
 }

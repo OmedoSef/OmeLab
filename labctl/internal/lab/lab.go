@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"labs/labctl/internal/fetch"
 	"labs/labctl/internal/module"
@@ -37,6 +38,9 @@ type Lab struct {
 	// Tool lance un outil de l'hôte (qemu-img, cloud-localds) et renvoie ses sorties standard et d'erreur ; nil = exec.
 	// Les tests y mettent un faux. Sert à la création des VMs, au contrôle et à la conversion des disques.
 	Tool func(name string, args ...string) (stdout, stderr []byte, err error)
+	// Sleep fait la pause entre deux essais des attentes (poll) ; nil = time.Sleep. Les tests y mettent une pause
+	// nulle : un délai dépassé se teste sans attendre.
+	Sleep func(time.Duration)
 
 	labVarsMu    sync.Mutex
 	labVarsCache map[string]string // vars: du lab.yaml, résolues (voir LabVars)
@@ -81,6 +85,29 @@ func (l *Lab) shellTo(target, script string, stdin io.Reader, w io.Writer) error
 	cmd.Env = append(os.Environ(), "LC_ALL=C")
 	cmd.Stdout, cmd.Stderr = w, w
 	return cmd.Run()
+}
+
+// sleep fait une pause (l.Sleep s'il est fourni).
+func (l *Lab) sleep(d time.Duration) {
+	if l.Sleep != nil {
+		l.Sleep(d)
+		return
+	}
+	time.Sleep(d)
+}
+
+// poll essaie ok, puis de nouveau toutes les every, jusqu'à ce qu'il réussisse ou que les pauses cumulées atteignent
+// timeout. Seule façon d'attendre dans le moteur : VM démarrée, SSH, agent invité, adresse de la passerelle…
+func (l *Lab) poll(timeout, every time.Duration, ok func() bool) bool {
+	for waited := time.Duration(0); ; waited += every {
+		if ok() {
+			return true
+		}
+		if waited >= timeout {
+			return false
+		}
+		l.sleep(every)
+	}
 }
 
 // Hypervisor renvoie l'hyperviseur du lab : libvirt, sauf faux injecté par un test (champ Virt).

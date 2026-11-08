@@ -42,7 +42,7 @@ func TestVerified(t *testing.T) {
 	dir := t.TempDir()
 
 	dst := filepath.Join(dir, "bon.bin")
-	if err := Verified(srv.URL+"/f", dst, "sha256", sum256(content), nil, io.Discard); err != nil {
+	if err := verified(srv.URL+"/f", dst, "sha256", sum256(content), nil, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(dst); !bytes.Equal(b, content) || exists(dst+".part") {
@@ -50,13 +50,13 @@ func TestVerified(t *testing.T) {
 	}
 
 	bad := filepath.Join(dir, "faux.bin")
-	err := Verified(srv.URL+"/f", bad, "sha256", strings.Repeat("0", 64), nil, io.Discard)
+	err := verified(srv.URL+"/f", bad, "sha256", strings.Repeat("0", 64), nil, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "empreinte sha256 invalide") || exists(bad) || exists(bad+".part") {
 		t.Fatalf("empreinte fausse : %v (publié %v, partiel %v)", err, exists(bad), exists(bad+".part"))
 	}
 
 	refused := filepath.Join(dir, "refuse.bin")
-	err = Verified(srv.URL+"/f", refused, "sha256", sum256(content), func(string) error { return errors.New("structure refusée") }, io.Discard)
+	err = verified(srv.URL+"/f", refused, "sha256", sum256(content), func(string) error { return errors.New("structure refusée") }, io.Discard)
 	if err == nil || exists(refused) || exists(refused+".part") {
 		t.Fatalf("contrôle refusé : %v (publié %v, partiel %v)", err, exists(refused), exists(refused+".part"))
 	}
@@ -70,7 +70,7 @@ func TestVerifiedResumes(t *testing.T) {
 	if err := os.WriteFile(dst+".part", content[:100000], 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Verified(srv.URL+"/f", dst, "sha256", sum256(content), nil, io.Discard); err != nil {
+	if err := verified(srv.URL+"/f", dst, "sha256", sum256(content), nil, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(dst); !bytes.Equal(b, content) {
@@ -114,7 +114,7 @@ func TestDownloadRefusesHTTPRedirect(t *testing.T) {
 }
 
 func TestNewHashUnknown(t *testing.T) {
-	if _, err := NewHash("crc32"); err == nil {
+	if _, err := newHash("crc32"); err == nil {
 		t.Error("algorithme inconnu accepté")
 	}
 	if _, err := FileHash(os.DevNull, "sha3"); err == nil {

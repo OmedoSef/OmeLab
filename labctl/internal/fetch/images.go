@@ -68,12 +68,12 @@ func FetchImage(name, dst string, fresh bool, out io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("signature des empreintes de %s : %w", name, err)
 		}
-		if err := VerifySums(img.Key, sums, sig); err != nil {
+		if err := verifySums(img.Key, sums, sig); err != nil {
 			return fmt.Errorf("%s : %w — image refusée", name, err)
 		}
 		fmt.Fprintf(out, "ok  empreintes de %s signées par l'éditeur (clé %s)\n", name, img.Key)
 	}
-	want, err := ParseSums(bytes.NewReader(sums), file)
+	want, err := parseSums(bytes.NewReader(sums), file)
 	if err != nil {
 		return fmt.Errorf("%s : %w", img.Sums, err)
 	}
@@ -88,7 +88,7 @@ func FetchImage(name, dst string, fresh bool, out io.Writer) error {
 		}
 		return os.Chmod(part, 0o644)
 	}
-	if err := Verified(img.URL, dst, img.Algo, want, publishable, out); err != nil {
+	if err := verified(img.URL, dst, img.Algo, want, publishable, out); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "ok  %s -> %s (empreinte %s conforme)\n", name, dst, img.Algo)

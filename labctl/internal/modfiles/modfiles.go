@@ -71,8 +71,8 @@ func TextHash(b []byte) string {
 // Tree est le dossier files/ d'un module (Base : chemin absolu ; il peut ne pas exister encore).
 type Tree struct{ Base string }
 
-// CleanRel valide un chemin relatif à files/ et le renvoie nettoyé (séparateur /).
-func CleanRel(rel string) (string, error) {
+// cleanRel valide un chemin relatif à files/ et le renvoie nettoyé (séparateur /).
+func cleanRel(rel string) (string, error) {
 	rel = strings.TrimSpace(strings.ReplaceAll(rel, "\\", "/"))
 	if rel == "" || strings.ContainsRune(rel, 0) || strings.HasPrefix(rel, "/") {
 		return "", fmt.Errorf("chemin invalide : %q", rel)
@@ -89,10 +89,10 @@ func CleanRel(rel string) (string, error) {
 	return c, nil
 }
 
-// SafePath renvoie le chemin absolu de rel sous base, après avoir vérifié qu'aucun élément existant n'est un
+// safePath renvoie le chemin absolu de rel sous base, après avoir vérifié qu'aucun élément existant n'est un
 // lien symbolique (base comprise) : impossible de sortir de files/.
-func SafePath(base, rel string) (string, string, error) {
-	c, err := CleanRel(rel)
+func safePath(base, rel string) (string, string, error) {
+	c, err := cleanRel(rel)
 	if err != nil {
 		return "", "", err
 	}
@@ -179,7 +179,7 @@ func (t Tree) List(uses map[string][]FileRef) (files []File, missing []FileRef, 
 // regular ouvre rel en lecture : un fichier ordinaire uniquement.
 func (t Tree) regular(rel string) (string, os.FileInfo, error) {
 	base := t.Base
-	p, c, err := SafePath(base, rel)
+	p, c, err := safePath(base, rel)
 	if err != nil {
 		return "", nil, err
 	}
@@ -252,7 +252,7 @@ func WriteAtomic(p string, r io.Reader, limit int64) error {
 // l'empreinte lue (ErrConflict si le fichier a changé entre-temps). Renvoie la nouvelle empreinte.
 func (t Tree) SaveText(rel, text, base string, create bool) (string, error) {
 	dir := t.Base
-	p, c, err := SafePath(dir, rel)
+	p, c, err := safePath(dir, rel)
 	if err != nil {
 		return "", err
 	}
@@ -280,7 +280,7 @@ func (t Tree) SaveText(rel, text, base string, create bool) (string, error) {
 // Upload enregistre un fichier envoyé (ErrExists s'il existe et que overwrite est faux).
 func (t Tree) Upload(rel string, r io.Reader, overwrite bool) error {
 	dir := t.Base
-	p, c, err := SafePath(dir, rel)
+	p, c, err := safePath(dir, rel)
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (t Tree) Upload(rel string, r io.Reader, overwrite bool) error {
 // Mkdir crée un dossier (et ses parents) sous files/.
 func (t Tree) Mkdir(rel string) error {
 	dir := t.Base
-	p, c, err := SafePath(dir, rel)
+	p, c, err := safePath(dir, rel)
 	if err != nil {
 		return err
 	}
@@ -311,11 +311,11 @@ func (t Tree) Mkdir(rel string) error {
 // Rename renomme ou déplace un fichier ou un dossier de files/ (la destination ne doit pas exister).
 func (t Tree) Rename(from, to string) error {
 	dir := t.Base
-	src, cf, err := SafePath(dir, from)
+	src, cf, err := safePath(dir, from)
 	if err != nil {
 		return err
 	}
-	dst, ct, err := SafePath(dir, to)
+	dst, ct, err := safePath(dir, to)
 	if err != nil {
 		return err
 	}
@@ -337,12 +337,12 @@ func (t Tree) Rename(from, to string) error {
 // Delete supprime un fichier ou un dossier (avec son contenu) de files/.
 func (t Tree) Delete(rel string) error {
 	dir := t.Base
-	p, c, err := SafePath(dir, rel)
+	p, c, err := safePath(dir, rel)
 	if err != nil {
 		return err
 	}
 	if _, err := os.Lstat(p); err != nil {
 		return fmt.Errorf("%s/%s introuvable", FilesDir, c)
 	}
-	return os.RemoveAll(p) // SafePath a refusé tout lien sur le chemin ; RemoveAll ne suit pas ceux du contenu
+	return os.RemoveAll(p) // safePath a refusé tout lien sur le chemin ; RemoveAll ne suit pas ceux du contenu
 }

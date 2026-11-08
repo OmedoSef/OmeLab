@@ -55,11 +55,8 @@ func (g *Gateway) gatewayMemory() error {
 	if err := v.ShutdownDomain(GatewayVM); err != nil {
 		return err
 	}
-	for t := 0; g.l.DomState(GatewayVM) == virt.StateRunning; t++ {
-		if t > 90 {
-			return fmt.Errorf("la passerelle ne s'arrête pas : labctl core stop puis start")
-		}
-		time.Sleep(time.Second)
+	if !g.l.poll(90*time.Second, time.Second, func() bool { return g.l.DomState(GatewayVM) != virt.StateRunning }) {
+		return fmt.Errorf("la passerelle ne s'arrête pas : labctl core stop puis start")
 	}
 	if err := v.StartDomain(GatewayVM); err != nil {
 		return err

@@ -66,11 +66,8 @@ func (r *run) stopVM(vm string, force bool) error {
 	if err := v.ShutdownDomain(lv); err != nil {
 		return err
 	}
-	for t := 0; t < 90; t += 2 {
-		if r.l.DomState(lv) == "shut off" {
-			return nil
-		}
-		time.Sleep(2 * time.Second)
+	if r.l.poll(90*time.Second, 2*time.Second, func() bool { return r.l.DomState(lv) == "shut off" }) {
+		return nil
 	}
 	if !force {
 		return fmt.Errorf("%s ne s'est pas arrêtée en 90 s (fermer sa session, ou stop --force pour couper)", vm)

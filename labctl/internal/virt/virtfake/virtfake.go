@@ -24,6 +24,7 @@ type VM struct {
 	Ifaces            []virt.Interface
 	Disks             []string
 	Snaps             []virt.Snapshot
+	DeafACPI          bool // ignore l'arrêt propre (ShutdownDomain réussit, la VM reste en marche)
 }
 
 // Fake implémente virt.Hypervisor.
@@ -236,6 +237,12 @@ func (f *Fake) StartDomain(name string) error {
 	return f.setState("start", name, virt.StateRunning, "shut off", "crashed")
 }
 func (f *Fake) ShutdownDomain(name string) error {
+	if d := f.VM(name); d != nil && d.DeafACPI && d.State == virt.StateRunning {
+		f.mu.Lock()
+		f.note("shutdown %s", name)
+		f.mu.Unlock()
+		return nil
+	}
 	return f.setState("shutdown", name, "shut off", virt.StateRunning)
 }
 func (f *Fake) DestroyDomain(name string) error {

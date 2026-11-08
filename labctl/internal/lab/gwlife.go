@@ -81,13 +81,7 @@ func (g *Gateway) Create() error {
 
 // waitSSH attend que la passerelle réponde en SSH (2 min au plus).
 func (g *Gateway) waitSSH() bool {
-	for t := 0; t < 120; t += 3 {
-		if _, err := g.sshOut("true"); err == nil {
-			return true
-		}
-		time.Sleep(3 * time.Second)
-	}
-	return false
+	return g.l.poll(120*time.Second, 3*time.Second, func() bool { _, err := g.sshOut("true"); return err == nil })
 }
 
 // installLabctl copie labctl (binaire statique) sur la passerelle et active le service des portails captifs.

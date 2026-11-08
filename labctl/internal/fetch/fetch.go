@@ -75,8 +75,8 @@ var (
 	reSumBSD = regexp.MustCompile(`^SHA(256|512) \((\S+)\) = ([0-9a-fA-F]{64,128})$`)
 )
 
-// ParseSums cherche l'empreinte d'un fichier dans un fichier d'empreintes (formats GNU et BSD).
-func ParseSums(r io.Reader, file string) (string, error) {
+// parseSums cherche l'empreinte d'un fichier dans un fichier d'empreintes (formats GNU et BSD).
+func parseSums(r io.Reader, file string) (string, error) {
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -93,9 +93,9 @@ func ParseSums(r io.Reader, file string) (string, error) {
 	return "", fmt.Errorf("pas d'empreinte pour %s", file)
 }
 
-// NewHash renvoie la fonction de hachage nommée : md5, sha1, sha256 ou sha512. Un autre nom est une erreur (jamais
+// newHash renvoie la fonction de hachage nommée : md5, sha1, sha256 ou sha512. Un autre nom est une erreur (jamais
 // un repli silencieux sur sha256, qui ferait échouer — ou passer — une vérification pour une mauvaise raison).
-func NewHash(algo string) (hash.Hash, error) {
+func newHash(algo string) (hash.Hash, error) {
 	switch algo {
 	case "md5":
 		return md5.New(), nil
@@ -111,7 +111,7 @@ func NewHash(algo string) (hash.Hash, error) {
 
 // FileHash renvoie l'empreinte (hexadécimale) d'un fichier.
 func FileHash(file, algo string) (string, error) {
-	h, err := NewHash(algo)
+	h, err := newHash(algo)
 	if err != nil {
 		return "", err
 	}
@@ -126,12 +126,12 @@ func FileHash(file, algo string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// Verified télécharge url vers dst, sans jamais publier un fichier non vérifié : téléchargement dans dst.part
+// verified télécharge url vers dst, sans jamais publier un fichier non vérifié : téléchargement dans dst.part
 // (repris s'il existe), empreinte comparée à want, contrôle check facultatif (structure d'un disque…), puis
 // renommage atomique. Un fichier partiel qui échoue à la vérification est supprimé.
-func Verified(url, dst, algo, want string, check func(string) error, out io.Writer) error {
+func verified(url, dst, algo, want string, check func(string) error, out io.Writer) error {
 	part := dst + ".part"
-	if err := Download(url, part, out); err != nil {
+	if err := download(url, part, out); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "==> Vérification %s\n", algo)
@@ -152,7 +152,7 @@ func Verified(url, dst, algo, want string, check func(string) error, out io.Writ
 	return os.Rename(part, dst)
 }
 
-// Cached renvoie dst s'il est déjà là et intact (empreinte want), sinon le télécharge et le vérifie (Verified).
+// Cached renvoie dst s'il est déjà là et intact (empreinte want), sinon le télécharge et le vérifie (verified).
 // label nomme le fichier dans les messages.
 func Cached(url, dst, algo, want, label string, out io.Writer) error {
 	if got, err := FileHash(dst, algo); err == nil && got == strings.ToLower(want) {
@@ -162,18 +162,21 @@ func Cached(url, dst, algo, want, label string, out io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(out, "==> Téléchargement de %s\n", label)
-	return Verified(url, dst, algo, want, nil, out)
+	return verified(url, dst, algo, want, nil, out)
 }
 
-// Download télécharge url dans dst, en reprenant un fichier partiel existant.
-func Download(url, dst string, out io.Writer) error {
+// download télécharge url dans dst, en reprenant un fichier partiel existant.
+func download(url, dst string, out io.Writer) error {
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	offset, _ := f.Seek(0, io.SeekEnd)
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
 	if offset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}

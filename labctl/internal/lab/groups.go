@@ -83,9 +83,7 @@ func (l *Lab) LabDown(lab string, out io.Writer) error {
 	}
 	var errs []error
 	for _, vm := range vms {
-		for t := 0; t < 120 && l.DomState(vm) == virt.StateRunning; t += 2 {
-			time.Sleep(2 * time.Second)
-		}
+		l.poll(120*time.Second, 2*time.Second, func() bool { return l.DomState(vm) != virt.StateRunning })
 		if l.DomState(vm) == virt.StateRunning {
 			fmt.Fprintf(out, "attention: %s ne s'arrête pas, arrêt forcé\n", vm)
 			if err := v.DestroyDomain(vm); err != nil {

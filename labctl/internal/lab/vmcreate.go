@@ -15,8 +15,8 @@ import (
 	"labs/labctl/internal/vmdef"
 )
 
-// DefaultVMSpec renvoie une description avec les valeurs par défaut des réglages (config.env).
-func (l *Lab) DefaultVMSpec(name string) vmdef.Spec {
+// DefaultSpec renvoie une description avec les valeurs par défaut des réglages (config.env).
+func (l *Lab) DefaultSpec(name string) vmdef.Spec {
 	atoi := func(k string, def int) int {
 		if n, err := strconv.Atoi(l.Setting(k, "")); err == nil {
 			return n
@@ -271,12 +271,7 @@ func (l *Lab) waitReady(name, user string, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "==> IP %s, attente de cloud-init...\n", ip)
 	target := user + "@" + ip
-	for i := 0; i < 60; i++ {
-		if _, _, err := l.shell(target, "true", nil); err == nil {
-			break
-		}
-		time.Sleep(3 * time.Second)
-	}
+	l.poll(180*time.Second, 3*time.Second, func() bool { _, _, err := l.shell(target, "true", nil); return err == nil })
 	stdout, stderr, err := l.shell(target, "cloud-init status --wait >/dev/null; cloud-init status", nil)
 	fmt.Fprint(out, string(stdout)+string(stderr))
 	if err != nil {

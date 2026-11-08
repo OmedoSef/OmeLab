@@ -255,14 +255,10 @@ sudo networkctl reload`, &buf); err != nil {
 	for _, name := range in.Attached {
 		instances = append(instances, name+"-closed", name+"-open")
 		addr := fmt.Sprintf("%s.%d/24", byName[name].Subnet, coreconf.GatewayOctet)
-		ok := false
-		for t := 0; t < 30; t += 2 {
-			if out, err := g.sshOut("ip -4 -br addr"); err == nil && slices.Contains(strings.Fields(string(out)), addr) {
-				ok = true
-				break
-			}
-			time.Sleep(2 * time.Second)
-		}
+		ok := g.l.poll(30*time.Second, 2*time.Second, func() bool {
+			out, err := g.sshOut("ip -4 -br addr")
+			return err == nil && slices.Contains(strings.Fields(string(out)), addr)
+		})
 		if !ok {
 			return fmt.Errorf("la passerelle n'a pas pris %s sur le réseau du module %s", addr, name)
 		}

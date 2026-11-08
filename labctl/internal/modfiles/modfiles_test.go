@@ -12,11 +12,11 @@ import (
 // dossier files/ lui-même, ni un dossier intermédiaire, ni le fichier.
 func TestConfinement(t *testing.T) {
 	for _, rel := range []string{"", "/etc/passwd", "../x", "a/../../x", "..", ".", "a\x00b", strings.Repeat("a", 256)} {
-		if _, err := CleanRel(rel); err == nil {
-			t.Errorf("CleanRel(%q) accepté", rel)
+		if _, err := cleanRel(rel); err == nil {
+			t.Errorf("cleanRel(%q) accepté", rel)
 		}
 	}
-	if c, err := CleanRel(` conf\sub/./app.ini `); err != nil || c != "conf/sub/app.ini" {
+	if c, err := cleanRel(` conf\sub/./app.ini `); err != nil || c != "conf/sub/app.ini" {
 		t.Errorf("chemin nettoyé : %q %v", c, err)
 	}
 
@@ -81,3 +81,41 @@ func TestSaveTextAndUpload(t *testing.T) {
 }
 
 func exists(p string) bool { _, err := os.Lstat(p); return err == nil }
+
+// List : fichiers et dossiers de files/, reliés aux entrées files: qui les copient ; entrées dont le fichier manque ;
+// liens ni listés ni suivis.
+func TestList(t *testing.T) {
+	tree := Tree{Base: t.TempDir()}
+	if err := tree.Mkdir("conf"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = tree.SaveText("conf/app.ini", "a=1\n", "", true)
+	_ = os.WriteFile(filepath.Join(tree.Base, "image.bin"), []byte{0, 1, 2}, 0o644)
+	_ = os.Symlink("/etc", filepath.Join(tree.Base, "lien"))
+	uses := map[string][]FileRef{
+		"conf/app.ini": {{VM: "srv", Src: "files/conf/app.ini", Dest: "/etc/app.ini"}},
+		"absent.conf":  {{VM: "srv", Src: "files/absent.conf", Dest: "/etc/absent"}},
+	}
+	files, missing, err := tree.List(uses)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]File{}
+	for _, f := range files {
+		got[f.Path] = f
+	}
+	if len(files) != 3 || !got["conf"].Dir || !got["conf/app.ini"].Text || got["image.bin"].Text || len(got["conf/app.ini"].Uses) != 1 {
+		t.Errorf("liste : %+v", files)
+	}
+	if _, ok := got["lien"]; ok {
+		t.Error("lien listé")
+	}
+	if len(missing) != 1 || missing[0].Src != "files/absent.conf" {
+		t.Errorf("manquants : %+v", missing)
+	}
+	// files/ absent : rien à lister, les références sont manquantes
+	none := Tree{Base: filepath.Join(t.TempDir(), "files")}
+	if files, missing, err := none.List(uses); err != nil || len(files) != 0 || len(missing) != 2 {
+		t.Errorf("files/ absent : %v %v %v", files, missing, err)
+	}
+}

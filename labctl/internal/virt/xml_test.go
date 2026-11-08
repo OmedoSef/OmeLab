@@ -37,7 +37,7 @@ func TestResourcesFromXML(t *testing.T) {
 // Les ressources réécrites sont relues à l'identique ; le reste de la définition ne bouge pas.
 func TestWithResources(t *testing.T) {
 	x := sampleDomainXML(t)
-	y := WithResources(x, 4, 8192)
+	y := withResources(x, 4, 8192)
 	cpus, mem, err := ResourcesFromXML(y)
 	if err != nil || cpus != 4 || mem != 8192 {
 		t.Fatalf("après réécriture : %d vCPU, %d Mio, %v", cpus, mem, err)
@@ -45,14 +45,14 @@ func TestWithResources(t *testing.T) {
 	if !strings.Contains(y, "<currentMemory unit='KiB'>8388608</currentMemory>") || !strings.Contains(y, "<vcpu placement='static'>4</vcpu>") {
 		t.Errorf("mémoire courante ou placement perdus :\n%s", y)
 	}
-	if WithResources(y, 2, 4096) != x {
+	if withResources(y, 2, 4096) != x {
 		t.Error("aller-retour : la définition d'origine n'est pas retrouvée")
 	}
 }
 
 // Les lecteurs de CD et le démarrage sur CD disparaissent ; disque, cartes et firmware restent.
 func TestWithoutCDROMs(t *testing.T) {
-	y := WithoutCDROMs(sampleDomainXML(t))
+	y := withoutCDROMs(sampleDomainXML(t))
 	for _, gone := range []string{"device='cdrom'", "Win11.iso", "virtio-win.iso", "<boot dev='cdrom'/>"} {
 		if strings.Contains(y, gone) {
 			t.Errorf("%s encore présent", gone)

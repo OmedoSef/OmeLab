@@ -57,7 +57,7 @@ export async function console_(vm) {
 }
 
 // L'action en cours concerne-t-elle ce module (et cette VM) ? Réponse : son verbe, sinon ""
-export const verbLabel = { up: "construction", start: "démarrage", stop: "arrêt", snapshot: "snapshot", restore: "restauration", certs: "certificats",
+const verbLabel = { up: "construction", start: "démarrage", stop: "arrêt", snapshot: "snapshot", restore: "restauration", certs: "certificats",
   destroy: "suppression", keyboard: "clavier", on: "ouverture d'Internet", off: "fermeture d'Internet" };
 export function activeOn(m, vm, wideOnly = false) {
   const a = current;

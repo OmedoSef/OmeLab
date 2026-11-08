@@ -224,9 +224,9 @@ func RenderCloudInit(s *Spec, e CloudEnv) CloudInit {
 	// Clavier : /etc/default/keyboard (console) ET /etc/X11/xorg.conf.d (X), lus au démarrage sans dépendre de
 	// localectl (qui peut échouer en plein cloud-init) ; le runcmd plus haut applique en plus le tout à chaud.
 	u.WriteString("write_files:\n  - path: /etc/default/keyboard\n    encoding: b64\n")
-	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(KeyboardFile(e.Keyboard))))
+	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(keyboardFile(e.Keyboard))))
 	u.WriteString("  - path: /etc/X11/xorg.conf.d/00-keyboard.conf\n    encoding: b64\n")
-	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(XkbConf(e.Keyboard))))
+	fmt.Fprintf(&u, "    content: %s\n", base64.StdEncoding.EncodeToString([]byte(xkbConf(e.Keyboard))))
 	for _, f := range s.Files {
 		mode := f.Mode
 		if mode == "" {
@@ -245,14 +245,14 @@ func RenderCloudInit(s *Spec, e CloudEnv) CloudInit {
 	return ci
 }
 
-// KeyboardFile renvoie le contenu de /etc/default/keyboard pour une disposition.
-func KeyboardFile(layout string) string {
+// keyboardFile renvoie le contenu de /etc/default/keyboard pour une disposition.
+func keyboardFile(layout string) string {
 	return fmt.Sprintf("XKBMODEL=\"pc105\"\nXKBLAYOUT=\"%s\"\nXKBVARIANT=\"\"\nXKBOPTIONS=\"\"\nBACKSPACE=\"guess\"\n", layout)
 }
 
-// XkbConf renvoie une règle Xorg (/etc/X11/xorg.conf.d/00-keyboard.conf) fixant la disposition du serveur X,
+// xkbConf renvoie une règle Xorg (/etc/X11/xorg.conf.d/00-keyboard.conf) fixant la disposition du serveur X,
 // lue au démarrage de X indépendamment de localectl.
-func XkbConf(layout string) string {
+func xkbConf(layout string) string {
 	return fmt.Sprintf("Section \"InputClass\"\n    Identifier \"system-keyboard\"\n    MatchIsKeyboard \"on\"\n    Option \"XkbLayout\" \"%s\"\nEndSection\n", layout)
 }
 
