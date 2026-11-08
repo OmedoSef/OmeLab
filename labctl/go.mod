@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/digitalocean/go-libvirt v0.0.0-20261013170128-efbbdf578ac8
 	github.com/spf13/cobra v1.10.2
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.6
 	software.sslmate.com/src/go-pkcs12 v0.7.4
 )
 
