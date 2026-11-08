@@ -180,14 +180,6 @@ réseaux libvirt. Sans argument : tous les modules déclaratifs.`,
 	return c
 }
 
-func assoc[V any](m map[string]V, f func(V) string) string {
-	var parts []string
-	for _, k := range sortedKeys(m) {
-		parts = append(parts, fmt.Sprintf("[%s]=%s", k, f(m[k])))
-	}
-	return strings.Join(parts, " ")
-}
-
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {

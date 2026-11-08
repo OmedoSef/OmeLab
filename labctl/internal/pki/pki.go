@@ -65,9 +65,6 @@ func (p *PKI) rootKey() string { return p.path("root", "root-ca.key") }
 func (p *PKI) intCrt() string  { return p.path("intermediate", "intermediate-ca.crt") }
 func (p *PKI) intKey() string  { return p.path("intermediate", "intermediate-ca.key") }
 
-// RootCert renvoie le chemin du certificat racine (à distribuer aux VMs et aux navigateurs).
-func (p *PKI) RootCert() string { return p.rootCrt() }
-
 // Initialized indique si la CA racine existe.
 func (p *PKI) Initialized() bool {
 	_, err := os.Stat(p.rootKey())
