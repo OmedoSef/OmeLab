@@ -219,9 +219,13 @@ func (c *Conn) SetResources(name string, cpus, memMiB int) error {
 	if err != nil {
 		return err
 	}
+	return c.DefineDomain(WithResources(x, cpus, memMiB))
+}
+
+// WithResources renvoie la définition x avec cpus vCPU et memMiB Mio (mémoire et mémoire courante).
+func WithResources(x string, cpus, memMiB int) string {
 	x = reVCPU.ReplaceAllString(x, fmt.Sprintf("${1}%d${2}", cpus))
-	x = reMemory.ReplaceAllString(x, fmt.Sprintf("<${1} unit='KiB'>%d</${1}>", memMiB*1024))
-	return c.DefineDomain(x)
+	return reMemory.ReplaceAllString(x, fmt.Sprintf("<${1} unit='KiB'>%d</${1}>", memMiB*1024))
 }
 
 var (
@@ -300,7 +304,10 @@ func (c *Conn) SendKey(name string, code uint32) error {
 	})
 }
 
-var reCDROM = regexp.MustCompile(`(?s)\s*<disk type='file' device='cdrom'>.*?</disk>`)
+var (
+	reCDROM     = regexp.MustCompile(`(?s)\s*<disk type='file' device='cdrom'>.*?</disk>`)
+	reBootCDROM = regexp.MustCompile(`\s*<boot dev='cdrom'/>`)
+)
 
 // RemoveCDROMs retire de la définition (VM arrêtée) les lecteurs de CD et le démarrage sur CD.
 func (c *Conn) RemoveCDROMs(name string) error {
@@ -308,7 +315,10 @@ func (c *Conn) RemoveCDROMs(name string) error {
 	if err != nil {
 		return err
 	}
-	x = reCDROM.ReplaceAllString(x, "")
-	x = regexp.MustCompile(`\s*<boot dev='cdrom'/>`).ReplaceAllString(x, "")
-	return c.DefineDomain(x)
+	return c.DefineDomain(WithoutCDROMs(x))
+}
+
+// WithoutCDROMs renvoie la définition x sans lecteurs de CD ni démarrage sur CD.
+func WithoutCDROMs(x string) string {
+	return reBootCDROM.ReplaceAllString(reCDROM.ReplaceAllString(x, ""), "")
 }
