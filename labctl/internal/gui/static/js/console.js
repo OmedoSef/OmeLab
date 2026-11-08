@@ -1,6 +1,7 @@
 // GUI de labctl — console : redimensionnement, ligne de commande labctl.
 // Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, ask, esc, running, toast } from "./core.js";
+import { $, api, ask, esc, toast } from "./util.js";
+import { running } from "./core.js";
 import { run } from "./run.js";
 
 // --- Console : panneau redimensionnable (hauteur mémorisée dans ce navigateur), et ligne de commande labctl

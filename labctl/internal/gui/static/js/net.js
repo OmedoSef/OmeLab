@@ -1,7 +1,7 @@
 // GUI de labctl — onglet Réseau d'un module. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, config, esc, modPage, page, running, stLabel } from "./core.js";
+import { $, esc, stLabel } from "./util.js";
+import { config, modPage, running } from "./core.js";
 import { connCard } from "./pending.js";
-import { tr } from "./traffic.js";
 
 // --- Onglet Réseau d'un module : réservations DHCP, alias DNS, liens dans les deux sens (section dns du module.yaml)
 export function renderNet() {

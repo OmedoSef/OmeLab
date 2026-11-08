@@ -70,7 +70,7 @@ func Exec(name string, args ...string) (stdout, stderr []byte, err error) {
 	return o.Bytes(), e.Bytes(), err
 }
 
-// CheckDiskUsing est CheckDisk avec un exécutant de qemu-img fourni (lab.Lab.Tool, faux dans les tests).
+// CheckDiskUsing est CheckDisk avec un exécutant de qemu-img fourni (champ Tool du lab, faux dans les tests).
 func CheckDiskUsing(run func(name string, args ...string) ([]byte, []byte, error), path string) (string, error) {
 	out, stderr, err := run("qemu-img", "info", "-U", "--output=json", path)
 	if err != nil {

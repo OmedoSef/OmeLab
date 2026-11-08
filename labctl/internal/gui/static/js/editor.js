@@ -1,5 +1,6 @@
 // GUI de labctl — éditeur de module.yaml. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, ask, esc, go, load, loadConfig, running, state, toast, token } from "./core.js";
+import { $, api, ask, esc, toast, token } from "./util.js";
+import { go, load, loadConfig, running } from "./core.js";
 import { run } from "./run.js";
 import { render } from "./render.js";
 import { fdirty } from "./files.js";

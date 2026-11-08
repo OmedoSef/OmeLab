@@ -1,7 +1,7 @@
 // GUI de labctl — page PKI. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, checkTrust, download, editConfig, esc, pki, pkiTrust, running, toast, trustChecking } from "./core.js";
+import { $, esc, toast } from "./util.js";
+import { checkTrust, editConfig, pki, pkiTrust, running, trustChecking } from "./core.js";
 import { run } from "./run.js";
-import { tr } from "./traffic.js";
 
 // --- Vue PKI : CA, certificats, émission, déploiement
 export const kindLabel = { root: "racine", intermediate: "intermédiaire", "sub-ca": "CA dérivée", server: "serveur + client", client: "client" };

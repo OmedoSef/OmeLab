@@ -1,6 +1,7 @@
 // GUI de labctl — actions (délégation d'événements).
 // Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, ask, attachPicker, core, detachVM, download, editConfig, go, load, pki } from "./core.js";
+import { $, ask, download } from "./util.js";
+import { attachPicker, detachVM, editConfig, go, load } from "./core.js";
 import { console_, run } from "./run.js";
 import { openPending } from "./pending.js";
 

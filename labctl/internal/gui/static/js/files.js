@@ -1,10 +1,8 @@
 // GUI de labctl — onglet Fichiers d'un module. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, ask, esc, go, modPage, state, toast } from "./core.js";
-import { doing } from "./run.js";
+import { $, api, ask, esc, toast } from "./util.js";
+import { go, modPage } from "./core.js";
 import { render } from "./render.js";
-import { tr } from "./traffic.js";
 import { files } from "./pki.js";
-import { ed } from "./editor.js";
 
 // --- Onglet Fichiers : modules/<m>/files/, copiés dans les VMs par files: du module.yaml
 // fx.open : fichier ouvert dans l'éditeur texte (create : pas encore enregistré)

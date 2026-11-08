@@ -1,10 +1,9 @@
 // GUI de labctl — rendu : vue d'ensemble, barre latérale, pages de module.
 // Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, config, core, esc, go, modPage, openCmd, page, pki, running, stLabel, state, trustChecking, trustLine } from "./core.js";
-import { activeOn, doing, run } from "./run.js";
+import { $, esc, stLabel } from "./util.js";
+import { config, modPage, openCmd, page, pki, running, state, trustChecking, trustLine } from "./core.js";
+import { activeOn, doing } from "./run.js";
 import { fdirty, fx } from "./files.js";
-import { tr } from "./traffic.js";
-import { files } from "./pki.js";
 import { dirty, ed } from "./editor.js";
 
 // --- Rendu

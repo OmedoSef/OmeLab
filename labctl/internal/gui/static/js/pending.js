@@ -1,7 +1,7 @@
 // GUI de labctl — changements en attente sur la passerelle.
 // Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, config, esc, go, running } from "./core.js";
-import { tr } from "./traffic.js";
+import { $, esc } from "./util.js";
+import { config, running } from "./core.js";
 
 // --- Changements en attente sur la passerelle : bandeau en haut de toutes les pages
 // Changements de la passerelle non appliqués : pilule compacte dans l'en-tête (cliquable), détail dans une

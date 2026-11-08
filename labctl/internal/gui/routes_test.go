@@ -1,12 +1,15 @@
 package gui
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"labs/labctl/internal/lab"
 )
 
 // routesServer : serveur de test complet (routeur réel), avec un module « fic », un fichier dans files/, un secret
@@ -118,5 +121,99 @@ func TestRoutesConflictAndBusy(t *testing.T) {
 	defer s.busy.Unlock()
 	if rec := call(h, "POST", "/api/run", s.host, s.token, `{"args":["status"]}`); rec.Code != http.StatusConflict {
 		t.Errorf("seconde action pendant la première : %d", rec.Code)
+	}
+}
+
+// Opérations sur files/ par le vrai routeur : créer, déplacer, supprimer ; conflits et chemins hors du module refusés.
+func TestRoutesFileOps(t *testing.T) {
+	s, h := routesServer(t)
+	files := filepath.Join(s.lab.Root, "modules", "fic", "files")
+	for _, c := range []struct {
+		body string
+		want int
+	}{
+		{`{"module":"fic","op":"mkdir","path":"sous"}`, http.StatusOK},
+		{`{"module":"fic","op":"rename","path":"app.conf","to":"sous/app.conf"}`, http.StatusOK},
+		{`{"module":"fic","op":"mkdir","path":"sous"}`, http.StatusConflict},
+		{`{"module":"fic","op":"mkdir","path":"../../../evasion"}`, http.StatusBadRequest},
+		{`{"module":"fic","op":"rename","path":"sous/app.conf","to":"../module.yaml"}`, http.StatusBadRequest},
+		{`{"module":"../..","op":"delete","path":"secret.txt"}`, http.StatusBadRequest},
+		{`{"module":"fic","op":"chmod","path":"sous"}`, http.StatusBadRequest},
+	} {
+		if rec := call(h, "POST", "/api/file/op", s.host, s.token, c.body); rec.Code != c.want {
+			t.Errorf("%s : %d, attendu %d (%s)", c.body, rec.Code, c.want, strings.TrimSpace(rec.Body.String()))
+		}
+	}
+	if _, err := os.Stat(filepath.Join(files, "sous", "app.conf")); err != nil {
+		t.Errorf("fichier non déplacé : %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.lab.Root, "evasion")); err == nil {
+		t.Error("dossier créé hors du module")
+	}
+	if rec := call(h, "POST", "/api/file/op", s.host, s.token, `{"module":"fic","op":"delete","path":"sous"}`); rec.Code != http.StatusOK {
+		t.Errorf("suppression : %d", rec.Code)
+	}
+	if _, err := os.Stat(filepath.Join(s.lab.Root, "secret.txt")); err != nil {
+		t.Error("fichier hors du module supprimé")
+	}
+	if rec := call(h, "GET", "/api/file/op?module=fic&op=delete&path=sous", s.host, s.token, ""); rec.Code < 400 {
+		t.Errorf("GET sur une route d'écriture traité : %d", rec.Code) // seul POST y mène
+	}
+}
+
+// Éditeur de module.yaml : validation (nom piégé refusé), création, conflit de version, texte invalide jamais écrit.
+func TestRoutesModuleSave(t *testing.T) {
+	s, h := routesServer(t)
+	rec := call(h, "POST", "/api/module/check", s.host, s.token, `{"name":"../../x","text":"module: x\n"}`)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "nom de module invalide") {
+		t.Errorf("validation d'un nom piégé : %d %s", rec.Code, rec.Body.String())
+	}
+	body, _ := json.Marshal(map[string]any{"name": "neuf", "text": lab.ModuleSkeleton("neuf"), "create": true})
+	if rec := call(h, "POST", "/api/module/save", s.host, s.token, string(body)); rec.Code != http.StatusOK {
+		t.Fatalf("création : %d %s", rec.Code, rec.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(s.lab.Root, "modules", "neuf", "module.yaml")); err != nil {
+		t.Fatalf("module non créé : %v", err)
+	}
+	path := filepath.Join(s.lab.Root, "modules", "fic", "module.yaml")
+	if rec := call(h, "POST", "/api/module/save", s.host, s.token, `{"name":"fic","text":"module: fic\n# x\n","hash":"périmée"}`); rec.Code != http.StatusConflict {
+		t.Errorf("version périmée : %d %s", rec.Code, rec.Body.String())
+	}
+	_, hash, _ := s.lab.ModuleText("fic")
+	body, _ = json.Marshal(map[string]any{"name": "fic", "text": "module: fic\ncle_inconnue: 1\n", "hash": hash})
+	if rec := call(h, "POST", "/api/module/save", s.host, s.token, string(body)); rec.Code != http.StatusBadRequest {
+		t.Errorf("texte invalide : %d %s", rec.Code, rec.Body.String())
+	}
+	if b, _ := os.ReadFile(path); string(b) != "module: fic\n" {
+		t.Errorf("module.yaml modifié malgré le refus : %q", b)
+	}
+}
+
+// Page Réseau : un alias s'ajoute au module.yaml ; nom invalide, opération inconnue et action concurrente refusés.
+func TestRoutesConfigEdit(t *testing.T) {
+	s, h := routesServer(t)
+	dir := filepath.Join(s.lab.Root, "modules", "web")
+	_ = os.MkdirAll(dir, 0o755)
+	_ = os.WriteFile(filepath.Join(dir, "module.yaml"), []byte("module: web\nnetwork: {subnet: 10.90.90.0/24}\nvms:\n  srv: {ip: 10}\n"), 0o644)
+	for _, c := range []struct {
+		body string
+		want int
+	}{
+		{`{"op":"alias-add","module":"web","name":"www","target":"srv"}`, http.StatusNoContent},
+		{`{"op":"alias-add","module":"web","name":"a b","target":"srv"}`, http.StatusBadRequest},
+		{`{"op":"alias-add","module":"web","name":"x\ninjecte","target":"srv"}`, http.StatusBadRequest},
+		{`{"op":"explose","module":"web"}`, http.StatusBadRequest},
+	} {
+		if rec := call(h, "POST", "/api/config", s.host, s.token, c.body); rec.Code != c.want {
+			t.Errorf("%s : %d, attendu %d (%s)", c.body, rec.Code, c.want, strings.TrimSpace(rec.Body.String()))
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "module.yaml")); !strings.Contains(string(b), "www: srv") || strings.Contains(string(b), "injecte") {
+		t.Errorf("module.yaml après édition :\n%s", b)
+	}
+	s.busy.Lock()
+	defer s.busy.Unlock()
+	if rec := call(h, "POST", "/api/config", s.host, s.token, `{"op":"alias-del","module":"web","name":"www"}`); rec.Code != http.StatusConflict {
+		t.Errorf("édition pendant une action : %d", rec.Code)
 	}
 }

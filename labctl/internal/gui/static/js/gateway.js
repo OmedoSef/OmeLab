@@ -1,7 +1,6 @@
 // GUI de labctl — page Passerelle. Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, core, esc, running, stLabel } from "./core.js";
-import { run } from "./run.js";
-import { tr } from "./traffic.js";
+import { $, esc, stLabel } from "./util.js";
+import { core, running } from "./core.js";
 
 // --- Vue Core : passerelle, services, DHCP, pare-feu
 export function renderCore() {

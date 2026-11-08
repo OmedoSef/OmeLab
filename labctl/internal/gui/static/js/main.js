@@ -10,7 +10,8 @@ import "./pki.js";
 import "./editor.js";
 import "./actions.js";
 import "./console.js";
-import { $, core, go, load, loadConfig, loadCore, page, running, token } from "./core.js";
+import { $, token } from "./util.js";
+import { go, load, loadConfig, loadCore, page, running } from "./core.js";
 import { loadTraffic } from "./traffic.js";
 
 if (!token) $("#view-overview").innerHTML = `<div class="empty err">Jeton absent : ouvre l'adresse complète affichée par « labctl gui ».</div>`;

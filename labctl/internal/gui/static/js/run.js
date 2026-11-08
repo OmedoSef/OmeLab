@@ -1,6 +1,7 @@
 // GUI de labctl — exécution d'une commande labctl, sortie au fil de l'eau.
 // Module ES : ce qu'il partage est exporté, ce qu'il utilise est importé.
-import { $, api, ask, core, current, esc, load, loadConfig, loadCore, loadPKI, page, pki, running, setCurrent, setRunning, toast } from "./core.js";
+import { $, api, ask, esc, toast } from "./util.js";
+import { current, load, loadConfig, loadCore, loadPKI, page, running, setCurrent, setRunning } from "./core.js";
 import { render } from "./render.js";
 import { paintEditor } from "./editor.js";
 
