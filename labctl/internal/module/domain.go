@@ -8,12 +8,6 @@ import "strings"
 // dans le lab. Sont admis le domaine racine du lab et ses sous-domaines (choisis par l'opérateur à « labctl init »),
 // et les suffixes qui ne sont jamais délégués sur Internet.
 
-// IsLabel indique si s est un nom simple : minuscules, chiffres et tirets (nom de module, de réseau, label DNS).
-func IsLabel(s string) bool { return reName.MatchString(s) }
-
-// IsDomain indique si s est un nom de domaine complet en minuscules (au moins deux labels).
-func IsDomain(s string) bool { return reDomain.MatchString(s) }
-
 // PrivateSuffixes : suffixes réservés à un usage privé (.internal par l'ICANN, .local RFC 6762, .home.arpa
 // RFC 8375, .test/.example/.invalid/.localhost RFC 6761) ou d'usage interne répandu jamais délégués (.lan, .lab,
 // .corp, .home…).

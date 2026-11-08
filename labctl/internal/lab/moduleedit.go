@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/names"
 )
 
 // Édition d'un module.yaml en texte (éditeur de la GUI) : le texte est validé tel quel, et seul un texte
@@ -25,8 +26,7 @@ var ErrConflict = errors.New("le fichier a été modifié entre-temps (ailleurs 
 var ErrInvalid = errors.New("enregistrement refusé : le module contient des erreurs")
 
 var (
-	reModuleName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-	reYAMLLine   = regexp.MustCompile(`ligne (\d+)`)
+	reYAMLLine = regexp.MustCompile(`ligne (\d+)`)
 )
 
 // TextHash est l'empreinte d'un contenu (détection des modifications concurrentes).
@@ -41,7 +41,7 @@ func (l *Lab) moduleFile(name string) string {
 
 // ModuleText renvoie le contenu du module.yaml d'un module et son empreinte.
 func (l *Lab) ModuleText(name string) (text, hash string, err error) {
-	if !reModuleName.MatchString(name) {
+	if !names.Label(name) {
 		return "", "", fmt.Errorf("nom de module invalide : %q", name)
 	}
 	b, err := os.ReadFile(l.moduleFile(name))
@@ -57,7 +57,7 @@ func (l *Lab) ModuleText(name string) (text, hash string, err error) {
 // CheckModuleText valide un texte de module.yaml sans l'enregistrer. Une erreur de lecture (syntaxe,
 // clé inconnue, type) devient un problème placé à sa ligne.
 func (l *Lab) CheckModuleText(name, text string) []module.Issue {
-	if !reModuleName.MatchString(name) { // nom venu de la GUI : jamais un chemin
+	if !names.Label(name) { // nom venu de la GUI : jamais un chemin
 		return []module.Issue{{Error: true, Msg: fmt.Sprintf("nom de module invalide : %q (minuscules, chiffres, tirets)", name)}}
 	}
 	y, err := module.Parse([]byte(text), filepath.Join(l.Root, "modules", name))
@@ -79,7 +79,7 @@ func (l *Lab) CheckModuleText(name, text string) []module.Issue {
 // SaveModuleText enregistre un module.yaml après validation. base est l'empreinte du fichier lu (vide pour
 // créer un nouveau module : le dossier ne doit pas exister). Renvoie l'empreinte du fichier enregistré.
 func (l *Lab) SaveModuleText(name, text, base string, create bool) (string, []module.Issue, error) {
-	if !reModuleName.MatchString(name) {
+	if !names.Label(name) {
 		return "", nil, fmt.Errorf("nom de module invalide : %q (minuscules, chiffres, tirets)", name)
 	}
 	path := l.moduleFile(name)

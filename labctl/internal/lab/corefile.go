@@ -2,21 +2,16 @@ package lab
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"labs/labctl/internal/coreconf"
 	mod "labs/labctl/internal/module"
+	"labs/labctl/internal/names"
 )
 
 // Édition de la section réseau d'un module.yaml : réservations DHCP (dns.hosts), alias DNS (dns.aliases), liens (dns.links).
 // Mêmes règles que les commandes « labctl core dhcp|dns|link » ; rien n'est appliqué sur la
 // passerelle (voir PendingCoreChanges et « core apply »).
-
-var (
-	reHostName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-	reMAC      = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
-)
 
 // confModule renvoie un module qui a un réseau.
 func (l *Lab) confModule(name string) (*Module, error) {
@@ -51,11 +46,11 @@ func (l *Lab) ConfAddHost(module, name string, octet int, mac string) error {
 	}
 	mac = strings.ToLower(strings.TrimSpace(mac))
 	switch {
-	case !reHostName.MatchString(name):
+	case !names.Label(name):
 		return fmt.Errorf("nom invalide : %q (minuscules, chiffres, tirets)", name)
 	case octet < 2 || octet >= coreconf.DHCPRangeStart:
 		return fmt.Errorf("octet entre 2 et %d (hors plage DHCP libre)", coreconf.DHCPRangeStart-1)
-	case !reMAC.MatchString(mac):
+	case !names.MAC(mac):
 		return fmt.Errorf("MAC invalide : %q", mac)
 	case coreconf.GatewayMAC(m.Env.Subnet) == mac:
 		return fmt.Errorf("MAC réservée à la passerelle")
@@ -113,7 +108,7 @@ func (l *Lab) ConfAddAlias(module, name, target string) error {
 		return err
 	}
 	target = strings.TrimSpace(target)
-	if !reHostName.MatchString(name) {
+	if !names.Label(name) {
 		return fmt.Errorf("nom d'alias invalide : %q", name)
 	}
 	if _, ok := m.Env.Hosts[name]; ok {

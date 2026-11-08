@@ -15,6 +15,7 @@ import (
 
 	"labs/labctl/internal/lab"
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/names"
 )
 
 // Gabarits écrits par « labctl init », embarqués dans le binaire (il n'a pas besoin de l'arborescence source).
@@ -67,8 +68,6 @@ type identity struct {
 	askOrg, askDomain bool
 }
 
-var reRootDomain = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-
 // checkOrg : l'organisation entre dans le nom des CA (« <org> Intermediate CA », 64 caractères au plus en
 // X.509) et dans une ligne VAR="…" de config.env.
 func checkOrg(s string) error {
@@ -84,7 +83,7 @@ func checkOrg(s string) error {
 }
 
 func checkDomain(s string) error {
-	if !reRootDomain.MatchString(s) {
+	if !names.Domain(s) {
 		return fmt.Errorf("domaine invalide %q (ex. %s : minuscules, chiffres, tirets, au moins un point)", s, lab.DefaultDomain)
 	}
 	return nil

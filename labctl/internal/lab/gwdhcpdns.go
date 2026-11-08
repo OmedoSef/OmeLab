@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"labs/labctl/internal/coreconf"
+	"labs/labctl/internal/names"
 	"labs/labctl/internal/virt"
 )
 
@@ -122,7 +123,7 @@ func (g *Gateway) Release(macs []string) error {
 		return err
 	}
 	for _, mac := range macs {
-		if !reMAC.MatchString(strings.ToLower(mac)) {
+		if !names.MAC(strings.ToLower(mac)) {
 			return fmt.Errorf("MAC invalide : %s", mac)
 		}
 	}

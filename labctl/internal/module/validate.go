@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"labs/labctl/internal/names"
 )
 
 // NetInfo décrit un réseau déjà utilisé (autre module ou réseau libvirt), pour les conflits.
@@ -32,10 +34,6 @@ type Context struct {
 
 var (
 	reWinPath  = regexp.MustCompile(`^[A-Za-z]:[/\\]`)
-	reName     = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-	reVMName   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
-	reMAC      = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
-	reDomain   = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	reChecksum = regexp.MustCompile(`^(md5|sha1|sha256|sha512):([0-9a-fA-F]+)$`)
 	reSnapshot = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 	reMode     = regexp.MustCompile(`^0?[0-7]{3}$`)
@@ -89,7 +87,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	switch {
 	case m.Module == "":
 		c.err("module", "nom du module obligatoire")
-	case !reName.MatchString(m.Module):
+	case !names.Label(m.Module):
 		c.err("module", "nom invalide %q (minuscules, chiffres, tirets)", m.Module)
 	case len(m.Module) > 9:
 		c.err("module", "nom trop long %q : 9 caractères au plus (pont réseau virbr-<module>, 15 caractères)", m.Module)
@@ -103,7 +101,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	net := m.NetworkName()
 	domain := m.Domain(ctx.RootDomain)
 	if m.Network != nil {
-		if m.Network.Name != "" && !reName.MatchString(m.Network.Name) {
+		if m.Network.Name != "" && !names.Label(m.Network.Name) {
 			c.err("network.name", "nom invalide %q", m.Network.Name)
 		}
 		if m.Network.Subnet != "" {
@@ -117,13 +115,13 @@ func (m *Module) Validate(ctx Context) []Issue {
 				c.err("network.subnet", "%s n'est pas une adresse de réseau (attendu %s)", p, p.Masked())
 			}
 		}
-		if m.Network.Domain != "" && !reDomain.MatchString(m.Network.Domain) {
+		if m.Network.Domain != "" && !names.Domain(m.Network.Domain) {
 			c.err("network.domain", "domaine invalide %q", m.Network.Domain)
 		} else if m.Network.Domain != "" && !PrivateDomain(m.Network.Domain, ctx.RootDomain) {
 			c.err("network.domain", "domaine %q refusé : un module prend un sous-domaine de %s ou un domaine privé (.%s) — jamais un domaine d'Internet, pour lequel la PKI du lab émettrait des certificats",
 				m.Network.Domain, ctx.RootDomain, strings.Join(PrivateSuffixes, ", ."))
 		}
-		if m.Network.Subdomain != "" && !reName.MatchString(m.Network.Subdomain) {
+		if m.Network.Subdomain != "" && !names.Label(m.Network.Subdomain) {
 			c.err("network.subdomain", "sous-domaine invalide %q (un seul libellé, ex. pentest)", m.Network.Subdomain)
 		}
 		if m.Network.Domain != "" && m.Network.Subdomain != "" {
@@ -147,7 +145,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	}
 
 	// --- PKI
-	if m.PKI != nil && !reName.MatchString(m.PKI.CA) {
+	if m.PKI != nil && !names.Label(m.PKI.CA) {
 		c.err("pki.ca", "nom de CA invalide %q", m.PKI.CA)
 	}
 
@@ -165,7 +163,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 		}
 		if mac != "" {
 			mac = strings.ToLower(mac)
-			if !reMAC.MatchString(mac) {
+			if !names.MAC(mac) {
 				c.err(path+".mac", "MAC invalide %q", mac)
 			} else if other, ok := macs[mac]; ok {
 				c.err(path+".mac", "MAC déjà utilisée par %s", other)
@@ -183,7 +181,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	for _, name := range m.VMNames() {
 		vm := m.VMs[name]
 		p := "vms." + name
-		if !reVMName.MatchString(name) {
+		if !names.Label(name) {
 			c.err(p, "nom de VM invalide %q (minuscules, chiffres, tirets)", name)
 		}
 		claim(p, p, vm.IP, vm.MAC)
@@ -192,7 +190,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	}
 	for i, h := range m.DNS.Hosts {
 		p := fmt.Sprintf("dns.hosts.%d", i)
-		if !reVMName.MatchString(h.Name) {
+		if !names.Label(h.Name) {
 			c.err(p+".name", "nom invalide %q", h.Name)
 		}
 		if _, isVM := m.VMs[h.Name]; isVM {
@@ -243,7 +241,7 @@ func (m *Module) Validate(ctx Context) []Issue {
 	// --- DNS : alias et liens
 	for alias, target := range m.DNS.Aliases {
 		p := "dns.aliases." + alias
-		if !reVMName.MatchString(alias) {
+		if !names.Label(alias) {
 			c.err(p, "nom d'alias invalide %q", alias)
 		}
 		if _, isVM := m.VMs[alias]; isVM {
@@ -404,7 +402,7 @@ func (c *checker) checkVM(name string, vm *VM, ctx Context) {
 		if m.PKI == nil {
 			c.err(cp, "certificat sans CA : ajouter pki: {ca: …} au module")
 		}
-		if !reVMName.MatchString(ct.Name) {
+		if !names.Label(ct.Name) {
 			c.err(cp+".name", "nom invalide %q", ct.Name)
 		}
 		if !strings.HasPrefix(ct.Cert, "/") || !strings.HasPrefix(ct.Key, "/") {

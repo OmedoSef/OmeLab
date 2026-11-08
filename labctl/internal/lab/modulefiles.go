@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"labs/labctl/internal/module"
+	"labs/labctl/internal/names"
 )
 
 // Fichiers complémentaires d'un module (modules/<m>/files/, copiés dans les VMs par files: du module.yaml) :
@@ -60,7 +61,7 @@ type FileList struct {
 
 // filesBase renvoie modules/<m>/files (le dossier du module doit exister ; files/ peut manquer).
 func (l *Lab) filesBase(name string) (string, error) {
-	if !reModuleName.MatchString(name) {
+	if !names.Label(name) {
 		return "", fmt.Errorf("nom de module invalide : %q", name)
 	}
 	dir := filepath.Join(l.Root, "modules", name)

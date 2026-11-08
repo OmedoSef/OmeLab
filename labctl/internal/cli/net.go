@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"labs/labctl/internal/lab"
-	"labs/labctl/internal/module"
+	"labs/labctl/internal/names"
 )
 
 // netNames complète avec les noms connus de l'hyperviseur du lab.
@@ -85,10 +85,10 @@ Les réseaux des modules sont créés par leur module (labctl <module> up), pas 
 			if mode != "nat" && mode != "isolated" && mode != "route" {
 				return fmt.Errorf("mode invalide : %s (nat, isolated ou route)", mode)
 			}
-			if !module.IsLabel(name) { // recopié dans le XML du réseau
+			if !names.Label(name) { // recopié dans le XML du réseau
 				return fmt.Errorf("nom de réseau invalide : %q (minuscules, chiffres, tirets)", name)
 			}
-			if domain != "" && !module.IsDomain(domain) {
+			if domain != "" && !names.Domain(domain) {
 				return fmt.Errorf("domaine invalide : %q (ex. demo.%s)", domain, l.RootDomain())
 			}
 			pfx, err := netip.ParsePrefix(subnet)

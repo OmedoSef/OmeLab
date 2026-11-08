@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"labs/labctl/internal/fetch"
+	"labs/labctl/internal/names"
 )
 
 // VMSpec décrit une VM à créer depuis une image cloud. C'est la forme générique qu'utilisent
@@ -78,8 +79,6 @@ type FileSpec struct {
 	Mode string // défaut 0644
 }
 
-var reVMName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*$`)
-
 // ParseNet lit « RESEAU[:IP/CIDR] » (syntaxe de -n).
 func ParseNet(s string) NetSpec {
 	n, addr, _ := strings.Cut(s, ":")
@@ -102,7 +101,7 @@ func ParseFile(s string) (FileSpec, error) {
 // Validate contrôle la description (sans accès système).
 func (s *VMSpec) Validate() error {
 	switch {
-	case !reVMName.MatchString(s.Name):
+	case !names.Host(s.Name):
 		return fmt.Errorf("nom invalide (lettres, chiffres, tirets) : %q", s.Name)
 	case s.Base == "" && s.Install == nil && fetch.Images[s.Image].URL == "":
 		return fmt.Errorf("image inconnue : %q (%s)", s.Image, strings.Join(fetch.ImageNames(), ", "))
@@ -120,7 +119,7 @@ func (s *VMSpec) Validate() error {
 				return fmt.Errorf("IP fixe sans masque ou invalide (ex : 10.10.0.11/24) : %q", n.Address)
 			}
 		}
-		if n.MAC != "" && !reMAC.MatchString(strings.ToLower(n.MAC)) {
+		if n.MAC != "" && !names.MAC(strings.ToLower(n.MAC)) {
 			return fmt.Errorf("MAC invalide : %q", n.MAC)
 		}
 	}
