@@ -225,6 +225,13 @@ func runInit(out io.Writer, in io.Reader, dir string, force bool, id identity) e
 	fmt.Fprintf(out, "  # ajuster lab.yaml (ISO, mot de passe, domaine…) pour tous les modules à la fois\n")
 	fmt.Fprintf(out, "  labctl pki init        # (optionnel) CA du lab : les VMs créées lui feront confiance\n")
 	fmt.Fprintf(out, "  labctl status\n")
-	fmt.Fprintf(out, "\nlabctl trouve ce lab s'il est lancé depuis ce dossier, ou via LABS_ROOT=%s\n", abs)
+	// Lab par défaut : le premier créé, pour piloter labctl depuis n'importe quel dossier
+	if def, err := lab.DefaultRoot(); err == nil && def == "" {
+		if _, err := lab.SetDefault(abs); err == nil {
+			fmt.Fprintf(out, "\nLab par défaut : labctl le pilote depuis n'importe quel dossier (labctl use pour en changer).\n")
+			return nil
+		}
+	}
+	fmt.Fprintf(out, "\nlabctl pilote ce lab depuis son dossier ; « labctl use %s » en fait le lab par défaut.\n", abs)
 	return nil
 }

@@ -3,6 +3,7 @@ package lab
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -60,4 +61,46 @@ func TestLabVarsFollowFileAndConcurrent(t *testing.T) {
 		go func() { defer wg.Done(); _ = l.LabVars() }()
 	}
 	wg.Wait()
+}
+
+// Recherche du lab : LABS_ROOT, puis le lab du dossier courant, puis le lab par défaut (labctl init / use) ; un lab
+// par défaut disparu ou un dossier qui n'est pas un lab sont des erreurs qui disent quoi faire.
+func TestLocate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("LABS_ROOT", "")
+	os.Unsetenv("LABS_ROOT")
+	mk := func() string {
+		d := t.TempDir()
+		_ = os.WriteFile(filepath.Join(d, "config.env"), nil, 0o644)
+		_ = os.MkdirAll(filepath.Join(d, "modules", "x"), 0o755)
+		return d
+	}
+	a, b, ailleurs := mk(), mk(), t.TempDir()
+	t.Chdir(ailleurs)
+	if _, _, err := Locate(); err == nil || !strings.Contains(err.Error(), "labctl use") {
+		t.Fatalf("sans lab : %v", err)
+	}
+	if _, err := SetDefault(ailleurs); err == nil {
+		t.Error("dossier qui n'est pas un lab accepté comme lab par défaut")
+	}
+	if _, err := SetDefault(a); err != nil {
+		t.Fatal(err)
+	}
+	if l, how, err := Locate(); err != nil || l.Root != a || !strings.Contains(how, "par défaut") {
+		t.Errorf("depuis ailleurs : %v %q %v", l, how, err)
+	}
+	t.Chdir(filepath.Join(b, "modules", "x")) // le lab du dossier courant l'emporte sur le lab par défaut
+	if l, how, _ := Locate(); l == nil || l.Root != b || how != "dossier courant" {
+		t.Errorf("dans un autre lab : %v %q", l, how)
+	}
+	t.Setenv("LABS_ROOT", a) // LABS_ROOT l'emporte sur tout
+	if l, _, _ := Locate(); l == nil || l.Root != a {
+		t.Errorf("LABS_ROOT : %v", l)
+	}
+	os.Unsetenv("LABS_ROOT")
+	t.Chdir(ailleurs)
+	_ = os.RemoveAll(a)
+	if _, _, err := Locate(); err == nil || !strings.Contains(err.Error(), "n'existe plus") {
+		t.Errorf("lab par défaut disparu : %v", err)
+	}
 }

@@ -116,3 +116,18 @@ func TestInitCreatesLabSSHKey(t *testing.T) {
 		t.Errorf("clé présentée : %q", got)
 	}
 }
+
+// Le premier lab créé devient le lab par défaut (labctl pilotable depuis n'importe quel dossier) ; un lab créé
+// ensuite ne le remplace pas (labctl use pour changer).
+func TestInitSetsDefaultLab(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	first, second := t.TempDir(), t.TempDir()
+	for _, dir := range []string{first, second} {
+		if err := runInit(&bytes.Buffer{}, strings.NewReader(""), dir, false, identity{org: lab.DefaultOrg, domain: lab.DefaultDomain}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if def, err := lab.DefaultRoot(); err != nil || def != first {
+		t.Errorf("lab par défaut : %q %v, attendu %s", def, err, first)
+	}
+}

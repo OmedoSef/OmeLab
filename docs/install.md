@@ -87,8 +87,11 @@ Les réglages (stockage, accès aux VMs, gabarit par défaut d'une VM, clavier, 
 `config.env`. Ordre de priorité : variable d'environnement, puis `config.local.env` (propre au poste, non
 versionné), puis `config.env`.
 
-labctl retrouve le lab s'il est lancé **depuis son dossier** (ou un sous-dossier), ou via
-`LABS_ROOT=/chemin/du/lab`.
+**Depuis n'importe quel dossier** : le premier lab créé par `labctl init` devient le **lab par défaut**, piloté
+de partout (mémorisé dans `~/.config/labctl/lab`). `labctl use` affiche le lab piloté et pourquoi ;
+`labctl use DOSSIER` change de lab par défaut. Ordre de recherche : la variable `LABS_ROOT`, puis le lab qui
+contient le dossier courant (pour travailler ponctuellement sur un autre lab, il suffit de s'y placer), puis le lab
+par défaut.
 
 ## Repartir de zéro
 

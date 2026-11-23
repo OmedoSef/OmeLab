@@ -50,6 +50,12 @@ func Execute() int {
 	}
 	root := newRoot()
 	err := root.Execute()
+	// Hors d'un lab, les commandes des labs n'existent pas : dire pourquoi plutôt que « unknown command »
+	if err != nil && strings.HasPrefix(err.Error(), "unknown command") {
+		if _, ferr := lab.Find(); ferr != nil {
+			err = fmt.Errorf("« labctl %s » pilote un lab, et %v", args[0], ferr)
+		}
+	}
 	if logged {
 		ok := err == nil
 		e.Event, e.OK, e.Duration = "end", &ok, time.Since(start).Milliseconds()
@@ -95,8 +101,8 @@ func newRoot() *cobra.Command {
 	root.AddGroup(&cobra.Group{ID: "modules", Title: "Modules :"}, &cobra.Group{ID: "outils", Title: "Outils :"})
 
 	// Commandes qui fonctionnent sans dossier Labs : le service de la passerelle (labctl y est copié seul)
-	// et « init », qui sert justement à créer un lab là où il n'y en a pas encore.
-	root.AddCommand(gwPortalCmd(), initCmd(), versionCmd())
+	// « init », qui sert justement à créer un lab là où il n'y en a pas encore, et « use », qui en choisit un.
+	root.AddCommand(gwPortalCmd(), initCmd(), versionCmd(), useCmd())
 
 	// Les modules sont découverts au lancement : une sous-commande par dossier modules/<nom>/
 	l, err := lab.Find()
