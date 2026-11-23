@@ -1,11 +1,15 @@
-# Contrôles automatiques à chaque push et pull request (labctl/build.sh ci) : formatage, analyse, tests, vulnérabilités
-# connues, scripts shell, syntaxe Python et JS, et fabrication des artefacts de release (pour ne pas découvrir une casse le jour d'une release).
+# Contrôles automatiques à chaque push sur main et à chaque pull request (labctl/build.sh ci) : formatage, analyse,
+# tests, vulnérabilités connues, scripts shell, syntaxe Python et JS, et fabrication des artefacts de release (pour
+# ne pas découvrir une casse le jour d'une release).
 # Les actions tierces sont épinglées par SHA de commit (Dependabot propose les mises à jour) ; les outils Go aussi
 # (version explicite).
 name: CI
 
+# Un push sur main, ou une pull request : une seule exécution par changement (une branche de PR dans ce dépôt,
+# comme celles de Dependabot, déclencherait sinon push et pull_request, soit deux fois la même CI).
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
