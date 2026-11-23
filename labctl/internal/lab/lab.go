@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"labs/labctl/internal/fetch"
-	"labs/labctl/internal/modfiles"
 	"labs/labctl/internal/module"
 	"labs/labctl/internal/virt"
 )
@@ -129,7 +128,7 @@ func Find() (*Lab, error) {
 //  1. $LABS_ROOT (posé par activate, ou pour viser un lab ponctuellement) ;
 //  2. le lab qui contient le dossier courant : travailler dans un autre lab, c'est s'y placer ;
 //  3. le lab qui contient l'exécutable (dépôt de développement : bin/labctl) ;
-//  4. le lab par défaut de l'utilisateur, mémorisé par « labctl init » ou « labctl use » (DefaultFile) :
+//  4. le lab par défaut du registre de l'utilisateur (RegistryFile), choisi par « labctl init » ou « labctl use » :
 //     un labctl installé sur le système pilote ce lab depuis n'importe quel dossier.
 func Locate() (*Lab, string, error) {
 	if r := os.Getenv("LABS_ROOT"); r != "" {
@@ -150,10 +149,14 @@ func Locate() (*Lab, string, error) {
 			}
 		}
 	}
-	if r, err := DefaultRoot(); err != nil {
+	reg, err := LoadRegistry()
+	if err != nil {
 		return nil, "", err
-	} else if r != "" {
-		return &Lab{Root: r}, "lab par défaut, mémorisé dans " + DefaultFile(), nil
+	}
+	if name, root, err := reg.DefaultLab(); err != nil {
+		return nil, "", err
+	} else if root != "" {
+		return &Lab{Root: root}, "lab par défaut « " + name + " »", nil
 	}
 	return nil, "", errors.New("aucun lab : « labctl init DOSSIER » en crée un, « labctl use DOSSIER » choisit un lab existant " +
 		"(ou se placer dans le dossier d'un lab)")
@@ -169,52 +172,6 @@ func rootAbove(dir string) string {
 			return ""
 		}
 	}
-}
-
-// DefaultFile est le fichier qui mémorise le lab par défaut de l'utilisateur : $XDG_CONFIG_HOME/labctl/lab
-// (~/.config/labctl/lab), une ligne avec le chemin absolu du lab.
-func DefaultFile() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		dir = filepath.Join(os.Getenv("HOME"), ".config")
-	}
-	return filepath.Join(dir, "labctl", "lab")
-}
-
-// DefaultRoot renvoie le lab par défaut ("" s'il n'y en a pas). Un lab par défaut qui n'existe plus est une erreur
-// qui dit quoi faire, plutôt qu'un « introuvable » sans explication.
-func DefaultRoot() (string, error) {
-	b, err := os.ReadFile(DefaultFile())
-	if errors.Is(err, os.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	r := strings.TrimSpace(string(b))
-	if r == "" {
-		return "", nil
-	}
-	if !isRoot(r) {
-		return "", fmt.Errorf("le lab par défaut %s n'existe plus (config.env et modules/ attendus) : « labctl use DOSSIER » en choisit un autre", r)
-	}
-	return r, nil
-}
-
-// SetDefault fait de dir le lab par défaut de l'utilisateur.
-func SetDefault(dir string) (string, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return "", err
-	}
-	if !isRoot(abs) {
-		return "", fmt.Errorf("%s n'est pas un lab (config.env et modules/ attendus) : « labctl init %s » en crée un", abs, dir)
-	}
-	f := DefaultFile()
-	if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
-		return "", err
-	}
-	return abs, modfiles.WriteAtomic(f, strings.NewReader(abs+"\n"), 4<<10)
 }
 
 func isRoot(d string) bool {

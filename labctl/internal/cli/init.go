@@ -58,6 +58,7 @@ est demandée dans un terminal (Entrée : ` + lab.DefaultOrg + `, ` + lab.Defaul
 	}
 	c.Flags().BoolVar(&force, "force", false, "continue même si le dossier contient déjà un lab (n'écrase jamais un fichier existant)")
 	c.Flags().StringVar(&id.org, "org", lab.DefaultOrg, "organisation du lab : nom des CA (« <org> Root CA »), propriétaire des VMs Windows")
+	c.Flags().StringVar(&id.name, "name", "", "nom du lab pour « labctl use » (défaut : nom du dossier)")
 	c.Flags().StringVar(&id.domain, "domain", lab.DefaultDomain, "domaine racine des labs (domaine d'un module par défaut : <module>-lab.<domaine>)")
 	return c
 }
@@ -65,6 +66,7 @@ est demandée dans un terminal (Entrée : ` + lab.DefaultOrg + `, ` + lab.Defaul
 // identity : identité d'un nouveau lab (organisation, domaine racine), et ce qu'il faut demander.
 type identity struct {
 	org, domain       string
+	name              string // nom du lab dans le registre (labctl use) ; vide : nom du dossier
 	askOrg, askDomain bool
 }
 
@@ -225,13 +227,25 @@ func runInit(out io.Writer, in io.Reader, dir string, force bool, id identity) e
 	fmt.Fprintf(out, "  # ajuster lab.yaml (ISO, mot de passe, domaine…) pour tous les modules à la fois\n")
 	fmt.Fprintf(out, "  labctl pki init        # (optionnel) CA du lab : les VMs créées lui feront confiance\n")
 	fmt.Fprintf(out, "  labctl status\n")
-	// Lab par défaut : le premier créé, pour piloter labctl depuis n'importe quel dossier
-	if def, err := lab.DefaultRoot(); err == nil && def == "" {
-		if _, err := lab.SetDefault(abs); err == nil {
-			fmt.Fprintf(out, "\nLab par défaut : labctl le pilote depuis n'importe quel dossier (labctl use pour en changer).\n")
-			return nil
+	// Lab enregistré sous son nom ; le premier devient le lab par défaut (piloté depuis n'importe quel dossier)
+	reg, err := lab.LoadRegistry()
+	if err == nil {
+		var name string
+		if name, err = reg.Add(id.name, abs); err == nil {
+			first := reg.Default == ""
+			if first {
+				reg.Default = name
+			}
+			if err = reg.Save(); err == nil {
+				if first {
+					fmt.Fprintf(out, "\nLab « %s », piloté par défaut depuis n'importe quel dossier (labctl use pour basculer).\n", name)
+				} else {
+					fmt.Fprintf(out, "\nLab « %s » enregistré ; « labctl use %s » bascule dessus.\n", name, name)
+				}
+				return nil
+			}
 		}
 	}
-	fmt.Fprintf(out, "\nlabctl pilote ce lab depuis son dossier ; « labctl use %s » en fait le lab par défaut.\n", abs)
+	fmt.Fprintf(out, "\nattention: lab non enregistré (%v) : « labctl use %s » l'ajoutera.\n", err, abs)
 	return nil
 }

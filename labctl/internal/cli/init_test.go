@@ -127,7 +127,17 @@ func TestInitSetsDefaultLab(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if def, err := lab.DefaultRoot(); err != nil || def != first {
-		t.Errorf("lab par défaut : %q %v, attendu %s", def, err, first)
+	reg, err := lab.LoadRegistry()
+	if err != nil || len(reg.Labs) != 2 || reg.Labs[reg.Default] != first {
+		t.Errorf("registre : %+v %v, lab par défaut attendu %s", reg, err, first)
+	}
+	// --name : nom choisi ; un nom déjà pris par un autre lab n'empêche pas la création, le lab n'est juste pas enregistré
+	third := t.TempDir()
+	var out bytes.Buffer
+	if err := runInit(&out, strings.NewReader(""), third, false, identity{org: lab.DefaultOrg, domain: lab.DefaultDomain, name: "formation"}); err != nil {
+		t.Fatal(err)
+	}
+	if reg, _ := lab.LoadRegistry(); reg.Labs["formation"] != third {
+		t.Errorf("--name : %+v\n%s", reg, out.String())
 	}
 }

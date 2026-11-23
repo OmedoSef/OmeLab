@@ -87,11 +87,21 @@ Les réglages (stockage, accès aux VMs, gabarit par défaut d'une VM, clavier, 
 `config.env`. Ordre de priorité : variable d'environnement, puis `config.local.env` (propre au poste, non
 versionné), puis `config.env`.
 
-**Depuis n'importe quel dossier** : le premier lab créé par `labctl init` devient le **lab par défaut**, piloté
-de partout (mémorisé dans `~/.config/labctl/lab`). `labctl use` affiche le lab piloté et pourquoi ;
-`labctl use DOSSIER` change de lab par défaut. Ordre de recherche : la variable `LABS_ROOT`, puis le lab qui
-contient le dossier courant (pour travailler ponctuellement sur un autre lab, il suffit de s'y placer), puis le lab
-par défaut.
+**Plusieurs labs, depuis n'importe quel dossier.** Chaque lab créé par `labctl init` est enregistré sous un nom
+(celui du dossier, ou `--name`) dans `~/.config/labctl/labs.yaml` ; le premier devient le **lab par défaut**, piloté
+de partout.
+
+```bash
+labctl use                          # labs connus, lab par défaut (*) et lab piloté ici
+labctl use formation                # bascule : formation devient le lab par défaut
+labctl use ~/autre-lab --as perso   # ajoute un lab existant et bascule dessus
+labctl use --forget perso           # le retire de la liste (son dossier est intact)
+```
+
+`labctl status` rappelle en première ligne le lab piloté. Ordre de recherche : la variable `LABS_ROOT`, puis le lab
+qui contient le dossier courant (travailler ponctuellement sur un autre lab, c'est s'y placer), puis le lab par
+défaut. Un seul lab tourne à la fois sur une machine (libvirt, passerelle `core-gw` et noms de VMs partagés) :
+arrêter ou vider l'un (`labctl clear`) avant de démarrer l'autre.
 
 ## Repartir de zéro
 

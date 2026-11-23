@@ -135,6 +135,11 @@ func statusCmd(l *lab.Lab) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			name := "sans nom"
+			if reg, err := lab.LoadRegistry(); err == nil && reg.NameOf(l.Root) != "" {
+				name = reg.NameOf(l.Root)
+			}
+			fmt.Printf("Lab « %s » : %s (labctl use pour basculer)\n", name, l.Root)
 			fmt.Printf("Passerelle %s : %s\n", lab.GatewayVM, st.Gateway.State)
 			for _, m := range st.Modules {
 				links := "aucun"

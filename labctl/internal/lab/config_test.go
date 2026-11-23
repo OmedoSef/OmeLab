@@ -63,30 +63,40 @@ func TestLabVarsFollowFileAndConcurrent(t *testing.T) {
 	wg.Wait()
 }
 
-// Recherche du lab : LABS_ROOT, puis le lab du dossier courant, puis le lab par défaut (labctl init / use) ; un lab
-// par défaut disparu ou un dossier qui n'est pas un lab sont des erreurs qui disent quoi faire.
+// Recherche du lab : LABS_ROOT, puis le lab du dossier courant, puis le lab par défaut du registre (labctl init /
+// use) ; un lab par défaut disparu ou un dossier qui n'est pas un lab sont des erreurs qui disent quoi faire.
 func TestLocate(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("LABS_ROOT", "")
 	os.Unsetenv("LABS_ROOT")
-	mk := func() string {
-		d := t.TempDir()
-		_ = os.WriteFile(filepath.Join(d, "config.env"), nil, 0o644)
+	mk := func(name string) string {
+		d := filepath.Join(t.TempDir(), name)
 		_ = os.MkdirAll(filepath.Join(d, "modules", "x"), 0o755)
+		_ = os.WriteFile(filepath.Join(d, "config.env"), nil, 0o644)
 		return d
 	}
-	a, b, ailleurs := mk(), mk(), t.TempDir()
+	a, b, ailleurs := mk("Perso Lab"), mk("formation"), t.TempDir()
 	t.Chdir(ailleurs)
 	if _, _, err := Locate(); err == nil || !strings.Contains(err.Error(), "labctl use") {
 		t.Fatalf("sans lab : %v", err)
 	}
-	if _, err := SetDefault(ailleurs); err == nil {
-		t.Error("dossier qui n'est pas un lab accepté comme lab par défaut")
+	reg, _ := LoadRegistry()
+	if _, err := reg.Add("", ailleurs); err == nil {
+		t.Error("dossier qui n'est pas un lab enregistré")
 	}
-	if _, err := SetDefault(a); err != nil {
+	na, err := reg.Add("", a)
+	if err != nil || na != "perso-lab" {
+		t.Fatalf("nom tiré du dossier : %q %v", na, err)
+	}
+	if _, err := reg.Add("perso-lab", b); err == nil {
+		t.Error("nom déjà pris accepté pour un autre dossier")
+	}
+	nb, _ := reg.Add("", b)
+	reg.Default = na
+	if err := reg.Save(); err != nil {
 		t.Fatal(err)
 	}
-	if l, how, err := Locate(); err != nil || l.Root != a || !strings.Contains(how, "par défaut") {
+	if l, how, err := Locate(); err != nil || l.Root != a || !strings.Contains(how, "perso-lab") {
 		t.Errorf("depuis ailleurs : %v %q %v", l, how, err)
 	}
 	t.Chdir(filepath.Join(b, "modules", "x")) // le lab du dossier courant l'emporte sur le lab par défaut
@@ -99,8 +109,19 @@ func TestLocate(t *testing.T) {
 	}
 	os.Unsetenv("LABS_ROOT")
 	t.Chdir(ailleurs)
+	reloaded, _ := LoadRegistry() // relu depuis le fichier
+	if reloaded.Default != na || reloaded.Labs[nb] != b {
+		t.Errorf("registre relu : %+v", reloaded)
+	}
+	if n, _ := reloaded.Add("perso", a); n != "perso" || reloaded.Default != "perso" || reloaded.NameOf(a) != "perso" {
+		t.Errorf("renommage : %q, défaut %q", n, reloaded.Default)
+	}
+	_ = reloaded.Save()
 	_ = os.RemoveAll(a)
 	if _, _, err := Locate(); err == nil || !strings.Contains(err.Error(), "n'existe plus") {
 		t.Errorf("lab par défaut disparu : %v", err)
+	}
+	if err := reloaded.Forget("perso"); err != nil || reloaded.Default != "" {
+		t.Errorf("oubli du lab par défaut : %v, défaut %q", err, reloaded.Default)
 	}
 }

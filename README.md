@@ -60,7 +60,7 @@ labctl tient en quelques familles. Au quotidien, **`labctl <module> …`** suffi
 | `labctl lab …` | un **groupe de VMs** par étiquette libvirt (sans `module.yaml`) : `up`/`down`/`destroy`/`status`/`snapshot`/`revert` — surtout pour des VMs faites à la main (`vm create -l LAB`) | brut (libvirt) |
 | `labctl vm …` | **une** VM : `list`, `create`, `destroy`, `ip`, `ssh`, `snapshot`, `keyboard` | plus bas niveau |
 | `labctl core …` / `labctl pki …` | la passerelle (Internet, DHCP, DNS, liens) / la PKI (CA, certificats) | infrastructure |
-| `labctl use [DOSSIER]` | le **lab piloté par défaut**, depuis n'importe quel dossier (posé par `labctl init` pour le premier lab) | quel lab |
+| `labctl use [NOM \| DOSSIER]` | **les labs connus par leur nom**, et basculer de l'un à l'autre : le lab par défaut est piloté depuis n'importe quel dossier | quel lab |
 | `labctl clear [--pki] [--images]` | **vider le lab** : VMs et réseaux de tous les modules, passerelle ; `--pki` la PKI, `--images` les téléchargements. Restent les `module.yaml`, la configuration et les VMs faites à la main | remise à zéro |
 
 En clair :
