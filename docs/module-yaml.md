@@ -482,6 +482,7 @@ ses propres valeurs. Dans `lab.yaml`, une variable peut en référencer une autr
 | `labctl <m> attach MODULE/VM [IP]` | branche une VM d'un autre module sur ce réseau (câblage local ; adresse libre si omise) |
 | `labctl <m> detach MODULE/VM` | débranche une VM d'un autre module (retire la carte et le câblage local) |
 | `labctl <m> destroy [VM...]` | supprime (confirmation) ; sans VM : tout le module, sauf le `module.yaml`, la CA et les sources téléchargées |
+| `labctl up` / `start` / `stop` `[MODULE...]` | tous les modules (ou ceux donnés) d'un coup, passerelle comprise, dans l'ordre des branchements : un module qui fournit des VMs branchées ailleurs passe avant ceux qui les accueillent ; `stop` arrête dans l'ordre inverse, et la passerelle seulement quand tout le lab s'arrête |
 | `labctl clear [--pki] [--images]` | tous les modules d'un coup, puis la passerelle (une seule confirmation, après le détail) ; `--pki` : aussi la PKI ; `--images` : aussi les images, disques éditeurs et cache téléchargés par labctl (jamais les fichiers déposés à la main, ni l'image de base d'une VM faite à la main) |
 
 Les mêmes commandes existent sous `labctl module <m> …`.

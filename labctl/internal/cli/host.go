@@ -54,7 +54,7 @@ func checkCmd(l *lab.Lab) *cobra.Command {
 
 // labCmd : actions groupées sur les VMs d'un lab (créées avec « labctl vm create -l LAB »).
 func labCmd(l *lab.Lab) *cobra.Command {
-	c := &cobra.Command{Use: "lab", Short: "Actions groupées sur les VMs d'un lab (vm create -l LAB)", GroupID: "outils"}
+	c := &cobra.Command{Use: "lab", Short: "Groupes de VMs faites à la main (vm create -l LAB) ; pour tout le lab de modules : labctl up, start, stop", GroupID: "outils"}
 	labs := func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp

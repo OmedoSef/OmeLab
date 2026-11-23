@@ -110,7 +110,7 @@ confirmation qui détaille ce qui sera supprimé. `--pki` supprime aussi la PKI 
 trust-host` avait été fait, retirer l'ancienne racine des autorités du poste), `--images` ce que labctl a téléchargé
 (images du catalogue, disques éditeurs convertis, cache). Restent les `module.yaml`, `config.env`, `lab.yaml`, les
 fichiers `*.local.*`, les VMs faites à la main et les fichiers déposés à la main (ISO Windows). `labctl <module> up`
-reconstruit ensuite chaque module.
+reconstruit ensuite chaque module, ou `labctl up` tout le lab d'un coup.
 
 ## 4. Mettre à jour labctl
 
